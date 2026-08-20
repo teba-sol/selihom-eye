@@ -1,0 +1,113 @@
+import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { eq, sql, and, gte, lte } from 'drizzle-orm';
+import { DRIZZLE_PROVIDER } from '../../database/database.module';
+import { appointments, patients } from '../../database/schema';
+import { BookAppointmentDto, UpdateAppointmentStatusDto, UpdateConsentDto } from './dto/appointment.dto';
+
+@Injectable()
+export class AppointmentsService {
+  constructor(@Inject(DRIZZLE_PROVIDER) private db: any) {}
+
+  async book(dto: BookAppointmentDto) {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const [todayCount] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(appointments)
+      .where(
+        and(
+          gte(appointments.scheduledDate, todayStart),
+          lte(appointments.scheduledDate, todayEnd),
+        ),
+      );
+
+    const queueNumber = (todayCount?.count || 0) + 1;
+
+    const [newAppointment] = await this.db
+      .insert(appointments)
+      .values({
+        patientId: dto.patientId,
+        scheduledDate: new Date(dto.scheduledDate),
+        queueNumber,
+        status: 'CHECKED_IN',
+        consentObtained: dto.consentObtained ?? false,
+        consentTimestamp: dto.consentObtained ? new Date() : null,
+      })
+      .returning();
+
+    return newAppointment;
+  }
+
+  async getLiveQueue() {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    return this.db
+      .select({
+        appointmentId: appointments.id,
+        scheduledDate: appointments.scheduledDate,
+        queueNumber: appointments.queueNumber,
+        status: appointments.status,
+        consentObtained: appointments.consentObtained,
+        consentTimestamp: appointments.consentTimestamp,
+        patient: {
+          id: patients.id,
+          mrn: patients.mrn,
+          firstName: patients.firstName,
+          lastName: patients.lastName,
+          dob: patients.dob,
+          gender: patients.gender,
+          phone: patients.phone,
+          isDiabetic: patients.isDiabetic,
+          hasGlaucomaFamilyHistory: patients.hasGlaucomaFamilyHistory,
+          priorEyeSurgery: patients.priorEyeSurgery,
+        },
+      })
+      .from(appointments)
+      .innerJoin(patients, eq(appointments.patientId, patients.id))
+      .where(
+        and(
+          gte(appointments.scheduledDate, todayStart),
+          lte(appointments.scheduledDate, todayEnd),
+        ),
+      )
+      .orderBy(appointments.queueNumber);
+  }
+
+  async updateStatus(id: string, dto: UpdateAppointmentStatusDto) {
+    const [updated] = await this.db
+      .update(appointments)
+      .set({ status: dto.status, updatedAt: new Date() })
+      .where(eq(appointments.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new NotFoundException(`Appointment with ID ${id} not found`);
+    }
+    return updated;
+  }
+
+  async recordConsent(id: string, dto: UpdateConsentDto) {
+    const [updated] = await this.db
+      .update(appointments)
+      .set({
+        consentObtained: dto.consentObtained,
+        consentTimestamp: dto.consentObtained ? new Date() : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(appointments.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new NotFoundException(`Appointment with ID ${id} not found`);
+    }
+    return updated;
+  }
+}
