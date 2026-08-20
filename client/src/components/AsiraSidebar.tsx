@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useEncounterStore } from '../store/useEncounterStore';
 import {
   FileText, CheckCircle2, ChevronDown, ChevronRight,
-  Search, Eye, Glasses, Activity, Stethoscope, Sparkles,
+  Search, Eye, Glasses, Activity, Stethoscope, Sparkles
 } from 'lucide-react';
 
 interface SubItem {
@@ -14,62 +14,85 @@ interface SubItem {
 interface SectionGroup {
   id: string;
   title: string;
-  icon: any;
   items: SubItem[];
 }
 
-const SIDEBAR_STRUCTURE: SectionGroup[] = [
+export const ASIRA_SIDEBAR_CONFIG: SectionGroup[] = [
   {
     id: 'history-and-symptoms',
     title: 'History And Symptoms',
-    icon: Stethoscope,
     items: [
       { id: 'reason-for-visit', label: 'Reason For Visit', completed: true },
       { id: 'symptomatic-history', label: 'Symptomatic History', completed: true },
       { id: 'ocular-history', label: 'Ocular History', completed: true },
-      { id: 'systemic-history', label: 'Systemic History' },
-      { id: 'medication', label: 'Medication' },
-      { id: 'family-ocular-history', label: 'Family Ocular History' },
-      { id: 'family-systemic-history', label: 'Family Systemic History' },
-      { id: 'spectacles', label: 'Spectacles' },
-      { id: 'contact-lens', label: 'Contact Lens' },
-      { id: 'lifestyle', label: 'Lifestyle' },
+      { id: 'systemic-history', label: 'Systemic History', completed: true },
+      { id: 'medication', label: 'Medication', completed: true },
+      { id: 'family-ocular-history', label: 'Family Ocular History', completed: true },
+      { id: 'family-systemic-history', label: 'Family Systemic History', completed: true },
+      { id: 'spectacles', label: 'Spectacles', completed: true },
+      { id: 'contact-lens', label: 'Contact Lens', completed: true },
+      { id: 'lifestyle', label: 'Lifestyle', completed: true },
     ],
   },
   {
-    id: 'vision-and-va',
+    id: 'vision-and-visual-acuity',
     title: 'Vision And Visual Acuity',
-    icon: Eye,
     items: [
-      { id: 'visual-acuity', label: 'Visual Acuity Entry', completed: true },
-      { id: 'pinhole-va', label: 'Pinhole Testing' },
+      { id: 'visual-acuity', label: 'Visual Acuity', completed: true },
     ],
   },
   {
     id: 'refraction',
     title: 'Refraction',
-    icon: Glasses,
     items: [
       { id: 'objective-refraction', label: 'Objective / Retinoscopy' },
       { id: 'subjective-refraction', label: 'Subjective Refraction', completed: true },
     ],
   },
   {
-    id: 'anterior-segment',
-    title: 'Anterior Segment & Canvas',
-    icon: Sparkles,
+    id: 'binocular-vision-assessment',
+    title: 'Binocular Vision Assessment',
     items: [
-      { id: 'slit-lamp', label: 'Slit Lamp Examination', completed: true },
-      { id: 'cornea-canvas', label: 'Cornea Vector Drawing', completed: true },
+      { id: 'worth-4-dot', label: 'Worth 4 Dot Test' },
+      { id: 'ocular-motor-balance', label: 'Ocular Motor Balance / Cover Test' },
+      { id: 'npc', label: 'Near Point of Convergence (NPC)' },
+      { id: 'amplitude-accommodation', label: 'Amplitude of Accommodation' },
+      { id: 'ocular-motility', label: 'Ocular Motility' },
+      { id: 'pupil-evaluation', label: 'Pupil Evaluation' },
+      { id: 'stereopsis', label: 'Stereopsis' },
+      { id: 'accommodative-tests', label: 'Accommodative & Vergence Testing' },
     ],
   },
   {
-    id: 'diagnostics-and-plan',
-    title: 'Diagnostics, Advice & Action',
-    icon: Activity,
+    id: 'anterior-segment',
+    title: 'Anterior Segment',
     items: [
-      { id: 'tonometry', label: 'Tonometry & Biometry', completed: true },
-      { id: 'assessment-plan', label: 'Assessment & Optical Plan', completed: true },
+      { id: 'slit-lamp', label: 'Slit Lamp', completed: true },
+      { id: 'cornea-canvas', label: 'Drawing', completed: true },
+    ],
+  },
+  {
+    id: 'posterior-segment',
+    title: 'Posterior Segment',
+    items: [
+      { id: 'posterior-segment', label: 'Dilated / Undilated Fundus', completed: true },
+    ],
+  },
+  {
+    id: 'special-tests',
+    title: 'Special Tests / Diagnostics',
+    items: [
+      { id: 'tear-film', label: 'Tear Film Evaluation', completed: true },
+      { id: 'tonometry', label: 'Tonometry', completed: true },
+      { id: 'topography', label: 'Investigations / Topography' },
+    ],
+  },
+  {
+    id: 'assessment-and-management',
+    title: 'Assessment And Management',
+    items: [
+      { id: 'assessment-plan', label: 'Assessment & Advice', completed: true },
+      { id: 'referral', label: 'Referral / Co-Management', completed: true },
     ],
   },
 ];
@@ -79,19 +102,21 @@ export const AsiraSidebar: React.FC = () => {
   const [activeTopTab, setActiveTopTab] = useState<'TESTS' | 'REPORTS'>('TESTS');
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     'history-and-symptoms': true,
-    'vision-and-va': true,
+    'vision-and-visual-acuity': true,
     'refraction': true,
+    'binocular-vision-assessment': true,
     'anterior-segment': true,
-    'diagnostics-and-plan': true,
+    'posterior-segment': true,
+    'special-tests': true,
+    'assessment-and-management': true,
   });
 
   const toggleGroup = (groupId: string) => {
-    setExpandedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
+    setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
   };
 
   return (
     <aside className="w-80 bg-white border-r border-slate-200 flex flex-col h-full shrink-0 shadow-xs">
-      {/* Top Tab Bar: TESTS vs REPORTS */}
       <div className="flex border-b border-slate-200">
         <button
           onClick={() => setActiveTopTab('TESTS')}
@@ -115,7 +140,6 @@ export const AsiraSidebar: React.FC = () => {
         </button>
       </div>
 
-      {/* Quick Search */}
       <div className="p-3 border-b border-slate-100">
         <div className="relative">
           <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
@@ -127,9 +151,8 @@ export const AsiraSidebar: React.FC = () => {
         </div>
       </div>
 
-      {/* Accordion List */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {SIDEBAR_STRUCTURE.map((group) => {
+        {ASIRA_SIDEBAR_CONFIG.map((group) => {
           const isExpanded = !!expandedGroups[group.id];
           return (
             <div key={group.id} className="mb-1">

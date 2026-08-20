@@ -26,6 +26,86 @@ export interface RefractionGridValues {
   bvdMm: string;
 }
 
+export interface OcularConditionDetail {
+  active: boolean;
+  eye: 'Left Eye' | 'Right Eye' | 'Both Eyes';
+  date: string;
+  type?: string;
+  remarks: string;
+  showInDischarge: boolean;
+}
+
+export interface OcularHistoryState {
+  noHistoryReported: boolean;
+  generalRemarks: string;
+  conditions: {
+    surgery: OcularConditionDetail;
+    trauma: OcularConditionDetail;
+    infection: OcularConditionDetail;
+    glaucoma: OcularConditionDetail;
+    retinalDetachment: OcularConditionDetail;
+    amblyopia: OcularConditionDetail;
+  };
+}
+
+export interface SystemicConditionDetail {
+  active: boolean;
+  durationValue: number;
+  durationUnit: 'days' | 'weeks' | 'months' | 'years';
+  type?: string;
+  controlStatus: 'Well Controlled' | 'Moderately Controlled' | 'Poorly Controlled' | 'Uncontrolled';
+  remarks: string;
+  showInDischarge: boolean;
+}
+
+export interface MedicationEntry {
+  id: string;
+  drugName: string;
+  dosage: string;
+  frequency: string;
+  route: 'Ophthalmic Drops' | 'Ophthalmic Ointment' | 'Oral' | 'Subcutaneous' | 'Inhalation';
+  targetEye?: 'Left Eye' | 'Right Eye' | 'Both Eyes' | 'Systemic';
+  compliance: 'Compliant' | 'Non-Compliant' | 'Intermittent';
+  showInDischarge: boolean;
+}
+
+export interface FamilyHistoryItem {
+  id: string;
+  relation: 'Father' | 'Mother' | 'Sibling' | 'Maternal Grandparent' | 'Paternal Grandparent';
+  condition: string;
+  notes: string;
+  showInDischarge: boolean;
+}
+
+export interface SpectaclesState {
+  currentlyWears: boolean;
+  type: 'Single Vision (Distance)' | 'Single Vision (Near)' | 'Bifocal' | 'Progressive (PAL)' | 'None';
+  ageOfCurrentGlasses: string;
+  material: 'CR-39 (Plastic)' | 'Polycarbonate' | 'High Index' | 'Glass';
+  coating: string[];
+  satisfaction: 'Satisfied' | 'Blurry Distance' | 'Blurry Near' | 'Eyestrain / Headaches';
+  remarks: string;
+}
+
+export interface ContactLensState {
+  currentWearer: boolean;
+  modality: 'Daily Disposable' | 'Monthly Replacement' | 'Extended Wear' | 'RGP / Hard' | 'Scleral';
+  solutionUsed: string;
+  wearingHoursPerDay: number;
+  complianceWithCleaning: 'Good' | 'Moderate' | 'Poor';
+  lastEyeCheckDate: string;
+  remarks: string;
+}
+
+export interface LifestyleState {
+  occupation: string;
+  screenTimeHoursPerDay: number;
+  outdoorActivities: string;
+  hobbies: string;
+  lightingConditionWorkplace: 'Good' | 'Dim' | 'Glare Present';
+  drivingRequirements: 'Daytime Only' | 'Night Driving Frequent' | 'Commercial Driver' | 'None';
+}
+
 interface EncounterState {
   activeTab: string;
   patient: {
@@ -40,19 +120,7 @@ interface EncounterState {
   consentObtained: boolean;
 
   // 1. History and Symptoms
-  ocularHistory: {
-    noHistoryReported: boolean;
-    infection: {
-      active: boolean;
-      eye: 'Left Eye' | 'Right Eye' | 'Both Eyes';
-      date: string;
-      type: string;
-      remarks: string;
-    };
-    surgery: { active: boolean; eye: string; date: string; procedure: string };
-    trauma: { active: boolean; eye: string; date: string; remarks: string };
-    glaucoma: { active: boolean; eye: string; remarks: string };
-  };
+  ocularHistory: OcularHistoryState;
   symptoms: SymptomItem[];
 
   // 2. Visual Acuity
@@ -79,6 +147,28 @@ interface EncounterState {
   odCanvasVectors: string;
   osCanvasVectors: string;
 
+  // 3b. Systemic History
+  systemicHistory: {
+    noHistoryReported: boolean;
+    generalRemarks: string;
+    conditions: {
+      diabetes: SystemicConditionDetail;
+      hypertension: SystemicConditionDetail;
+      thyroid: SystemicConditionDetail;
+      autoimmune: SystemicConditionDetail;
+      cardiovascular: SystemicConditionDetail;
+      respiratoryAsthma: SystemicConditionDetail;
+      cholesterol: SystemicConditionDetail;
+      allergies: SystemicConditionDetail;
+    };
+  };
+  patientMedications: MedicationEntry[];
+  familyOcularHistory: FamilyHistoryItem[];
+  familySystemicHistory: FamilyHistoryItem[];
+  spectaclesHistory: SpectaclesState;
+  contactLensHistory: ContactLensState;
+  lifestyleDemands: LifestyleState;
+
   // 5. Diagnostics
   tonometry: {
     odIop: string;
@@ -94,8 +184,9 @@ interface EncounterState {
   // Actions
   setActiveTab: (tab: string) => void;
   setConsent: (val: boolean) => void;
-  updateOcularInfection: (data: Partial<EncounterState['ocularHistory']['infection']>) => void;
-  toggleOcularCondition: (key: 'infection' | 'surgery' | 'trauma' | 'glaucoma') => void;
+  updateOcularCondition: (key: keyof OcularHistoryState['conditions'], data: Partial<OcularConditionDetail>) => void;
+  setOcularGeneralRemarks: (remarks: string) => void;
+  setNoOcularHistory: (val: boolean) => void;
   updateRefraction: (data: Partial<RefractionGridValues>) => void;
   updateVisualAcuity: (data: Partial<EncounterState['visualAcuity']>) => void;
   setCanvasVectors: (eye: 'OD' | 'OS', vectors: string) => void;
@@ -104,6 +195,16 @@ interface EncounterState {
   addOrToggleSymptom: (name: string) => void;
   updateSymptom: (id: string, data: Partial<SymptomItem>) => void;
   setVisualAcuityField: (field: keyof EncounterState['visualAcuity'], value: string) => void;
+  updateSystemicCondition: (key: string, data: Partial<SystemicConditionDetail>) => void;
+  setSystemicGeneralRemarks: (remarks: string) => void;
+  setNoSystemicHistory: (val: boolean) => void;
+  addPatientMedication: (med: MedicationEntry) => void;
+  removePatientMedication: (id: string) => void;
+  addFamilyHistoryItem: (type: 'ocular' | 'systemic', item: FamilyHistoryItem) => void;
+  removeFamilyHistoryItem: (type: 'ocular' | 'systemic', id: string) => void;
+  updateSpectacles: (data: Partial<SpectaclesState>) => void;
+  updateContactLens: (data: Partial<ContactLensState>) => void;
+  updateLifestyle: (data: Partial<LifestyleState>) => void;
 }
 
 export const useEncounterStore = create<EncounterState>((set) => ({
@@ -121,18 +222,61 @@ export const useEncounterStore = create<EncounterState>((set) => ({
 
   ocularHistory: {
     noHistoryReported: false,
-    infection: {
-      active: true,
-      eye: 'Both Eyes',
-      date: '',
-      type: 'Corneal',
-      remarks: 'Childhood corneal infection, unsure of exact date',
+    generalRemarks: 'Patient reported childhood history treated in rural clinic.',
+    conditions: {
+      surgery: { active: false, eye: 'Right Eye', date: '', type: 'Cataract', remarks: '', showInDischarge: true },
+      trauma: { active: false, eye: 'Right Eye', date: '', type: 'Blunt Trauma', remarks: '', showInDischarge: true },
+      infection: { active: true, eye: 'Both Eyes', date: '', type: 'Corneal', remarks: 'Childhood corneal infection, unsure of exact date', showInDischarge: true },
+      glaucoma: { active: false, eye: 'Both Eyes', date: '', type: 'POAG', remarks: '', showInDischarge: false },
+      retinalDetachment: { active: false, eye: 'Right Eye', date: '', type: 'Rhegmatogenous', remarks: '', showInDischarge: false },
+      amblyopia: { active: false, eye: 'Left Eye', date: '', type: 'Refractive', remarks: '', showInDischarge: false },
     },
-    surgery: { active: false, eye: 'Right Eye', date: '', procedure: '' },
-    trauma: { active: false, eye: 'Right Eye', date: '', remarks: '' },
-    glaucoma: { active: false, eye: 'Both Eyes', remarks: '' },
   },
   symptoms: [],
+
+  systemicHistory: {
+    noHistoryReported: false,
+    generalRemarks: '',
+    conditions: {
+      diabetes: { active: false, durationValue: 1, durationUnit: 'years', type: 'Type 2 (NIDDM)', controlStatus: 'Well Controlled', remarks: '', showInDischarge: true },
+      hypertension: { active: false, durationValue: 1, durationUnit: 'years', type: 'Essential / Primary', controlStatus: 'Well Controlled', remarks: '', showInDischarge: true },
+      thyroid: { active: false, durationValue: 1, durationUnit: 'years', type: 'Hypothyroidism (Hashimoto)', controlStatus: 'Well Controlled', remarks: '', showInDischarge: true },
+      autoimmune: { active: false, durationValue: 1, durationUnit: 'years', type: 'Rheumatoid Arthritis', controlStatus: 'Well Controlled', remarks: '', showInDischarge: true },
+      cardiovascular: { active: false, durationValue: 1, durationUnit: 'years', type: 'Coronary Artery Disease', controlStatus: 'Well Controlled', remarks: '', showInDischarge: true },
+      respiratoryAsthma: { active: false, durationValue: 1, durationUnit: 'years', type: 'Bronchial Asthma', controlStatus: 'Well Controlled', remarks: '', showInDischarge: true },
+      cholesterol: { active: false, durationValue: 1, durationUnit: 'years', type: 'Mixed Hyperlipidemia', controlStatus: 'Well Controlled', remarks: '', showInDischarge: true },
+      allergies: { active: false, durationValue: 1, durationUnit: 'years', type: 'Penicillin / Beta-lactams', controlStatus: 'Well Controlled', remarks: '', showInDischarge: true },
+    },
+  },
+  patientMedications: [],
+  familyOcularHistory: [],
+  familySystemicHistory: [],
+  spectaclesHistory: {
+    currentlyWears: false,
+    type: 'Single Vision (Distance)',
+    ageOfCurrentGlasses: '',
+    material: 'CR-39 (Plastic)',
+    coating: [],
+    satisfaction: 'Satisfied',
+    remarks: '',
+  },
+  contactLensHistory: {
+    currentWearer: false,
+    modality: 'Daily Disposable',
+    solutionUsed: '',
+    wearingHoursPerDay: 8,
+    complianceWithCleaning: 'Good',
+    lastEyeCheckDate: '',
+    remarks: '',
+  },
+  lifestyleDemands: {
+    occupation: '',
+    screenTimeHoursPerDay: 8,
+    outdoorActivities: '',
+    hobbies: '',
+    lightingConditionWorkplace: 'Good',
+    drivingRequirements: 'Daytime Only',
+  },
 
   visualAcuity: {
     unaidedOd: '6/24',
@@ -183,22 +327,23 @@ export const useEncounterStore = create<EncounterState>((set) => ({
 
   setActiveTab: (tab) => set({ activeTab: tab }),
   setConsent: (val) => set({ consentObtained: val }),
-  updateOcularInfection: (data) =>
+  updateOcularCondition: (key, data) =>
     set((state) => ({
       ocularHistory: {
         ...state.ocularHistory,
-        infection: { ...state.ocularHistory.infection, ...data },
-      },
-    })),
-  toggleOcularCondition: (key) =>
-    set((state) => ({
-      ocularHistory: {
-        ...state.ocularHistory,
-        [key]: {
-          ...state.ocularHistory[key],
-          active: !state.ocularHistory[key].active,
+        conditions: {
+          ...state.ocularHistory.conditions,
+          [key]: { ...state.ocularHistory.conditions[key], ...data },
         },
       },
+    })),
+  setOcularGeneralRemarks: (generalRemarks) =>
+    set((state) => ({
+      ocularHistory: { ...state.ocularHistory, generalRemarks },
+    })),
+  setNoOcularHistory: (noHistoryReported) =>
+    set((state) => ({
+      ocularHistory: { ...state.ocularHistory, noHistoryReported },
     })),
   updateRefraction: (data) =>
     set((state) => ({ refraction: { ...state.refraction, ...data } })),
@@ -238,4 +383,48 @@ export const useEncounterStore = create<EncounterState>((set) => ({
     set((state) => ({
       visualAcuity: { ...state.visualAcuity, [field]: value },
     })),
+  updateSystemicCondition: (key, data) =>
+    set((state) => ({
+      systemicHistory: {
+        ...state.systemicHistory,
+        conditions: {
+          ...state.systemicHistory.conditions,
+          [key]: { ...(state.systemicHistory.conditions as any)[key], ...data },
+        },
+      },
+    })),
+  setSystemicGeneralRemarks: (generalRemarks) =>
+    set((state) => ({
+      systemicHistory: { ...state.systemicHistory, generalRemarks },
+    })),
+  setNoSystemicHistory: (noHistoryReported) =>
+    set((state) => ({
+      systemicHistory: { ...state.systemicHistory, noHistoryReported },
+    })),
+  addPatientMedication: (med) =>
+    set((state) => ({
+      patientMedications: [...state.patientMedications, med],
+    })),
+  removePatientMedication: (id) =>
+    set((state) => ({
+      patientMedications: state.patientMedications.filter((m) => m.id !== id),
+    })),
+  addFamilyHistoryItem: (type, item) =>
+    set((state) => ({
+      ...(type === 'ocular'
+        ? { familyOcularHistory: [...state.familyOcularHistory, item] }
+        : { familySystemicHistory: [...state.familySystemicHistory, item] }),
+    })),
+  removeFamilyHistoryItem: (type, id) =>
+    set((state) => ({
+      ...(type === 'ocular'
+        ? { familyOcularHistory: state.familyOcularHistory.filter((i) => i.id !== id) }
+        : { familySystemicHistory: state.familySystemicHistory.filter((i) => i.id !== id) }),
+    })),
+  updateSpectacles: (data) =>
+    set((state) => ({ spectaclesHistory: { ...state.spectaclesHistory, ...data } })),
+  updateContactLens: (data) =>
+    set((state) => ({ contactLensHistory: { ...state.contactLensHistory, ...data } })),
+  updateLifestyle: (data) =>
+    set((state) => ({ lifestyleDemands: { ...state.lifestyleDemands, ...data } })),
 }));
