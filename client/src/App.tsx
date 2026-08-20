@@ -12,11 +12,69 @@ import { LifestyleView } from './features/LifestyleView';
 import { VisionAndVisualAcuityView } from './features/VisionAndVisualAcuityView';
 import { ObjectiveRefractionView } from './features/ObjectiveRefractionView';
 import { SubjectiveRefractionView } from './features/SubjectiveRefractionView';
-import { BinocularVisionView } from './features/BinocularVisionView';
-import { SlitLampView } from './features/SlitLampView';
-import { AnteriorDrawingView } from './features/AnteriorDrawingView';
-import { PosteriorSegmentView } from './features/PosteriorSegmentView';
+import { Worth4DotView } from './features/binocular/Worth4DotView';
+import { CoverTestView } from './features/binocular/CoverTestView';
+import { OcularMotorBalanceView } from './features/binocular/OcularMotorBalanceView';
+import { NpcView } from './features/binocular/NpcView';
+import { MotilityView } from './features/binocular/MotilityView';
+import { PupilView } from './features/binocular/PupilView';
+import { AccommodationView } from './features/binocular/AccommodationView';
+import { StereopsisView } from './features/binocular/StereopsisView';
+import { AccommodativeLagView } from './features/binocular/AccommodativeLagView';
+import { AccommodativeFacilityView } from './features/binocular/AccommodativeFacilityView';
+import { RelativeAccommodationView } from './features/binocular/RelativeAccommodationView';
+import { AnteriorSegmentEvaluationView } from './features/AnteriorSegmentEvaluationView';
+import { CrystallineLensView } from './features/CrystallineLensView';
+import { PosteriorSegmentEvaluationView } from './features/PosteriorSegmentEvaluationView';
+import { TearFilmEvaluationView } from './features/TearFilmEvaluationView';
+import { ColourVisionView } from './features/additional/ColourVisionView';
+import { TonometryView } from './features/additional/TonometryView';
+import { PachymetryView } from './features/additional/PachymetryView';
+import { GonioscopyView } from './features/additional/GonioscopyView';
+import { AmslerView } from './features/additional/AmslerView';
+import { ContrastSensitivityView } from './features/additional/ContrastSensitivityView';
+import { TopographyView } from './features/TopographyView';
+import { AssessmentPlanView } from './features/AssessmentPlanView';
+import { ReferralView } from './features/ReferralView';
 import { useEncounterStore } from './store/useEncounterStore';
+
+const IMPLEMENTED_TABS = [
+  'symptomatic-history',
+  'ocular-history',
+  'systemic-history',
+  'medication',
+  'family-ocular-history',
+  'family-systemic-history',
+  'spectacles',
+  'contact-lens',
+  'lifestyle',
+  'visual-acuity',
+  'objective-refraction',
+  'subjective-refraction',
+  'worth-4-dot',
+  'ocular-motor-balance',
+  'near-point-of-convergence',
+  'amplitude-of-accommodation',
+  'ocular-motility',
+  'pupil-evaluation',
+  'stereopsis',
+  'accommodative-lag',
+  'accommodative-facility',
+  'relative-accommodation',
+  'anterior-segment-eval',
+  'crystalline-lens',
+  'posterior-segment',
+  'tear-film',
+  'colour-vision',
+  'tonometry',
+  'pachymetry',
+  'gonioscopy',
+  'amsler',
+  'contrast-sensitivity',
+  'topography',
+  'assessment-plan',
+  'referral',
+];
 
 export default function App() {
   const { activeTab } = useEncounterStore();
@@ -41,46 +99,34 @@ export default function App() {
           {activeTab === 'visual-acuity' && <VisionAndVisualAcuityView />}
           {activeTab === 'objective-refraction' && <ObjectiveRefractionView />}
           {activeTab === 'subjective-refraction' && <SubjectiveRefractionView />}
-          {activeTab === 'worth-4-dot' && <BinocularVisionView />}
-          {activeTab === 'ocular-motor-balance' && <BinocularVisionView />}
-          {activeTab === 'npc' && <BinocularVisionView />}
-          {activeTab === 'amplitude-accommodation' && <BinocularVisionView />}
-          {activeTab === 'ocular-motility' && <BinocularVisionView />}
-          {activeTab === 'pupil-evaluation' && <BinocularVisionView />}
-          {activeTab === 'stereopsis' && <BinocularVisionView />}
-          {activeTab === 'accommodative-tests' && <BinocularVisionView />}
-          {activeTab === 'slit-lamp' && <SlitLampView />}
-          {activeTab === 'cornea-canvas' && <AnteriorDrawingView />}
-          {activeTab === 'posterior-segment' && <PosteriorSegmentView />}
+          {activeTab === 'worth-4-dot' && <Worth4DotView />}
+          {activeTab === 'ocular-motor-balance' && <OcularMotorBalanceView />}
+          {activeTab === 'near-point-of-convergence' && <NpcView />}
+          {activeTab === 'amplitude-of-accommodation' && <AccommodationView />}
+          {activeTab === 'ocular-motility' && <MotilityView />}
+          {activeTab === 'pupil-evaluation' && <PupilView />}
+          {activeTab === 'stereopsis' && <StereopsisView />}
+          {activeTab === 'accommodative-lag' && <AccommodativeLagView />}
+          {activeTab === 'accommodative-facility' && <AccommodativeFacilityView />}
+          {activeTab === 'relative-accommodation' && <RelativeAccommodationView />}
+          {activeTab === 'anterior-segment-eval' && <AnteriorSegmentEvaluationView />}
+          {activeTab === 'crystalline-lens' && <CrystallineLensView />}
+          {activeTab === 'posterior-segment' && <PosteriorSegmentEvaluationView />}
+          {activeTab === 'tear-film' && <TearFilmEvaluationView />}
+          {activeTab === 'colour-vision' && <ColourVisionView />}
+          {activeTab === 'tonometry' && <TonometryView />}
+          {activeTab === 'pachymetry' && <PachymetryView />}
+          {activeTab === 'gonioscopy' && <GonioscopyView />}
+          {activeTab === 'amsler' && <AmslerView />}
+          {activeTab === 'contrast-sensitivity' && <ContrastSensitivityView />}
+          {activeTab === 'topography' && <TopographyView />}
+          {activeTab === 'assessment-plan' && <AssessmentPlanView />}
+          {activeTab === 'referral' && <ReferralView />}
 
-          {![
-            'symptomatic-history',
-            'ocular-history',
-            'systemic-history',
-            'medication',
-            'family-ocular-history',
-            'family-systemic-history',
-            'spectacles',
-            'contact-lens',
-            'lifestyle',
-            'visual-acuity',
-            'objective-refraction',
-            'subjective-refraction',
-            'worth-4-dot',
-            'ocular-motor-balance',
-            'npc',
-            'amplitude-accommodation',
-            'ocular-motility',
-            'pupil-evaluation',
-            'stereopsis',
-            'accommodative-tests',
-            'slit-lamp',
-            'cornea-canvas',
-            'posterior-segment',
-          ].includes(activeTab) && (
+          {!IMPLEMENTED_TABS.includes(activeTab) && (
             <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-xs max-w-4xl">
               <h2 className="text-lg font-bold text-slate-800 mb-2 uppercase tracking-wide">
-                Active Module: {activeTab.replace('-', ' ')}
+                Active Module: {activeTab.replace(/-/g, ' ')}
               </h2>
               <p className="text-xs text-slate-500">
                 Ready for next module implementation.

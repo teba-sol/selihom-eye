@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useEncounterStore } from '../store/useEncounterStore';
 import {
   FileText, CheckCircle2, ChevronDown, ChevronRight,
-  Search, Eye, Glasses, Activity, Stethoscope, Sparkles
+  Search
 } from 'lucide-react';
 
 interface SubItem {
@@ -53,45 +53,64 @@ export const ASIRA_SIDEBAR_CONFIG: SectionGroup[] = [
     id: 'binocular-vision-assessment',
     title: 'Binocular Vision Assessment',
     items: [
-      { id: 'worth-4-dot', label: 'Worth 4 Dot Test' },
-      { id: 'ocular-motor-balance', label: 'Ocular Motor Balance / Cover Test' },
-      { id: 'npc', label: 'Near Point of Convergence (NPC)' },
-      { id: 'amplitude-accommodation', label: 'Amplitude of Accommodation' },
-      { id: 'ocular-motility', label: 'Ocular Motility' },
-      { id: 'pupil-evaluation', label: 'Pupil Evaluation' },
-      { id: 'stereopsis', label: 'Stereopsis' },
-      { id: 'accommodative-tests', label: 'Accommodative & Vergence Testing' },
+      { id: 'worth-4-dot', label: 'Worth 4 Dot Test', completed: true },
+      { id: 'ocular-motor-balance', label: 'Ocular Motor Balance', completed: true },
+      { id: 'near-point-of-convergence', label: 'Near Point Of Convergence', completed: true },
+      { id: 'amplitude-of-accommodation', label: 'Amplitude Of Accommodation', completed: true },
+      { id: 'ocular-motility', label: 'Ocular Motility', completed: true },
+      { id: 'pupil-evaluation', label: 'Pupil Evaluation', completed: true },
+      { id: 'stereopsis', label: 'Stereopsis', completed: true },
+      { id: 'accommodative-lag', label: 'Accommodative Lag' },
+      { id: 'accommodative-facility', label: 'Accommodative Facility' },
+      { id: 'relative-accommodation', label: 'Relative Accommodation' },
     ],
   },
   {
     id: 'anterior-segment',
-    title: 'Anterior Segment',
+    title: 'Anterior Segment Evaluation',
     items: [
-      { id: 'slit-lamp', label: 'Slit Lamp', completed: true },
-      { id: 'cornea-canvas', label: 'Drawing', completed: true },
+      { id: 'anterior-segment-eval', label: 'Anterior Segment Evaluation', completed: true },
     ],
   },
   {
-    id: 'posterior-segment',
-    title: 'Posterior Segment',
+    id: 'crystalline-lens-group',
+    title: 'Crystalline Lens Evaluation',
     items: [
-      { id: 'posterior-segment', label: 'Dilated / Undilated Fundus', completed: true },
+      { id: 'crystalline-lens', label: 'Crystalline Lens Evaluation', completed: true },
     ],
   },
   {
-    id: 'special-tests',
-    title: 'Special Tests / Diagnostics',
+    id: 'posterior-segment-group',
+    title: 'Posterior Segment Evaluation',
+    items: [
+      { id: 'posterior-segment', label: 'Posterior Segment Evaluation', completed: true },
+    ],
+  },
+  {
+    id: 'additional-tests',
+    title: 'Additional Tests',
     items: [
       { id: 'tear-film', label: 'Tear Film Evaluation', completed: true },
-      { id: 'tonometry', label: 'Tonometry', completed: true },
-      { id: 'topography', label: 'Investigations / Topography' },
+      { id: 'colour-vision', label: 'Colour Vision' },
+      { id: 'pachymetry', label: 'Pachymetry' },
+      { id: 'tonometry', label: 'Tonometry' },
+      { id: 'gonioscopy', label: 'Gonioscopy' },
+      { id: 'amsler', label: 'Amsler' },
+      { id: 'contrast-sensitivity', label: 'Contrast Sensitivity' },
+    ],
+  },
+  {
+    id: 'imaging-and-diagnostics',
+    title: 'Imaging And Diagnostics',
+    items: [
+      { id: 'topography', label: 'Corneal Topography' },
     ],
   },
   {
     id: 'assessment-and-management',
     title: 'Assessment And Management',
     items: [
-      { id: 'assessment-plan', label: 'Assessment & Advice', completed: true },
+      { id: 'assessment-plan', label: 'Assessment & Plan', completed: true },
       { id: 'referral', label: 'Referral / Co-Management', completed: true },
     ],
   },
@@ -106,8 +125,10 @@ export const AsiraSidebar: React.FC = () => {
     'refraction': true,
     'binocular-vision-assessment': true,
     'anterior-segment': true,
-    'posterior-segment': true,
-    'special-tests': true,
+    'crystalline-lens-group': true,
+    'posterior-segment-group': true,
+    'additional-tests': true,
+    'imaging-and-diagnostics': true,
     'assessment-and-management': true,
   });
 
