@@ -1,232 +1,352 @@
 import React, { useState } from 'react';
 
+type DistanceData = { sph: string; cyl: string; axis: string; va: string };
+type NearInterData = { add: string; va: string };
+type SubjectiveEye = { dist: DistanceData; near: NearInterData; inter: NearInterData };
+type ObjectiveEye = { sph: string; cyl: string; axis: string; va: string };
+
+const DIST_VA_OPTIONS = ['-', '6/5', '6/6', '6/9', '6/12', '6/18', '6/24', '6/36', '6/60', '3/60', '2/60', '1/60', 'CF', 'PL', 'NPL'];
+const NEAR_VA_OPTIONS = ['-', 'N5', 'N6', 'N8', 'N10', 'N12', 'N14', 'N18', 'N24', 'N36', 'N48'];
+
+const InputCell = ({
+  value,
+  onChange,
+  className = '',
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  className?: string;
+}) => (
+  <td className={`p-0 border-b border-slate-200 transition-colors bg-white ${className}`}>
+    <input
+      type="number"
+      step="0.25"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="-"
+      className="w-full h-full py-4 px-2 text-center bg-transparent outline-none focus:ring-2 focus:ring-inset focus:ring-[#2957a4] text-slate-700 font-medium"
+    />
+  </td>
+);
+
+const SelectCell = ({
+  value,
+  onChange,
+  options,
+  className = '',
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: string[];
+  className?: string;
+}) => (
+  <td className={`p-0 border-b border-slate-200 transition-colors bg-white ${className}`}>
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full h-full py-4 pl-4 pr-2 text-center bg-transparent outline-none focus:ring-2 focus:ring-inset focus:ring-[#2957a4] text-slate-700 font-medium cursor-pointer"
+    >
+      {options.map((opt) => (
+        <option key={opt} value={opt}>
+          {opt === '-' ? '✓ -' : opt}
+        </option>
+      ))}
+    </select>
+  </td>
+);
+
 export const SubjectiveRefractionView: React.FC = () => {
-  const [unit, setUnit] = useState('Snellen');
+  const [tab, setTab] = useState<'objective' | 'subjective'>('subjective');
+  const [unit, setUnit] = useState('Snellan');
 
-  const [odDist, setOdDist] = useState({ sph: '-1.50', cyl: '-12.00', axis: '180', va: '6/12' });
-  const [odNear, setOdNear] = useState({ add: '+1.75', va: 'N6' });
+  const [subjOd, setSubjOd] = useState<SubjectiveEye>({
+    dist: { sph: '', cyl: '', axis: '', va: '-' },
+    near: { add: '', va: '-' },
+    inter: { add: '', va: '-' }
+  });
+  const [subjOs, setSubjOs] = useState<SubjectiveEye>({
+    dist: { sph: '', cyl: '', axis: '', va: '-' },
+    near: { add: '', va: '-' },
+    inter: { add: '', va: '-' }
+  });
 
-  const [osDist, setOsDist] = useState({ sph: '-0.75', cyl: '-1.50', axis: '90', va: '6/6' });
-  const [osNear, setOsNear] = useState({ add: '+1.75', va: 'N6' });
+  const [objOd, setObjOd] = useState<ObjectiveEye>({ sph: '', cyl: '', axis: '', va: '-' });
+  const [objOs, setObjOs] = useState<ObjectiveEye>({ sph: '', cyl: '', axis: '', va: '-' });
 
-  const [pd, setPd] = useState('64');
-  const [bvd, setBvd] = useState('12');
-  const [remarks, setRemarks] = useState('High cylinder OD due to irregular corneal scarring; patient achieved 6/12 with trial frame.');
-  const [showInDischarge, setShowInDischarge] = useState(true);
+  const [remarks, setRemarks] = useState('');
+  const [showInDischarge, setShowInDischarge] = useState(false);
 
-  const DIST_VA_OPTIONS = ['-', '6/6', '6/9', '6/12', '6/18', '6/24', '6/36', '6/60'];
-  const NEAR_VA_OPTIONS = ['-', 'N5', 'N6', 'N8', 'N10', 'N12'];
+
 
   return (
-    <div className="p-8 max-w-5xl bg-white min-h-full">
-      <h1 className="text-xl font-bold text-[#1E3A8A] mb-6">Subjective Refraction</h1>
+    <div className="p-8 max-w-5xl bg-white min-h-full font-sans">
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-2xl font-bold text-[#2957a4]">Objective Subjective</h1>
+        <select
+          value={unit}
+          onChange={(e) => setUnit(e.target.value)}
+          className="border border-slate-300 rounded px-4 py-1.5 bg-white text-sm font-medium text-slate-700 focus:outline-none focus:border-[#2957a4] shadow-sm"
+        >
+          <option value="Snellan">Snellan</option>
+          <option value="LogMAR">LogMAR</option>
+          <option value="Decimal">Decimal</option>
+        </select>
+      </div>
 
-      <div className="mb-6">
-        <div className="flex items-center justify-end mb-3">
-          <select
-            value={unit}
-            onChange={(e) => setUnit(e.target.value)}
-            className="text-xs border border-slate-300 rounded px-2.5 py-1 bg-white font-medium focus:outline-none focus:border-blue-600"
-          >
-            <option value="Snellen">Snellen</option>
-            <option value="LogMAR">LogMAR</option>
-            <option value="Decimal">Decimal</option>
-          </select>
-        </div>
+      <div className="flex border-b border-slate-200 mb-6 gap-6">
+        <button
+          className={`pb-2 font-medium text-[15px] transition-colors ${
+            tab === 'objective'
+              ? 'text-[#2957a4] border-b-2 border-[#2957a4]'
+              : 'text-slate-400 border-b-2 border-transparent hover:text-slate-600'
+          }`}
+          onClick={() => setTab('objective')}
+        >
+          Objective
+        </button>
+        <button
+          className={`pb-2 font-medium text-[15px] transition-colors ${
+            tab === 'subjective'
+              ? 'text-[#2957a4] border-b-2 border-[#2957a4]'
+              : 'text-slate-400 border-b-2 border-transparent hover:text-slate-600'
+          }`}
+          onClick={() => setTab('subjective')}
+        >
+          Subjective
+        </button>
+      </div>
 
-        <div className="border border-slate-200 rounded overflow-hidden">
-          <table className="w-full border-collapse text-xs">
-            <thead>
-              <tr className="border-b border-slate-200 bg-white">
-                <th className="py-2.5 px-3 text-left font-bold text-slate-700 w-32"></th>
-                <th className="py-2.5 px-3 text-left font-bold text-slate-700 w-36"></th>
-                <th className="py-2.5 px-3 text-center font-bold text-slate-700">Sphere</th>
-                <th className="py-2.5 px-3 text-center font-bold text-slate-700">Cyl</th>
-                <th className="py-2.5 px-3 text-center font-bold text-slate-700">Axis</th>
-                <th className="py-2.5 px-3 text-center font-bold text-slate-700">VA</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 bg-white">
-              <tr>
-                <td rowSpan={2} className="py-3 px-3 font-bold text-slate-800 border-r border-slate-200 bg-slate-50/50 align-middle">
-                  Right Eye
-                </td>
-                <td className="py-2 px-3 font-semibold text-slate-600 border-r border-slate-200">
-                  Distance
-                </td>
-                <td className="py-1.5 px-2 text-center">
-                  <input
-                    type="text"
-                    value={odDist.sph}
-                    onChange={(e) => setOdDist({ ...odDist, sph: e.target.value })}
-                    className="w-full text-center py-1 border border-slate-200 rounded font-bold"
-                  />
-                </td>
-                <td className="py-1.5 px-2 text-center">
-                  <input
-                    type="text"
-                    value={odDist.cyl}
-                    onChange={(e) => setOdDist({ ...odDist, cyl: e.target.value })}
-                    className="w-full text-center py-1 border border-slate-200 rounded font-bold"
-                  />
-                </td>
-                <td className="py-1.5 px-2 text-center">
-                  <input
-                    type="text"
-                    value={odDist.axis}
-                    onChange={(e) => setOdDist({ ...odDist, axis: e.target.value })}
-                    className="w-full text-center py-1 border border-slate-200 rounded font-bold"
-                  />
-                </td>
-                <td className="py-1.5 px-2 text-center">
-                  <select
-                    value={odDist.va}
-                    onChange={(e) => setOdDist({ ...odDist, va: e.target.value })}
-                    className="w-full text-center py-1 border border-slate-200 rounded bg-white font-bold"
+      <div className="mb-8">
+        <div className="border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+          {tab === 'subjective' ? (
+            <table className="w-full border-collapse text-sm text-center bg-white">
+              <thead>
+                <tr>
+                  <th colSpan={2} className="bg-white border-b border-r border-slate-200"></th>
+                  <th className="py-4 font-bold text-slate-800 border-b border-r border-slate-200 w-1/6">Sphere</th>
+                  <th className="py-4 font-bold text-slate-800 border-b border-r border-slate-200 w-1/6">Cyl</th>
+                  <th className="py-4 font-bold text-slate-800 border-b border-r border-slate-200 w-1/6">Axis</th>
+                  <th className="py-4 font-bold text-slate-800 border-b border-slate-200 w-1/6">VA</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* RIGHT EYE */}
+                <tr>
+                  <td
+                    rowSpan={3}
+                    className="py-4 px-6 font-bold text-slate-800 border-b border-r border-slate-200 w-[15%] text-left align-middle"
                   >
-                    {DIST_VA_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </td>
-              </tr>
-              <tr>
-                <td className="py-2 px-3 font-semibold text-slate-600 border-r border-slate-200">
-                  Near addition
-                </td>
-                <td colSpan={3} className="py-1.5 px-2 text-center">
-                  <input
-                    type="text"
-                    value={odNear.add}
-                    onChange={(e) => setOdNear({ ...odNear, add: e.target.value })}
-                    className="w-full text-center py-1 border border-slate-200 rounded font-bold"
+                    Right Eye<br />(O.D)
+                  </td>
+                  <td className="py-4 px-6 font-bold text-slate-800 border-b border-r border-slate-200 text-left whitespace-nowrap">
+                    Distance
+                  </td>
+                  <InputCell
+                    value={subjOd.dist.sph}
+                    onChange={(v) => setSubjOd({ ...subjOd, dist: { ...subjOd.dist, sph: v } })}
+                    className="border-r"
                   />
-                </td>
-                <td className="py-1.5 px-2 text-center">
-                  <select
-                    value={odNear.va}
-                    onChange={(e) => setOdNear({ ...odNear, va: e.target.value })}
-                    className="w-full text-center py-1 border border-slate-200 rounded bg-white font-bold"
-                  >
-                    {NEAR_VA_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </td>
-              </tr>
+                  <InputCell
+                    value={subjOd.dist.cyl}
+                    onChange={(v) => setSubjOd({ ...subjOd, dist: { ...subjOd.dist, cyl: v } })}
+                    className="border-r"
+                  />
+                  <InputCell
+                    value={subjOd.dist.axis}
+                    onChange={(v) => setSubjOd({ ...subjOd, dist: { ...subjOd.dist, axis: v } })}
+                    className="border-r"
+                  />
+                  <SelectCell
+                    value={subjOd.dist.va}
+                    onChange={(v) => setSubjOd({ ...subjOd, dist: { ...subjOd.dist, va: v } })}
+                    options={DIST_VA_OPTIONS}
+                  />
+                </tr>
+                <tr>
+                  <td className="py-4 px-6 font-bold text-slate-800 border-b border-r border-slate-200 text-left whitespace-nowrap">
+                    Near addition
+                  </td>
+                  <td colSpan={2} className="p-0 border-b border-slate-200 bg-white"></td>
+                  <InputCell
+                    value={subjOd.near.add}
+                    onChange={(v) => setSubjOd({ ...subjOd, near: { ...subjOd.near, add: v } })}
+                    className="border-r"
+                  />
+                  <SelectCell
+                    value={subjOd.near.va}
+                    onChange={(v) => setSubjOd({ ...subjOd, near: { ...subjOd.near, va: v } })}
+                    options={NEAR_VA_OPTIONS}
+                  />
+                </tr>
+                <tr>
+                  <td className="py-4 px-6 font-bold text-slate-800 border-b border-r border-slate-200 text-left whitespace-nowrap">
+                    Intermediate addition
+                  </td>
+                  <td colSpan={2} className="p-0 border-b border-slate-200 bg-white"></td>
+                  <InputCell
+                    value={subjOd.inter.add}
+                    onChange={(v) => setSubjOd({ ...subjOd, inter: { ...subjOd.inter, add: v } })}
+                    className="border-r"
+                  />
+                  <SelectCell
+                    value={subjOd.inter.va}
+                    onChange={(v) => setSubjOd({ ...subjOd, inter: { ...subjOd.inter, va: v } })}
+                    options={NEAR_VA_OPTIONS}
+                  />
+                </tr>
 
-              <tr>
-                <td rowSpan={2} className="py-3 px-3 font-bold text-slate-800 border-r border-slate-200 bg-slate-50/50 align-middle">
-                  Left Eye
-                </td>
-                <td className="py-2 px-3 font-semibold text-slate-600 border-r border-slate-200">
-                  Distance
-                </td>
-                <td className="py-1.5 px-2 text-center">
-                  <input
-                    type="text"
-                    value={osDist.sph}
-                    onChange={(e) => setOsDist({ ...osDist, sph: e.target.value })}
-                    className="w-full text-center py-1 border border-slate-200 rounded font-bold"
-                  />
-                </td>
-                <td className="py-1.5 px-2 text-center">
-                  <input
-                    type="text"
-                    value={osDist.cyl}
-                    onChange={(e) => setOsDist({ ...osDist, cyl: e.target.value })}
-                    className="w-full text-center py-1 border border-slate-200 rounded font-bold"
-                  />
-                </td>
-                <td className="py-1.5 px-2 text-center">
-                  <input
-                    type="text"
-                    value={osDist.axis}
-                    onChange={(e) => setOsDist({ ...osDist, axis: e.target.value })}
-                    className="w-full text-center py-1 border border-slate-200 rounded font-bold"
-                  />
-                </td>
-                <td className="py-1.5 px-2 text-center">
-                  <select
-                    value={osDist.va}
-                    onChange={(e) => setOsDist({ ...osDist, va: e.target.value })}
-                    className="w-full text-center py-1 border border-slate-200 rounded bg-white font-bold"
+                {/* LEFT EYE */}
+                <tr>
+                  <td
+                    rowSpan={3}
+                    className="py-4 px-6 font-bold text-slate-800 border-b border-r border-slate-200 w-[15%] text-left align-middle"
                   >
-                    {DIST_VA_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </td>
-              </tr>
-              <tr>
-                <td className="py-2 px-3 font-semibold text-slate-600 border-r border-slate-200">
-                  Near addition
-                </td>
-                <td colSpan={3} className="py-1.5 px-2 text-center">
-                  <input
-                    type="text"
-                    value={osNear.add}
-                    onChange={(e) => setOsNear({ ...osNear, add: e.target.value })}
-                    className="w-full text-center py-1 border border-slate-200 rounded font-bold"
+                    Left Eye<br />(O.S)
+                  </td>
+                  <td className="py-4 px-6 font-bold text-slate-800 border-b border-r border-slate-200 text-left whitespace-nowrap">
+                    Distance
+                  </td>
+                  <InputCell
+                    value={subjOs.dist.sph}
+                    onChange={(v) => setSubjOs({ ...subjOs, dist: { ...subjOs.dist, sph: v } })}
+                    className="border-r"
                   />
-                </td>
-                <td className="py-1.5 px-2 text-center">
-                  <select
-                    value={osNear.va}
-                    onChange={(e) => setOsNear({ ...osNear, va: e.target.value })}
-                    className="w-full text-center py-1 border border-slate-200 rounded bg-white font-bold"
-                  >
-                    {NEAR_VA_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <InputCell
+                    value={subjOs.dist.cyl}
+                    onChange={(v) => setSubjOs({ ...subjOs, dist: { ...subjOs.dist, cyl: v } })}
+                    className="border-r"
+                  />
+                  <InputCell
+                    value={subjOs.dist.axis}
+                    onChange={(v) => setSubjOs({ ...subjOs, dist: { ...subjOs.dist, axis: v } })}
+                    className="border-r"
+                  />
+                  <SelectCell
+                    value={subjOs.dist.va}
+                    onChange={(v) => setSubjOs({ ...subjOs, dist: { ...subjOs.dist, va: v } })}
+                    options={DIST_VA_OPTIONS}
+                  />
+                </tr>
+                <tr>
+                  <td className="py-4 px-6 font-bold text-slate-800 border-b border-r border-slate-200 text-left whitespace-nowrap">
+                    Near addition
+                  </td>
+                  <td colSpan={2} className="p-0 border-b border-slate-200 bg-white"></td>
+                  <InputCell
+                    value={subjOs.near.add}
+                    onChange={(v) => setSubjOs({ ...subjOs, near: { ...subjOs.near, add: v } })}
+                    className="border-r"
+                  />
+                  <SelectCell
+                    value={subjOs.near.va}
+                    onChange={(v) => setSubjOs({ ...subjOs, near: { ...subjOs.near, va: v } })}
+                    options={NEAR_VA_OPTIONS}
+                  />
+                </tr>
+                <tr>
+                  <td className="py-4 px-6 font-bold text-slate-800 border-b border-r border-slate-200 text-left whitespace-nowrap">
+                    Intermediate addition
+                  </td>
+                  <td colSpan={2} className="p-0 border-b border-slate-200 bg-white"></td>
+                  <InputCell
+                    value={subjOs.inter.add}
+                    onChange={(v) => setSubjOs({ ...subjOs, inter: { ...subjOs.inter, add: v } })}
+                    className="border-r"
+                  />
+                  <SelectCell
+                    value={subjOs.inter.va}
+                    onChange={(v) => setSubjOs({ ...subjOs, inter: { ...subjOs.inter, va: v } })}
+                    options={NEAR_VA_OPTIONS}
+                  />
+                </tr>
+              </tbody>
+            </table>
+          ) : (
+            <table className="w-full border-collapse text-sm text-center bg-white">
+              <thead>
+                <tr>
+                  <th className="bg-white border-b border-r border-slate-200 w-[20%]"></th>
+                  <th className="py-4 font-bold text-slate-800 border-b border-r border-slate-200 w-1/5">Sphere</th>
+                  <th className="py-4 font-bold text-slate-800 border-b border-r border-slate-200 w-1/5">Cyl</th>
+                  <th className="py-4 font-bold text-slate-800 border-b border-r border-slate-200 w-1/5">Axis</th>
+                  <th className="py-4 font-bold text-slate-800 border-b border-slate-200 w-1/5">VA</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="py-4 px-6 font-bold text-slate-800 border-b border-r border-slate-200 text-left">
+                    Right Eye (O.D)
+                  </td>
+                  <InputCell
+                    value={objOd.sph}
+                    onChange={(v) => setObjOd({ ...objOd, sph: v })}
+                    className="border-r"
+                  />
+                  <InputCell
+                    value={objOd.cyl}
+                    onChange={(v) => setObjOd({ ...objOd, cyl: v })}
+                    className="border-r"
+                  />
+                  <InputCell
+                    value={objOd.axis}
+                    onChange={(v) => setObjOd({ ...objOd, axis: v })}
+                    className="border-r"
+                  />
+                  <SelectCell
+                    value={objOd.va}
+                    onChange={(v) => setObjOd({ ...objOd, va: v })}
+                    options={DIST_VA_OPTIONS}
+                  />
+                </tr>
+                <tr>
+                  <td className="py-4 px-6 font-bold text-slate-800 border-b border-r border-slate-200 text-left">
+                    Left Eye (O.S)
+                  </td>
+                  <InputCell
+                    value={objOs.sph}
+                    onChange={(v) => setObjOs({ ...objOs, sph: v })}
+                    className="border-r"
+                  />
+                  <InputCell
+                    value={objOs.cyl}
+                    onChange={(v) => setObjOs({ ...objOs, cyl: v })}
+                    className="border-r"
+                  />
+                  <InputCell
+                    value={objOs.axis}
+                    onChange={(v) => setObjOs({ ...objOs, axis: v })}
+                    className="border-r"
+                  />
+                  <SelectCell
+                    value={objOs.va}
+                    onChange={(v) => setObjOs({ ...objOs, va: v })}
+                    options={DIST_VA_OPTIONS}
+                  />
+                </tr>
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 max-w-md mb-6">
-        <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Pupillary distance (mm)</label>
-          <input
-            type="text"
-            value={pd}
-            onChange={(e) => setPd(e.target.value)}
-            className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-600"
-          />
-        </div>
-
-        <div>
-          <label className="text-xs font-semibold text-slate-700 block mb-1">Back vertex distance (mm)</label>
-          <input
-            type="text"
-            value={bvd}
-            onChange={(e) => setBvd(e.target.value)}
-            className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-600"
-          />
-        </div>
-      </div>
-
-      <div className="mb-6">
-        <label className="text-xs font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
+      <div className="mb-6 mt-8">
+        <label className="text-sm font-semibold text-[#4a5f73] block mb-2">Any remarks?</label>
         <textarea
           rows={3}
           value={remarks}
           onChange={(e) => setRemarks(e.target.value)}
           placeholder="Add any remarks..."
-          className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600"
+          className="w-full p-4 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-[#2957a4] focus:ring-1 focus:ring-[#2957a4] resize-none"
         />
       </div>
 
       <div className="flex justify-end">
-        <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
+        <label className="flex items-center gap-2 text-sm font-medium text-slate-500 cursor-pointer">
           <input
             type="checkbox"
             checked={showInDischarge}
             onChange={(e) => setShowInDischarge(e.target.checked)}
-            className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
+            className="w-4 h-4 rounded text-[#2957a4] border-slate-300 focus:ring-0"
           />
           <span>Show in Discharge Summary</span>
         </label>

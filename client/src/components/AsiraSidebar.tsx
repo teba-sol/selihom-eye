@@ -45,8 +45,8 @@ export const ASIRA_SIDEBAR_CONFIG: SectionGroup[] = [
     id: 'refraction',
     title: 'Refraction',
     items: [
-      { id: 'objective-refraction', label: 'Objective / Retinoscopy' },
-      { id: 'subjective-refraction', label: 'Subjective Refraction', completed: true },
+      { id: 'objective-subjective', label: 'Objective-subjective', completed: true },
+      { id: 'cycloplegic', label: 'Cycloplegic' },
     ],
   },
   {
