@@ -10,8 +10,8 @@ import { SpectaclesView } from './features/SpectaclesView';
 import { ContactLensView } from './features/ContactLensView';
 import { LifestyleView } from './features/LifestyleView';
 import { VisionAndVisualAcuityView } from './features/VisionAndVisualAcuityView';
-import { ObjectiveRefractionView } from './features/ObjectiveRefractionView';
 import { SubjectiveRefractionView } from './features/SubjectiveRefractionView';
+import { CycloplegicView } from './features/CycloplegicView';
 import { Worth4DotView } from './features/binocular/Worth4DotView';
 import { CoverTestView } from './features/binocular/CoverTestView';
 import { OcularMotorBalanceView } from './features/binocular/OcularMotorBalanceView';
@@ -49,8 +49,8 @@ const IMPLEMENTED_TABS = [
   'contact-lens',
   'lifestyle',
   'visual-acuity',
-  'objective-refraction',
-  'subjective-refraction',
+  'objective-subjective',
+  'cycloplegic',
   'worth-4-dot',
   'ocular-motor-balance',
   'near-point-of-convergence',
@@ -97,8 +97,8 @@ export default function App() {
           {activeTab === 'contact-lens' && <ContactLensView />}
           {activeTab === 'lifestyle' && <LifestyleView />}
           {activeTab === 'visual-acuity' && <VisionAndVisualAcuityView />}
-          {activeTab === 'objective-refraction' && <ObjectiveRefractionView />}
-          {activeTab === 'subjective-refraction' && <SubjectiveRefractionView />}
+          {activeTab === 'objective-subjective' && <SubjectiveRefractionView />}
+          {activeTab === 'cycloplegic' && <CycloplegicView />}
           {activeTab === 'worth-4-dot' && <Worth4DotView />}
           {activeTab === 'ocular-motor-balance' && <OcularMotorBalanceView />}
           {activeTab === 'near-point-of-convergence' && <NpcView />}
