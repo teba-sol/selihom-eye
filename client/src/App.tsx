@@ -32,6 +32,7 @@ import { PachymetryView } from './features/additional/PachymetryView';
 import { GonioscopyView } from './features/additional/GonioscopyView';
 import { AmslerView } from './features/additional/AmslerView';
 import { ContrastSensitivityView } from './features/additional/ContrastSensitivityView';
+import { ActionAndAdviceView } from './features/ActionAndAdviceView';
 import { useEncounterStore } from './store/useEncounterStore';
 
 const IMPLEMENTED_TABS = [
@@ -67,6 +68,7 @@ const IMPLEMENTED_TABS = [
   'gonioscopy',
   'amsler',
   'contrast-sensitivity',
+  'action-and-advice',
 ];
 
 export default function App() {
@@ -112,6 +114,7 @@ export default function App() {
           {activeTab === 'gonioscopy' && <GonioscopyView />}
           {activeTab === 'amsler' && <AmslerView />}
           {activeTab === 'contrast-sensitivity' && <ContrastSensitivityView />}
+          {activeTab === 'action-and-advice' && <ActionAndAdviceView />}
 
           {!IMPLEMENTED_TABS.includes(activeTab) && (
             <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-xs max-w-4xl">
