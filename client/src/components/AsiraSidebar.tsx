@@ -1,221 +1,261 @@
 import React, { useState } from 'react';
 import { useEncounterStore } from '../store/useEncounterStore';
-import {
-  FileText, CheckCircle2, ChevronDown, ChevronRight,
-  Search
-} from 'lucide-react';
+import { CheckCircle2, Check, ChevronDown, ChevronRight, Search, FileText } from 'lucide-react';
 
-interface SubItem {
+export interface SidebarItem {
   id: string;
   label: string;
-  completed?: boolean;
+  isCompleted?: boolean;
 }
 
-interface SectionGroup {
+export interface SidebarSection {
   id: string;
-  title: string;
-  items: SubItem[];
+  label: string;
+  isExpandable: boolean;
+  isCompleted?: boolean;
+  children?: SidebarItem[];
 }
 
-export const ASIRA_SIDEBAR_CONFIG: SectionGroup[] = [
+export const ASIRA_EXAM_TREE: SidebarSection[] = [
   {
     id: 'history-and-symptoms',
-    title: 'History And Symptoms',
-    items: [
-      { id: 'reason-for-visit', label: 'Reason For Visit', completed: true },
-      { id: 'symptomatic-history', label: 'Symptomatic History', completed: true },
-      { id: 'ocular-history', label: 'Ocular History', completed: true },
-      { id: 'systemic-history', label: 'Systemic History', completed: true },
-      { id: 'medication', label: 'Medication', completed: true },
-      { id: 'family-ocular-history', label: 'Family Ocular History', completed: true },
-      { id: 'family-systemic-history', label: 'Family Systemic History', completed: true },
-      { id: 'spectacles', label: 'Spectacles', completed: true },
-      { id: 'contact-lens', label: 'Contact Lens', completed: true },
-      { id: 'lifestyle', label: 'Lifestyle', completed: true },
+    label: 'History And Symptoms',
+    isExpandable: true,
+    isCompleted: true,
+    children: [
+      { id: 'reason-for-visit', label: 'Reason For Visit', isCompleted: true },
+      { id: 'symptomatic-history', label: 'Symptomatic History', isCompleted: true },
+      { id: 'ocular-history', label: 'Ocular History', isCompleted: true },
+      { id: 'systemic-history', label: 'Systemic History', isCompleted: true },
+      { id: 'medication', label: 'Medication', isCompleted: false },
+      { id: 'family-ocular-history', label: 'Family Ocular History', isCompleted: false },
+      { id: 'family-systemic-history', label: 'Family Systemic History', isCompleted: false },
+      { id: 'spectacles', label: 'Spectacles', isCompleted: false },
+      { id: 'contact-lens', label: 'Contact Lens', isCompleted: false },
+      { id: 'lifestyle', label: 'Lifestyle', isCompleted: false },
     ],
   },
   {
     id: 'vision-and-visual-acuity',
-    title: 'Vision And Visual Acuity',
-    items: [
-      { id: 'visual-acuity', label: 'Visual Acuity', completed: true },
-    ],
+    label: 'Vision And Visual Acuity',
+    isExpandable: false,
+    isCompleted: true,
   },
   {
     id: 'refraction',
-    title: 'Refraction',
-    items: [
-      { id: 'objective-refraction', label: 'Objective / Retinoscopy' },
-      { id: 'subjective-refraction', label: 'Subjective Refraction', completed: true },
+    label: 'Refraction',
+    isExpandable: true,
+    isCompleted: true,
+    children: [
+      { id: 'objective-refraction', label: 'Objective / Retinoscopy', isCompleted: false },
+      { id: 'subjective-refraction', label: 'Subjective Refraction', isCompleted: true },
     ],
   },
   {
     id: 'binocular-vision-assessment',
-    title: 'Binocular Vision Assessment',
-    items: [
-      { id: 'worth-4-dot', label: 'Worth 4 Dot Test', completed: true },
-      { id: 'ocular-motor-balance', label: 'Ocular Motor Balance', completed: true },
-      { id: 'near-point-of-convergence', label: 'Near Point Of Convergence', completed: true },
-      { id: 'amplitude-of-accommodation', label: 'Amplitude Of Accommodation', completed: true },
-      { id: 'ocular-motility', label: 'Ocular Motility', completed: true },
-      { id: 'pupil-evaluation', label: 'Pupil Evaluation', completed: true },
-      { id: 'stereopsis', label: 'Stereopsis', completed: true },
-      { id: 'accommodative-lag', label: 'Accommodative Lag' },
-      { id: 'accommodative-facility', label: 'Accommodative Facility' },
-      { id: 'relative-accommodation', label: 'Relative Accommodation' },
+    label: 'Binocular Vision Assessment',
+    isExpandable: true,
+    isCompleted: true,
+    children: [
+      { id: 'worth-4-dot', label: 'Worth 4 Dot Test', isCompleted: true },
+      { id: 'ocular-motor-balance', label: 'Ocular Motor Balance', isCompleted: true },
+      { id: 'near-point-of-convergence', label: 'Near Point Of Convergence', isCompleted: true },
+      { id: 'amplitude-of-accommodation', label: 'Amplitude Of Accommodation', isCompleted: false },
+      { id: 'ocular-motility', label: 'Ocular Motility', isCompleted: true },
+      { id: 'pupil-evaluation', label: 'Pupil Evaluation', isCompleted: true },
+      { id: 'stereopsis', label: 'Stereopsis', isCompleted: false },
+      { id: 'accommodative-lag', label: 'Accommodative Lag', isCompleted: false },
+      { id: 'accommodative-facility', label: 'Accommodative Facility', isCompleted: false },
+      { id: 'relative-accommodation', label: 'Relative Accommodation', isCompleted: false },
     ],
   },
   {
-    id: 'anterior-segment',
-    title: 'Anterior Segment Evaluation',
-    items: [
-      { id: 'anterior-segment-eval', label: 'Anterior Segment Evaluation', completed: true },
-    ],
+    id: 'anterior-segment-eval',
+    label: 'Anterior Segment Evaluation',
+    isExpandable: false,
+    isCompleted: true,
   },
   {
-    id: 'crystalline-lens-group',
-    title: 'Crystalline Lens Evaluation',
-    items: [
-      { id: 'crystalline-lens', label: 'Crystalline Lens Evaluation', completed: true },
-    ],
+    id: 'crystalline-lens',
+    label: 'Crystalline Lens Evaluation',
+    isExpandable: false,
+    isCompleted: true,
   },
   {
-    id: 'posterior-segment-group',
-    title: 'Posterior Segment Evaluation',
-    items: [
-      { id: 'posterior-segment', label: 'Posterior Segment Evaluation', completed: true },
-    ],
+    id: 'posterior-segment',
+    label: 'Posterior Segment Evaluation',
+    isExpandable: false,
+    isCompleted: true,
   },
   {
     id: 'additional-tests',
-    title: 'Additional Tests',
-    items: [
-      { id: 'tear-film', label: 'Tear Film Evaluation', completed: true },
-      { id: 'colour-vision', label: 'Colour Vision' },
-      { id: 'pachymetry', label: 'Pachymetry' },
-      { id: 'tonometry', label: 'Tonometry' },
-      { id: 'gonioscopy', label: 'Gonioscopy' },
-      { id: 'amsler', label: 'Amsler' },
-      { id: 'contrast-sensitivity', label: 'Contrast Sensitivity' },
+    label: 'Additional Tests',
+    isExpandable: true,
+    isCompleted: true,
+    children: [
+      { id: 'tear-film', label: 'Tear Film Evaluation', isCompleted: true },
+      { id: 'colour-vision', label: 'Colour Vision', isCompleted: false },
+      { id: 'pachymetry', label: 'Pachymetry', isCompleted: false },
+      { id: 'tonometry', label: 'Tonometry', isCompleted: true },
+      { id: 'gonioscopy', label: 'Gonioscopy', isCompleted: false },
+      { id: 'amsler', label: 'Amsler', isCompleted: false },
+      { id: 'contrast-sensitivity', label: 'Contrast Sensitivity', isCompleted: false },
     ],
   },
   {
     id: 'imaging-and-diagnostics',
-    title: 'Imaging And Diagnostics',
-    items: [
-      { id: 'topography', label: 'Corneal Topography' },
+    label: 'Imaging And Diagnostics',
+    isExpandable: false,
+    isCompleted: false,
+  },
+  {
+    id: 'contact-lens-evaluation',
+    label: 'Contact Lens Evaluation',
+    isExpandable: true,
+    isCompleted: false,
+    children: [
+      { id: 'cl-pre-fit', label: 'Pre-Fitting Evaluation', isCompleted: false },
+      { id: 'cl-fitting', label: 'Lens Fitting Assessment', isCompleted: false },
     ],
   },
   {
-    id: 'assessment-and-management',
-    title: 'Assessment And Management',
-    items: [
-      { id: 'assessment-plan', label: 'Assessment & Plan', completed: true },
-      { id: 'referral', label: 'Referral / Co-Management', completed: true },
-    ],
+    id: 'action-and-advice',
+    label: 'Action And Advice',
+    isExpandable: false,
+    isCompleted: false,
   },
 ];
 
 export const AsiraSidebar: React.FC = () => {
   const { activeTab, setActiveTab } = useEncounterStore();
-  const [activeTopTab, setActiveTopTab] = useState<'TESTS' | 'REPORTS'>('TESTS');
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+  const [navTab, setNavTab] = useState<'TESTS' | 'REPORTS'>('TESTS');
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({
     'history-and-symptoms': true,
-    'vision-and-visual-acuity': true,
-    'refraction': true,
-    'binocular-vision-assessment': true,
-    'anterior-segment': true,
-    'crystalline-lens-group': true,
-    'posterior-segment-group': true,
+    'refraction': false,
+    'binocular-vision-assessment': false,
     'additional-tests': true,
-    'imaging-and-diagnostics': true,
-    'assessment-and-management': true,
+    'contact-lens-evaluation': false,
   });
 
-  const toggleGroup = (groupId: string) => {
-    setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   return (
-    <aside className="w-80 bg-white border-r border-slate-200 flex flex-col h-full shrink-0 shadow-xs">
+    <aside className="w-[270px] bg-white border-r border-slate-200 flex flex-col h-full shrink-0 select-none">
+      {/* Top TESTS vs REPORTS Tabs */}
       <div className="flex border-b border-slate-200">
         <button
-          onClick={() => setActiveTopTab('TESTS')}
-          className={`flex-1 py-3 text-xs font-bold tracking-wider text-center border-b-2 flex items-center justify-center gap-2 ${
-            activeTopTab === 'TESTS'
-              ? 'border-teal-600 text-teal-700 bg-teal-50/50'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+          type="button"
+          onClick={() => setNavTab('TESTS')}
+          className={`flex-1 py-2.5 text-[11px] font-bold tracking-wider flex items-center justify-center gap-1.5 transition-colors ${
+            navTab === 'TESTS'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-slate-400 hover:text-slate-600'
           }`}
         >
           <FileText className="w-3.5 h-3.5" /> TESTS
         </button>
         <button
-          onClick={() => setActiveTopTab('REPORTS')}
-          className={`flex-1 py-3 text-xs font-bold tracking-wider text-center border-b-2 flex items-center justify-center gap-2 ${
-            activeTopTab === 'REPORTS'
-              ? 'border-teal-600 text-teal-700 bg-teal-50/50'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+          type="button"
+          onClick={() => setNavTab('REPORTS')}
+          className={`flex-1 py-2.5 text-[11px] font-bold tracking-wider flex items-center justify-center gap-1.5 transition-colors ${
+            navTab === 'REPORTS'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-slate-400 hover:text-slate-600'
           }`}
         >
           REPORTS
         </button>
       </div>
 
+      {/* Search Input */}
       <div className="p-3 border-b border-slate-100">
         <div className="relative">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
           <input
             type="text"
             placeholder="Search for tests"
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-hidden focus:border-teal-500"
+            className="w-full pl-3 pr-3 py-1.5 text-xs text-slate-700 bg-white border border-slate-300 rounded focus:outline-none focus:border-blue-600 placeholder:text-slate-400"
           />
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {ASIRA_SIDEBAR_CONFIG.map((group) => {
-          const isExpanded = !!expandedGroups[group.id];
-          return (
-            <div key={group.id} className="mb-1">
-              <button
-                onClick={() => toggleGroup(group.id)}
-                className="w-full flex items-center justify-between px-2 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-md"
-              >
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-teal-600 fill-teal-50" />
-                  <span>{group.title}</span>
-                </div>
-                {isExpanded ? (
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                ) : (
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                )}
-              </button>
+      {/* Main Navigation Tree */}
+      <div className="flex-1 overflow-y-auto py-2 px-3 space-y-1 scrollbar-thin scrollbar-thumb-slate-200">
+        {ASIRA_EXAM_TREE.map((section) => {
+          const isExp = !!expanded[section.id];
+          const isCurrentActive = activeTab === section.id;
 
-              {isExpanded && (
-                <div className="ml-4 pl-2 border-l border-slate-200 space-y-0.5 mt-1">
-                  {group.items.map((item) => {
-                    const isActive = activeTab === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => setActiveTab(item.id)}
-                        className={`w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md text-left transition-colors ${
-                          isActive
-                            ? 'bg-teal-50 text-teal-800 font-bold border-l-2 border-teal-600'
-                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                        }`}
-                      >
-                        {item.completed ? (
-                          <CheckCircle2 className="w-3 h-3 text-teal-600 shrink-0" />
-                        ) : (
-                          <span className="w-3 h-3 rounded-full border border-slate-300 shrink-0" />
-                        )}
-                        <span className="truncate">{item.label}</span>
-                      </button>
-                    );
-                  })}
+          return (
+            <div key={section.id} className="text-xs">
+              {section.isExpandable ? (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => toggleExpand(section.id)}
+                    className="w-full flex items-center justify-between py-1.5 text-left text-slate-700 hover:text-slate-900 group"
+                  >
+                    <div className="flex items-center gap-2">
+                      {section.isCompleted ? (
+                        <CheckCircle2 className="w-4 h-4 text-teal-600 fill-teal-50 shrink-0" />
+                      ) : (
+                        <span className="w-4 h-4 rounded-full border border-slate-300 shrink-0" />
+                      )}
+                      <span className="font-semibold text-slate-700">{section.label}</span>
+                    </div>
+                    {isExp ? (
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600" />
+                    )}
+                  </button>
+
+                  {/* Children Sub-menu */}
+                  {isExp && section.children && (
+                    <div className="pl-6 space-y-1 py-1">
+                      {section.children.map((child) => {
+                        const isChildActive = activeTab === child.id;
+                        return (
+                          <button
+                            key={child.id}
+                            type="button"
+                            onClick={() => setActiveTab(child.id)}
+                            className={`w-full flex items-center gap-2 py-1 text-left rounded transition-colors ${
+                              isChildActive
+                                ? 'text-blue-600 font-bold'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            {child.isCompleted ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-teal-600 fill-teal-50 shrink-0" />
+                            ) : (
+                              <Check className="w-3 h-3 text-slate-400 shrink-0" />
+                            )}
+                            <span className="truncate">{child.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
+              ) : (
+                /* Flat Root Item */
+                <button
+                  type="button"
+                  onClick={() => setActiveTab(section.id)}
+                  className={`w-full flex items-center gap-2 py-1.5 text-left rounded transition-colors ${
+                    isCurrentActive
+                      ? 'text-blue-600 font-bold'
+                      : 'text-slate-700 hover:text-slate-900'
+                  }`}
+                >
+                  {section.isCompleted ? (
+                    <CheckCircle2 className="w-4 h-4 text-teal-600 fill-teal-50 shrink-0" />
+                  ) : (
+                    <span className="w-4 h-4 rounded-full border border-slate-300 shrink-0" />
+                  )}
+                  <span className="font-semibold">{section.label}</span>
+                </button>
               )}
             </div>
           );

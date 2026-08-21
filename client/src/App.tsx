@@ -13,7 +13,6 @@ import { VisionAndVisualAcuityView } from './features/VisionAndVisualAcuityView'
 import { ObjectiveRefractionView } from './features/ObjectiveRefractionView';
 import { SubjectiveRefractionView } from './features/SubjectiveRefractionView';
 import { Worth4DotView } from './features/binocular/Worth4DotView';
-import { CoverTestView } from './features/binocular/CoverTestView';
 import { OcularMotorBalanceView } from './features/binocular/OcularMotorBalanceView';
 import { NpcView } from './features/binocular/NpcView';
 import { MotilityView } from './features/binocular/MotilityView';
@@ -33,9 +32,6 @@ import { PachymetryView } from './features/additional/PachymetryView';
 import { GonioscopyView } from './features/additional/GonioscopyView';
 import { AmslerView } from './features/additional/AmslerView';
 import { ContrastSensitivityView } from './features/additional/ContrastSensitivityView';
-import { TopographyView } from './features/TopographyView';
-import { AssessmentPlanView } from './features/AssessmentPlanView';
-import { ReferralView } from './features/ReferralView';
 import { useEncounterStore } from './store/useEncounterStore';
 
 const IMPLEMENTED_TABS = [
@@ -71,9 +67,6 @@ const IMPLEMENTED_TABS = [
   'gonioscopy',
   'amsler',
   'contrast-sensitivity',
-  'topography',
-  'assessment-plan',
-  'referral',
 ];
 
 export default function App() {
@@ -119,9 +112,6 @@ export default function App() {
           {activeTab === 'gonioscopy' && <GonioscopyView />}
           {activeTab === 'amsler' && <AmslerView />}
           {activeTab === 'contrast-sensitivity' && <ContrastSensitivityView />}
-          {activeTab === 'topography' && <TopographyView />}
-          {activeTab === 'assessment-plan' && <AssessmentPlanView />}
-          {activeTab === 'referral' && <ReferralView />}
 
           {!IMPLEMENTED_TABS.includes(activeTab) && (
             <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-xs max-w-4xl">
