@@ -117,8 +117,10 @@ export const ASIRA_SIDEBAR_CONFIG: SectionGroup[] = [
 ];
 
 export const AsiraSidebar: React.FC = () => {
-  const { activeTab, setActiveTab } = useEncounterStore();
+  const activeTab = useEncounterStore((s) => s.activeTab);
+  const setActiveTab = useEncounterStore((s) => s.setActiveTab);
   const [activeTopTab, setActiveTopTab] = useState<'TESTS' | 'REPORTS'>('TESTS');
+  const [searchQuery, setSearchQuery] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     'history-and-symptoms': true,
     'vision-and-visual-acuity': true,
@@ -134,6 +136,24 @@ export const AsiraSidebar: React.FC = () => {
 
   const toggleGroup = (groupId: string) => {
     setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
+
+  const normalizedSearch = searchQuery.toLowerCase().trim();
+
+  const filteredConfig = ASIRA_SIDEBAR_CONFIG.map((group) => {
+    if (!normalizedSearch) return group;
+    const matchingItems = group.items.filter((item) =>
+      item.label.toLowerCase().includes(normalizedSearch) ||
+      group.title.toLowerCase().includes(normalizedSearch),
+    );
+    if (matchingItems.length === 0) return null;
+    return { ...group, items: matchingItems };
+  }).filter(Boolean) as SectionGroup[];
+
+  const displayGroups = normalizedSearch ? filteredConfig : ASIRA_SIDEBAR_CONFIG;
+
+  const handleItemClick = (itemId: string) => {
+    setActiveTab(itemId);
   };
 
   return (
@@ -167,17 +187,20 @@ export const AsiraSidebar: React.FC = () => {
           <input
             type="text"
             placeholder="Search for tests"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-hidden focus:border-teal-500"
           />
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {ASIRA_SIDEBAR_CONFIG.map((group) => {
-          const isExpanded = !!expandedGroups[group.id];
+        {displayGroups.map((group) => {
+          const isExpanded = normalizedSearch ? true : !!expandedGroups[group.id];
           return (
             <div key={group.id} className="mb-1">
               <button
+                type="button"
                 onClick={() => toggleGroup(group.id)}
                 className="w-full flex items-center justify-between px-2 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-md"
               >
@@ -198,8 +221,9 @@ export const AsiraSidebar: React.FC = () => {
                     const isActive = activeTab === item.id;
                     return (
                       <button
+                        type="button"
                         key={item.id}
-                        onClick={() => setActiveTab(item.id)}
+                        onClick={() => handleItemClick(item.id)}
                         className={`w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md text-left transition-colors ${
                           isActive
                             ? 'bg-teal-50 text-teal-800 font-bold border-l-2 border-teal-600'

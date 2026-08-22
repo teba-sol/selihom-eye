@@ -1,8 +1,12 @@
 import React from 'react';
 import { useEncounterStore } from '../store/useEncounterStore';
-import { UserCheck, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 
-export const TopHeader: React.FC = () => {
+interface TopHeaderProps {
+  onEndExam?: () => void;
+}
+
+export const TopHeader: React.FC<TopHeaderProps> = ({ onEndExam }) => {
   const { patient, consentObtained, setConsent } = useEncounterStore();
 
   return (
@@ -28,7 +32,10 @@ export const TopHeader: React.FC = () => {
             <span>Digital Consent Verified</span>
           </label>
 
-          <button className="bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold px-4 py-1.5 rounded-md shadow-xs transition-colors">
+          <button
+            onClick={onEndExam}
+            className="bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold px-4 py-1.5 rounded-md shadow-xs transition-colors"
+          >
             End exam
           </button>
         </div>

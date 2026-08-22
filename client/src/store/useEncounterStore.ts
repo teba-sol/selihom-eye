@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { getDefaultClinicalState } from '../lib/encounterDefaults';
 
 export interface SymptomItem {
   id: string;
@@ -108,6 +109,7 @@ export interface LifestyleState {
 
 interface EncounterState {
   activeTab: string;
+  appointmentId: string | null;
   patient: {
     id: string;
     mrn: string;
@@ -181,9 +183,18 @@ interface EncounterState {
   counselingAdvice: string;
   treatmentPathway: string;
 
+  encounterSnapshots: Record<string, EncounterSnapshot>;
+
   // Actions
   setActiveTab: (tab: string) => void;
   setConsent: (val: boolean) => void;
+  setPatient: (patient: EncounterState['patient']) => void;
+  loadFromAppointment: (params: {
+    appointmentId: string;
+    patient: EncounterState['patient'];
+    consentObtained: boolean;
+    reasonForVisit: string;
+  }) => void;
   updateOcularCondition: (key: keyof OcularHistoryState['conditions'], data: Partial<OcularConditionDetail>) => void;
   setOcularGeneralRemarks: (remarks: string) => void;
   setNoOcularHistory: (val: boolean) => void;
@@ -207,126 +218,118 @@ interface EncounterState {
   updateLifestyle: (data: Partial<LifestyleState>) => void;
 }
 
+export type EncounterSnapshot = Omit<
+  EncounterState,
+  | 'encounterSnapshots'
+  | 'setActiveTab'
+  | 'setConsent'
+  | 'setPatient'
+  | 'loadFromAppointment'
+  | 'updateOcularCondition'
+  | 'setOcularGeneralRemarks'
+  | 'setNoOcularHistory'
+  | 'updateRefraction'
+  | 'updateVisualAcuity'
+  | 'setCanvasVectors'
+  | 'updateSlitLamp'
+  | 'updateTonometry'
+  | 'addOrToggleSymptom'
+  | 'updateSymptom'
+  | 'setVisualAcuityField'
+  | 'updateSystemicCondition'
+  | 'setSystemicGeneralRemarks'
+  | 'setNoSystemicHistory'
+  | 'addPatientMedication'
+  | 'removePatientMedication'
+  | 'addFamilyHistoryItem'
+  | 'removeFamilyHistoryItem'
+  | 'updateSpectacles'
+  | 'updateContactLens'
+  | 'updateLifestyle'
+>;
+
+function snapshotFromState(state: EncounterState): EncounterSnapshot {
+  const {
+    encounterSnapshots: _s,
+    setActiveTab: _a,
+    setConsent: _c,
+    setPatient: _p,
+    loadFromAppointment: _l,
+    updateOcularCondition: _o,
+    setOcularGeneralRemarks: _og,
+    setNoOcularHistory: _no,
+    updateRefraction: _r,
+    updateVisualAcuity: _v,
+    setCanvasVectors: _cv,
+    updateSlitLamp: _sl,
+    updateTonometry: _t,
+    addOrToggleSymptom: _as,
+    updateSymptom: _us,
+    setVisualAcuityField: _vf,
+    updateSystemicCondition: _sc,
+    setSystemicGeneralRemarks: _sg,
+    setNoSystemicHistory: _ns,
+    addPatientMedication: _am,
+    removePatientMedication: _rm,
+    addFamilyHistoryItem: _af,
+    removeFamilyHistoryItem: _rf,
+    updateSpectacles: _sp,
+    updateContactLens: _cl,
+    updateLifestyle: _lf,
+    ...snapshot
+  } = state;
+  return snapshot;
+}
+
 export const useEncounterStore = create<EncounterState>((set) => ({
-  activeTab: 'ocular-history',
+  activeTab: 'reason-for-visit',
+  appointmentId: null,
   patient: {
-    id: 'p-1',
-    mrn: 'SEL-2026-0001',
-    name: 'Barrack Obama',
-    age: 53,
-    gender: 'Male',
-    appointmentTime: 'Mon, 03 Jul 2026, 11:30',
-    reasonForVisit: 'Follow Up Appointment',
+    id: '',
+    mrn: '',
+    name: '',
+    age: 0,
+    gender: '',
+    appointmentTime: '',
+    reasonForVisit: '',
   },
-  consentObtained: true,
-
-  ocularHistory: {
-    noHistoryReported: false,
-    generalRemarks: 'Patient reported childhood history treated in rural clinic.',
-    conditions: {
-      surgery: { active: false, eye: 'Right Eye', date: '', type: 'Cataract', remarks: '', showInDischarge: true },
-      trauma: { active: false, eye: 'Right Eye', date: '', type: 'Blunt Trauma', remarks: '', showInDischarge: true },
-      infection: { active: true, eye: 'Both Eyes', date: '', type: 'Corneal', remarks: 'Childhood corneal infection, unsure of exact date', showInDischarge: true },
-      glaucoma: { active: false, eye: 'Both Eyes', date: '', type: 'POAG', remarks: '', showInDischarge: false },
-      retinalDetachment: { active: false, eye: 'Right Eye', date: '', type: 'Rhegmatogenous', remarks: '', showInDischarge: false },
-      amblyopia: { active: false, eye: 'Left Eye', date: '', type: 'Refractive', remarks: '', showInDischarge: false },
-    },
-  },
-  symptoms: [],
-
-  systemicHistory: {
-    noHistoryReported: false,
-    generalRemarks: '',
-    conditions: {
-      diabetes: { active: false, durationValue: 1, durationUnit: 'years', type: 'Type 2 (NIDDM)', controlStatus: 'Well Controlled', remarks: '', showInDischarge: true },
-      hypertension: { active: false, durationValue: 1, durationUnit: 'years', type: 'Essential / Primary', controlStatus: 'Well Controlled', remarks: '', showInDischarge: true },
-      thyroid: { active: false, durationValue: 1, durationUnit: 'years', type: 'Hypothyroidism (Hashimoto)', controlStatus: 'Well Controlled', remarks: '', showInDischarge: true },
-      autoimmune: { active: false, durationValue: 1, durationUnit: 'years', type: 'Rheumatoid Arthritis', controlStatus: 'Well Controlled', remarks: '', showInDischarge: true },
-      cardiovascular: { active: false, durationValue: 1, durationUnit: 'years', type: 'Coronary Artery Disease', controlStatus: 'Well Controlled', remarks: '', showInDischarge: true },
-      respiratoryAsthma: { active: false, durationValue: 1, durationUnit: 'years', type: 'Bronchial Asthma', controlStatus: 'Well Controlled', remarks: '', showInDischarge: true },
-      cholesterol: { active: false, durationValue: 1, durationUnit: 'years', type: 'Mixed Hyperlipidemia', controlStatus: 'Well Controlled', remarks: '', showInDischarge: true },
-      allergies: { active: false, durationValue: 1, durationUnit: 'years', type: 'Penicillin / Beta-lactams', controlStatus: 'Well Controlled', remarks: '', showInDischarge: true },
-    },
-  },
-  patientMedications: [],
-  familyOcularHistory: [],
-  familySystemicHistory: [],
-  spectaclesHistory: {
-    currentlyWears: false,
-    type: 'Single Vision (Distance)',
-    ageOfCurrentGlasses: '',
-    material: 'CR-39 (Plastic)',
-    coating: [],
-    satisfaction: 'Satisfied',
-    remarks: '',
-  },
-  contactLensHistory: {
-    currentWearer: false,
-    modality: 'Daily Disposable',
-    solutionUsed: '',
-    wearingHoursPerDay: 8,
-    complianceWithCleaning: 'Good',
-    lastEyeCheckDate: '',
-    remarks: '',
-  },
-  lifestyleDemands: {
-    occupation: '',
-    screenTimeHoursPerDay: 8,
-    outdoorActivities: '',
-    hobbies: '',
-    lightingConditionWorkplace: 'Good',
-    drivingRequirements: 'Daytime Only',
-  },
-
-  visualAcuity: {
-    unaidedOd: '6/24',
-    unaidedOs: '6/12',
-    aidedOd: '6/24',
-    aidedOs: '6/9',
-    pinholeOd: '6/12',
-    pinholeOs: '6/6',
-  },
-
-  refraction: {
-    odSph: '-1.50',
-    odCyl: '-12.00',
-    odAxis: '180',
-    odVa: '6/12',
-    odAdd: '+1.75',
-    osSph: '-0.75',
-    osCyl: '-1.50',
-    osAxis: '90',
-    osVa: '6/6',
-    osAdd: '+1.75',
-    pdBinocular: '64',
-    bvdMm: '12',
-  },
-
-  slitLamp: {
-    lidsLashes: 'Normal',
-    conjunctiva: 'Clear',
-    cornea: 'Corneal Scarring / Opacity',
-    anteriorChamber: 'Quiet & Deep',
-    irisLens: 'Normal / Clear',
-  },
-  odCanvasVectors: '',
-  osCanvasVectors: '',
-
-  tonometry: {
-    odIop: '14',
-    osIop: '15',
-    method: 'NCT',
-  },
-
-  diagnoses: [
-    { title: 'High Irregular Astigmatism secondary to Corneal Scar', eye: 'OD', notes: 'Advised RGP contact lens trial' },
-    { title: 'Dry Eye Syndrome', eye: 'OU', notes: 'Preservative-free lubricants' },
-  ],
-  counselingAdvice: 'Explained why spectacles cannot correct irregular corneal cylinder; recommended corneal surgeon evaluation for graft/RGP lenses.',
-  treatmentPathway: 'OPTICAL',
+  consentObtained: false,
+  encounterSnapshots: {},
+  ...getDefaultClinicalState(),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
   setConsent: (val) => set({ consentObtained: val }),
+  setPatient: (patient) => set({ patient }),
+
+  loadFromAppointment: ({ appointmentId, patient, consentObtained, reasonForVisit }) =>
+    set((state) => {
+      const snapshots = { ...state.encounterSnapshots };
+
+      if (state.appointmentId && state.appointmentId !== appointmentId) {
+        snapshots[state.appointmentId] = snapshotFromState(state);
+      }
+
+      const cached = snapshots[appointmentId];
+      if (cached) {
+        return {
+          ...cached,
+          appointmentId,
+          patient: { ...patient, reasonForVisit },
+          consentObtained,
+          encounterSnapshots: snapshots,
+        };
+      }
+
+      return {
+        ...getDefaultClinicalState(),
+        appointmentId,
+        patient: { ...patient, reasonForVisit },
+        consentObtained,
+        activeTab: 'reason-for-visit',
+        encounterSnapshots: snapshots,
+      };
+    }),
+
   updateOcularCondition: (key, data) =>
     set((state) => ({
       ocularHistory: {
