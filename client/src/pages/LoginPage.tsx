@@ -7,14 +7,19 @@ export const LoginPage: React.FC = () => {
   const login = useAuthStore((s) => s.login);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
-  const [email, setEmail] = useState('isha.dave@primaryeyecare.in');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/patients', { replace: true });
+      const user = useAuthStore.getState().user;
+      if (user?.role === 'RECEPTIONIST') {
+        navigate('/receptionist', { replace: true });
+      } else {
+        navigate('/patients', { replace: true });
+      }
     }
   }, [isAuthenticated, navigate]);
 
@@ -25,7 +30,12 @@ export const LoginPage: React.FC = () => {
     const result = await login(email, password);
     setLoading(false);
     if (result.success) {
-      navigate('/patients');
+      // Route based on user role
+      if (result.role === 'RECEPTIONIST') {
+        navigate('/receptionist');
+      } else {
+        navigate('/patients');
+      }
     } else {
       setError(result.error ?? 'Login failed.');
     }
@@ -37,9 +47,17 @@ export const LoginPage: React.FC = () => {
         <div className="h-16 bg-[#e8e8e8] border-b border-[#d0d0d0]" />
 
         <div className="px-10 py-8">
-          <p className="text-sm text-slate-700 mb-6">
-            Sign in with your email or phone number and password
+          <h2 className="text-xl font-bold text-slate-800 mb-2">Welcome Back</h2>
+          <p className="text-sm text-slate-600 mb-6">
+            Sign in with your credentials
           </p>
+
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-xs">
+            <p className="font-semibold text-blue-900 mb-1">Login Credentials:</p>
+            <p className="text-blue-800"><strong>Doctor:</strong> Any email (e.g., doctor@clinic.com)</p>
+            <p className="text-blue-800"><strong>Receptionist:</strong> Email with "receptionist" or "nurse"</p>
+            <p className="text-blue-700 mt-1">Password: any non-empty text</p>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>

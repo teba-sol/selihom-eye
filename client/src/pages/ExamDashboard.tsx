@@ -12,8 +12,10 @@ import { SpectaclesView } from '../features/SpectaclesView';
 import { ContactLensView } from '../features/ContactLensView';
 import { LifestyleView } from '../features/LifestyleView';
 import { VisionAndVisualAcuityView } from '../features/VisionAndVisualAcuityView';
+import { RefractionView } from '../features/RefractionView';
 import { SubjectiveRefractionView } from '../features/SubjectiveRefractionView';
 import { CycloplegicView } from '../features/CycloplegicView';
+import { BinocularVisionView } from '../features/BinocularVisionView';
 import { Worth4DotView } from '../features/binocular/Worth4DotView';
 import { OcularMotorBalanceView } from '../features/binocular/OcularMotorBalanceView';
 import { NpcView } from '../features/binocular/NpcView';
@@ -37,12 +39,17 @@ import { ContrastSensitivityView } from '../features/additional/ContrastSensitiv
 import { TopographyView } from '../features/TopographyView';
 import { AssessmentPlanView } from '../features/AssessmentPlanView';
 import { ReferralView } from '../features/ReferralView';
+import { FinalSpectaclePrescriptionView } from '../features/reports/FinalSpectaclePrescriptionView';
+import { FinalContactLensSpecificationView } from '../features/reports/FinalContactLensSpecificationView';
+import { DischargeSummaryView } from '../features/reports/DischargeSummaryView';
+import { SpectacleDispensingView } from '../features/reports/SpectacleDispensingView';
 import { useEncounterStore } from '../store/useEncounterStore';
 import { useAppStore } from '../store/useAppStore';
 import { useExamLoader } from '../hooks/useExamLoader';
 import type { ComponentType } from 'react';
 
 const TAB_VIEWS: Record<string, ComponentType> = {
+  'history-and-symptoms': ReasonForVisitView,
   'reason-for-visit': ReasonForVisitView,
   'symptomatic-history': SymptomaticHistoryView,
   'ocular-history': OcularHistoryView,
@@ -53,9 +60,12 @@ const TAB_VIEWS: Record<string, ComponentType> = {
   spectacles: SpectaclesView,
   'contact-lens': ContactLensView,
   lifestyle: LifestyleView,
+  'vision-and-visual-acuity': VisionAndVisualAcuityView,
   'visual-acuity': VisionAndVisualAcuityView,
+  refraction: RefractionView,
   'objective-subjective': SubjectiveRefractionView,
   cycloplegic: CycloplegicView,
+  'binocular-vision-assessment': BinocularVisionView,
   'worth-4-dot': Worth4DotView,
   'ocular-motor-balance': OcularMotorBalanceView,
   'near-point-of-convergence': NpcView,
@@ -79,6 +89,10 @@ const TAB_VIEWS: Record<string, ComponentType> = {
   topography: TopographyView,
   'assessment-plan': AssessmentPlanView,
   referral: ReferralView,
+  'final-spectacle-prescription': FinalSpectaclePrescriptionView,
+  'final-contact-lens-specification': FinalContactLensSpecificationView,
+  'discharge-summary': DischargeSummaryView,
+  'spectacle-dispensing': SpectacleDispensingView,
 };
 
 export function ExamDashboard() {

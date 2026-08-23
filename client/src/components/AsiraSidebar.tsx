@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useEncounterStore } from '../store/useEncounterStore';
-import { CheckCircle2, ChevronDown, ChevronRight, FileText } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronRight, FileText, Search } from 'lucide-react';
 
 export interface SidebarItem {
   id: string;
@@ -38,11 +38,8 @@ export const ASIRA_EXAM_TREE: SidebarSection[] = [
   {
     id: 'vision-and-visual-acuity',
     label: 'Vision And Visual Acuity',
-    isExpandable: true,
+    isExpandable: false,
     isCompleted: true,
-    children: [
-      { id: 'visual-acuity', label: 'Visual Acuity', isCompleted: true },
-    ],
   },
   {
     id: 'refraction',
@@ -129,12 +126,39 @@ export const ASIRA_EXAM_TREE: SidebarSection[] = [
   },
 ];
 
+export const ASIRA_REPORTS_TREE: SidebarSection[] = [
+  {
+    id: 'final-spectacle-prescription',
+    label: 'Final Spectacle Prescription',
+    isExpandable: false,
+    isCompleted: true,
+  },
+  {
+    id: 'final-contact-lens-specification',
+    label: 'Final Contact Lens Specification',
+    isExpandable: false,
+    isCompleted: false,
+  },
+  {
+    id: 'discharge-summary',
+    label: 'Discharge Summary',
+    isExpandable: false,
+    isCompleted: false,
+  },
+  {
+    id: 'spectacle-dispensing',
+    label: 'Spectacle Dispensing',
+    isExpandable: false,
+    isCompleted: false,
+  },
+];
+
 export const AsiraSidebar: React.FC = () => {
   const { activeTab, setActiveTab } = useEncounterStore();
+  const encounterState = useEncounterStore();
   const [navTab, setNavTab] = useState<'TESTS' | 'REPORTS'>('TESTS');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     'history-and-symptoms': true,
-    'vision-and-visual-acuity': true,
     'refraction': true,
     'binocular-vision-assessment': false,
     'additional-tests': true,
@@ -143,6 +167,58 @@ export const AsiraSidebar: React.FC = () => {
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Helper function to check if a section is completed based on actual data
+  const isSectionCompleted = (sectionId: string): boolean => {
+    switch (sectionId) {
+      case 'reason-for-visit':
+        return encounterState.patient.reasonForVisit !== '';
+      case 'symptomatic-history':
+        return encounterState.symptoms.length > 0;
+      case 'ocular-history':
+        return !encounterState.ocularHistory.noHistoryReported || 
+               Object.values(encounterState.ocularHistory.conditions).some(c => c.active);
+      case 'systemic-history':
+        return !encounterState.systemicHistory.noHistoryReported ||
+               Object.values(encounterState.systemicHistory.conditions).some((c: any) => c.active);
+      case 'medication':
+        return encounterState.patientMedications.length > 0;
+      case 'family-ocular-history':
+        return encounterState.familyOcularHistory.length > 0;
+      case 'family-systemic-history':
+        return encounterState.familySystemicHistory.length > 0;
+      case 'spectacles':
+        return encounterState.spectaclesHistory.currentlyWears !== undefined;
+      case 'contact-lens':
+        return encounterState.contactLensHistory.currentWearer !== undefined;
+      case 'lifestyle':
+        return encounterState.lifestyleDemands.occupation !== '';
+      case 'vision-and-visual-acuity':
+      case 'visual-acuity':
+        return Object.values(encounterState.visualAcuity).some(v => v !== '');
+      case 'refraction':
+      case 'objective-subjective':
+        return encounterState.refraction.odSph !== '' || encounterState.refraction.osSph !== '';
+      case 'tonometry':
+        return encounterState.tonometry.odIop !== '' || encounterState.tonometry.osIop !== '';
+      case 'anterior-segment-eval':
+        return encounterState.slitLamp.cornea !== '' || encounterState.odCanvasVectors !== '';
+      default:
+        return false;
+    }
+  };
+
+  // Update the tree with dynamic completion status
+  const getUpdatedTree = (tree: SidebarSection[]) => {
+    return tree.map(section => ({
+      ...section,
+      isCompleted: isSectionCompleted(section.id),
+      children: section.children?.map(child => ({
+        ...child,
+        isCompleted: isSectionCompleted(child.id),
+      })),
+    }));
   };
 
   return (
@@ -173,20 +249,23 @@ export const AsiraSidebar: React.FC = () => {
         </button>
       </div>
 
-      {/* Search Input */}
-      <div className="p-4 border-b border-slate-100">
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Search for tests"
-            className="w-full px-3 py-2 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:border-teal-500 focus:bg-white placeholder:text-slate-400"
-          />
+      {/* Search Input - Only show for TESTS tab */}
+      {navTab === 'TESTS' && (
+        <div className="p-4 border-b border-slate-100">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search for tests"
+              className="w-full pl-10 pr-3 py-2 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:border-teal-500 focus:bg-white placeholder:text-slate-400"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main Navigation Tree */}
       <div className="flex-1 overflow-y-auto py-3 px-4 space-y-2">
-        {ASIRA_EXAM_TREE.map((section) => {
+        {getUpdatedTree(navTab === 'TESTS' ? ASIRA_EXAM_TREE : ASIRA_REPORTS_TREE).map((section) => {
           const isExp = !!expanded[section.id];
           const isCurrentActive = activeTab === section.id;
 
@@ -228,7 +307,7 @@ export const AsiraSidebar: React.FC = () => {
                             onClick={() => setActiveTab(child.id)}
                             className={`w-full flex items-center gap-2.5 py-2 px-2 text-left rounded-md transition-all ${
                               isChildActive
-                                ? 'border-2 border-red-500 bg-white'
+                                ? 'bg-slate-50'
                                 : 'hover:bg-slate-50'
                             }`}
                           >
@@ -255,7 +334,7 @@ export const AsiraSidebar: React.FC = () => {
                   onClick={() => setActiveTab(section.id)}
                   className={`w-full flex items-center gap-2.5 py-2 px-2 text-left rounded-md transition-all ${
                     isCurrentActive
-                      ? 'border-2 border-red-500 bg-white'
+                      ? 'bg-slate-50'
                       : 'hover:bg-slate-50'
                   }`}
                 >

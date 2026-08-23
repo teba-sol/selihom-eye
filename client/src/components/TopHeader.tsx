@@ -1,6 +1,8 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useEncounterStore } from '../store/useEncounterStore';
-import { ShieldCheck } from 'lucide-react';
+import { useAuthStore } from '../store/useAuthStore';
+import { ShieldCheck, LogOut } from 'lucide-react';
 
 interface TopHeaderProps {
   onEndExam?: () => void;
@@ -8,6 +10,13 @@ interface TopHeaderProps {
 
 export const TopHeader: React.FC<TopHeaderProps> = ({ onEndExam }) => {
   const { patient, consentObtained, setConsent } = useEncounterStore();
+  const navigate = useNavigate();
+  const logout = useAuthStore((state) => state.logout);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     <header className="w-full bg-[#0F2038] text-white shadow-md">
@@ -37,6 +46,14 @@ export const TopHeader: React.FC<TopHeaderProps> = ({ onEndExam }) => {
             className="bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold px-4 py-1.5 rounded-md shadow-xs transition-colors"
           >
             End exam
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-4 py-1.5 rounded-md shadow-xs transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            Logout
           </button>
         </div>
       </div>
