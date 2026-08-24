@@ -23,14 +23,12 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (email, password) => {
         await new Promise((r) => setTimeout(r, 400));
-        if (!email.trim() || !password.trim()) {
-          return { success: false, error: 'Email and password are required.' };
-        }
         
-        // Check for receptionist/nurse credentials
-        if (email.toLowerCase().includes('receptionist') || 
-            email.toLowerCase().includes('nurse') ||
-            email.toLowerCase() === 'reception@clinic.com') {
+        const emailLower = email.trim().toLowerCase();
+        const passwordTrimmed = password.trim();
+        
+        // Validate credentials
+        if (emailLower === 'receptionist@selihome.com' && passwordTrimmed === '123') {
           set({
             isAuthenticated: true,
             user: {
@@ -43,17 +41,21 @@ export const useAuthStore = create<AuthState>()(
           return { success: true, role: 'RECEPTIONIST' };
         }
         
-        // Default to doctor credentials
-        set({
-          isAuthenticated: true,
-          user: {
-            id: 'doc-1',
-            name: 'Dr. Eyasu',
-            email: email.trim(),
-            role: 'DOCTOR',
-          },
-        });
-        return { success: true, role: 'DOCTOR' };
+        if (emailLower === 'doctor@selihome.com' && passwordTrimmed === '123') {
+          set({
+            isAuthenticated: true,
+            user: {
+              id: 'doc-1',
+              name: 'Dr. Eyasu',
+              email: email.trim(),
+              role: 'DOCTOR',
+            },
+          });
+          return { success: true, role: 'DOCTOR' };
+        }
+        
+        // Invalid credentials
+        return { success: false, error: 'Invalid email or password.' };
       },
 
       logout: () => set({ user: null, isAuthenticated: false }),

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, History, FileText, UserPlus, X } from 'lucide-react';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
+import { AddPatientModal } from '../components/AddPatientModal';
 import { useAppStore } from '../store/useAppStore';
 import { useEncounterStore } from '../store/useEncounterStore';
 import { formatDob, calcAge } from '../data/mockData';
@@ -52,15 +53,6 @@ export const PatientsPage: React.FC = () => {
   const [showImportModal, setShowImportModal] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  const [newPatient, setNewPatient] = useState({
-    firstName: '',
-    lastName: '',
-    gender: 'Male' as Patient['gender'],
-    dateOfBirth: '',
-    phone: '',
-    email: '',
-  });
-
   const filtered = useMemo(() => searchPatients(search), [search, searchPatients, patients]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -71,14 +63,11 @@ export const PatientsPage: React.FC = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const handleAddPatient = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPatient.firstName || !newPatient.lastName || !newPatient.dateOfBirth) return;
-    addPatient(newPatient);
+  const handleAddPatient = (patientData: Omit<Patient, 'id' | 'isNew' | 'lastVisit'>) => {
+    addPatient(patientData);
     setShowAddModal(false);
-    setNewPatient({ firstName: '', lastName: '', gender: 'Male', dateOfBirth: '', phone: '', email: '' });
     setPage(1);
-    showToast('Patient added successfully.');
+    showToast('Patient registered successfully.');
   };
 
   const handleImport = () => {
@@ -143,13 +132,13 @@ export const PatientsPage: React.FC = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[#1e3a5f] text-white text-xs uppercase tracking-wide">
-                  <th className="px-4 py-3 text-left font-semibold">Patient ID</th>
+                  <th className="px-4 py-3 text-left font-semibold">MRN</th>
                   <th className="px-4 py-3 text-left font-semibold">First Name</th>
                   <th className="px-4 py-3 text-left font-semibold">Last Name</th>
                   <th className="px-4 py-3 text-left font-semibold">Gender</th>
                   <th className="px-4 py-3 text-left font-semibold">Date of Birth</th>
                   <th className="px-4 py-3 text-left font-semibold">Phone</th>
-                  <th className="px-4 py-3 text-left font-semibold">Email</th>
+                  <th className="px-4 py-3 text-left font-semibold">Address</th>
                   <th className="px-4 py-3 text-left font-semibold">Actions</th>
                 </tr>
               </thead>
@@ -161,13 +150,13 @@ export const PatientsPage: React.FC = () => {
                       idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/80'
                     }`}
                   >
-                    <td className="px-4 py-3 text-slate-700">{p.id}</td>
+                    <td className="px-4 py-3 text-slate-700 font-semibold">{p.mrn || `SEL-${p.id}`}</td>
                     <td className="px-4 py-3 text-slate-800">{p.firstName}</td>
                     <td className="px-4 py-3 text-slate-800">{p.lastName}</td>
                     <td className="px-4 py-3 text-slate-600">{p.gender}</td>
                     <td className="px-4 py-3 text-slate-600">{formatDob(p.dateOfBirth)}</td>
                     <td className="px-4 py-3 text-slate-600">{p.phone}</td>
-                    <td className="px-4 py-3 text-slate-600">{p.email}</td>
+                    <td className="px-4 py-3 text-slate-600">{p.address || '-'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-4">
                         {p.isNew ? (
@@ -250,31 +239,11 @@ export const PatientsPage: React.FC = () => {
         </div>
       </div>
 
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-800">Add Patient</h2>
-              <button onClick={() => setShowAddModal(false)}><X className="w-5 h-5 text-slate-400" /></button>
-            </div>
-            <form onSubmit={handleAddPatient} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <input required placeholder="First name" value={newPatient.firstName} onChange={(e) => setNewPatient({ ...newPatient, firstName: e.target.value })} className="border border-slate-300 rounded px-3 py-2 text-sm" />
-                <input required placeholder="Last name" value={newPatient.lastName} onChange={(e) => setNewPatient({ ...newPatient, lastName: e.target.value })} className="border border-slate-300 rounded px-3 py-2 text-sm" />
-              </div>
-              <select value={newPatient.gender} onChange={(e) => setNewPatient({ ...newPatient, gender: e.target.value as Patient['gender'] })} className="w-full border border-slate-300 rounded px-3 py-2 text-sm">
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-              </select>
-              <input required type="date" value={newPatient.dateOfBirth} onChange={(e) => setNewPatient({ ...newPatient, dateOfBirth: e.target.value })} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
-              <input placeholder="Phone" value={newPatient.phone} onChange={(e) => setNewPatient({ ...newPatient, phone: e.target.value })} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
-              <input type="email" placeholder="Email" value={newPatient.email} onChange={(e) => setNewPatient({ ...newPatient, email: e.target.value })} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
-              <button type="submit" className="w-full py-2.5 bg-[#2563eb] text-white rounded-md text-sm font-medium hover:bg-[#1d4ed8]">Save patient</button>
-            </form>
-          </div>
-        </div>
-      )}
+      <AddPatientModal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSave={handleAddPatient}
+      />
 
       {showImportModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">

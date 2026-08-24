@@ -2,6 +2,7 @@ import React from 'react';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {}
+interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {}
 interface FieldProps {
   label: string;
   required?: boolean;
@@ -25,6 +26,15 @@ export const Select: React.FC<SelectProps> = ({ className = '', children, ...pro
     >
       {children}
     </select>
+  );
+};
+
+export const Textarea: React.FC<TextareaProps> = ({ className = '', ...props }) => {
+  return (
+    <textarea
+      className={`w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500 resize-y ${className}`}
+      {...props}
+    />
   );
 };
 
