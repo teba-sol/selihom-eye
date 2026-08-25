@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Users, History, FileText, UserPlus, X } from 'lucide-react';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { AddPatientModal } from '../components/AddPatientModal';
+import { PatientRecordModal } from '../components/PatientRecordModal';
 import { useAppStore } from '../store/useAppStore';
 import { useEncounterStore } from '../store/useEncounterStore';
 import { formatDob, calcAge } from '../data/mockData';
@@ -51,6 +52,7 @@ export const PatientsPage: React.FC = () => {
   const [pageSize, setPageSize] = useState(20);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [paperRecordPatient, setPaperRecordPatient] = useState<Patient | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const filtered = useMemo(() => searchPatients(search), [search, searchPatients, patients]);
@@ -171,11 +173,11 @@ export const PatientsPage: React.FC = () => {
                           </button>
                         )}
                         <button
-                          onClick={() => showToast(`Paper records for ${p.firstName} ${p.lastName}`)}
+                          onClick={() => setPaperRecordPatient(p)}
                           className="flex items-center gap-1.5 text-[#2563eb] hover:underline text-xs"
                         >
                           <FileText className="w-3.5 h-3.5" />
-                          Paper records
+                          Patient record
                         </button>
                         <button
                           onClick={() => handleOpenExam(p)}
@@ -263,6 +265,17 @@ export const PatientsPage: React.FC = () => {
         <div className="fixed bottom-6 right-6 bg-slate-800 text-white px-4 py-3 rounded-lg shadow-lg text-sm z-50">
           {toast}
         </div>
+      )}
+
+      {/* Patient Record Modal */}
+      {paperRecordPatient && (
+        <PatientRecordModal
+          patient={paperRecordPatient}
+          appointments={getAppointmentsForPatient(paperRecordPatient.id)}
+          snapshots={useEncounterStore.getState().encounterSnapshots}
+          onClose={() => setPaperRecordPatient(null)}
+          onOpenExam={() => { setPaperRecordPatient(null); handleOpenExam(paperRecordPatient); }}
+        />
       )}
     </DashboardLayout>
   );

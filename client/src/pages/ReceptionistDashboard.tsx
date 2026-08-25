@@ -10,14 +10,13 @@ export const ReceptionistDashboard: React.FC = () => {
   const [ReceptionistApp, setReceptionistApp] = useState<any>(null);
 
   useEffect(() => {
-    // Dynamically import the receptionist app
     import('../receptionist/ReceptionistApp')
       .then((module) => {
         setReceptionistApp(() => module.default);
         setIsLoading(false);
       })
       .catch((error) => {
-        console.error('Failed to load receptionist app:', error);
+        console.error('Failed to load receptionist app:', error?.message ?? error);
         setIsLoading(false);
       });
   }, []);
