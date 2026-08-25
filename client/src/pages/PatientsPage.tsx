@@ -26,7 +26,7 @@ function openExamForPatient(
     reasonForVisit: apt.reason,
     patient: {
       id: patient.id,
-      mrn: `SEL-${patient.id}`,
+      mrn: patient.mrn ?? `SEL-${patient.id}`,
       name: `${patient.firstName} ${patient.lastName}`,
       age: calcAge(patient.dateOfBirth),
       gender: patient.gender,
@@ -63,7 +63,7 @@ export const PatientsPage: React.FC = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const handleAddPatient = (patientData: Omit<Patient, 'id' | 'isNew' | 'lastVisit'>) => {
+  const handleAddPatient = (patientData: Omit<Patient, 'id'>) => {
     addPatient(patientData);
     setShowAddModal(false);
     setPage(1);
@@ -150,7 +150,7 @@ export const PatientsPage: React.FC = () => {
                       idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/80'
                     }`}
                   >
-                    <td className="px-4 py-3 text-slate-700 font-semibold">{p.mrn || `SEL-${p.id}`}</td>
+                    <td className="px-4 py-3 text-slate-700 font-semibold">{p.mrn ?? `SEL-${p.id}`}</td>
                     <td className="px-4 py-3 text-slate-800">{p.firstName}</td>
                     <td className="px-4 py-3 text-slate-800">{p.lastName}</td>
                     <td className="px-4 py-3 text-slate-600">{p.gender}</td>

@@ -47,9 +47,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       (p) =>
         p.firstName.toLowerCase().includes(q) ||
         p.lastName.toLowerCase().includes(q) ||
-        p.email.toLowerCase().includes(q) ||
-        p.phone.includes(q) ||
-        p.id.includes(q),
+        (p.email ?? '').toLowerCase().includes(q) ||
+        (p.phone ?? '').includes(q) ||
+        p.id.includes(q) ||
+        (p.mrn ?? '').toLowerCase().includes(q) ||
+        (p.address ?? '').toLowerCase().includes(q),
     );
   },
 

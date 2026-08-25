@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Users, Calendar, Sparkles, Settings } from 'lucide-react';
+import { Users, Calendar, Sparkles, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
 interface DashboardLayoutProps {
@@ -10,13 +10,11 @@ interface DashboardLayoutProps {
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const logout = useAuthStore((s) => s.logout);
+  const user = useAuthStore((s) => s.user);
 
-  const handleSettings = () => {
-    const action = window.confirm('Settings panel coming soon.\n\nLog out?');
-    if (action) {
-      logout();
-      navigate('/login');
-    }
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
 
   return (
@@ -55,19 +53,20 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
             Appointments
           </NavLink>
         </nav>
+
+        <div className="px-3 py-4 border-t border-slate-700/50">
+          <div className="text-xs text-slate-400 px-2 mb-2 truncate">{user?.name ?? 'Doctor'}</div>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-300 hover:bg-rose-600/20 hover:text-rose-300 rounded-sm transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Logout
+          </button>
+        </div>
       </aside>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-12 bg-[#1a2744] flex items-center justify-end px-6 shrink-0">
-          <button
-            onClick={handleSettings}
-            className="flex items-center gap-2 text-white text-sm hover:text-slate-200 transition-colors"
-          >
-            <Settings className="w-4 h-4" />
-            Settings
-          </button>
-        </header>
-
         <main className="flex-1 overflow-y-auto bg-slate-50">{children}</main>
       </div>
     </div>

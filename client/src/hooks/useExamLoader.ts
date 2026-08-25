@@ -40,7 +40,7 @@ export function useExamLoader() {
       reasonForVisit: apt.reason,
       patient: {
         id: patient.id,
-        mrn: `SEL-${patient.id}`,
+        mrn: `${patient.mrn ?? `SEL-${patient.id}`}`,
         name: `${patient.firstName} ${patient.lastName}`,
         age: calcAge(patient.dateOfBirth),
         gender: patient.gender,
