@@ -1,0 +1,1 @@
+ALTER TABLE "patients" ADD COLUMN "grandfather_name" varchar(100);

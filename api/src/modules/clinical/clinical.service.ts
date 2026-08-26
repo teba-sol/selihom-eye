@@ -41,7 +41,6 @@ export class ClinicalService {
   }
 
   async upsertEncounter(doctorUserId: string, dto: UpsertClinicalEncounterDto) {
-    // Check if appointment exists
     const [appointment] = await this.db
       .select()
       .from(appointments)
@@ -52,7 +51,6 @@ export class ClinicalService {
       throw new NotFoundException(`Appointment with ID ${dto.appointmentId} not found`);
     }
 
-    // Check if encounter already exists for this appointment
     const [existing] = await this.db
       .select()
       .from(clinicalEncounters)
@@ -63,8 +61,7 @@ export class ClinicalService {
       throw new BadRequestException('Encounter is locked and finalized. Use addendum to record further clinical updates.');
     }
 
-    // Validate Tonometry IOP High Flags (>21 mmHg)
-    let tonometryPayload: typeof dto.tonometry & { isHighIopOd: boolean; isHighIopOs: boolean } | undefined = undefined;
+    let tonometryPayload: any = undefined;
     if (dto.tonometry) {
       tonometryPayload = {
         ...dto.tonometry,
@@ -76,24 +73,37 @@ export class ClinicalService {
     let encounterId = existing?.id;
 
     if (existing) {
-      // Update active draft encounter
       const [updated] = await this.db
         .update(clinicalEncounters)
         .set({
           doctorUserId,
+          // History & Symptoms
+          reasonForVisit: dto.reasonForVisit ?? existing.reasonForVisit,
           chiefComplaints: dto.chiefComplaints ?? existing.chiefComplaints,
+          symptomaticHistory: dto.symptomaticHistory ?? existing.symptomaticHistory,
           ocularHistory: dto.ocularHistory ?? existing.ocularHistory,
           systemicHistory: dto.systemicHistory ?? existing.systemicHistory,
+          medicationHistory: dto.medicationHistory ?? existing.medicationHistory,
           medicationsAndCompliance: dto.medicationsAndCompliance ?? existing.medicationsAndCompliance,
+          familyOcularHistory: dto.familyOcularHistory ?? existing.familyOcularHistory,
+          familySystemicHistory: dto.familySystemicHistory ?? existing.familySystemicHistory,
+          spectaclesHistory: dto.spectaclesHistory ?? existing.spectaclesHistory,
+          contactLensHistory: dto.contactLensHistory ?? existing.contactLensHistory,
+          lifestyleDemands: dto.lifestyleDemands ?? existing.lifestyleDemands,
           lifestyleAndDemands: dto.lifestyleAndDemands ?? existing.lifestyleAndDemands,
+          // Vision
           visualAcuity: dto.visualAcuity ?? existing.visualAcuity,
+          // Binocular
           binocularVision: dto.binocularVision ?? existing.binocularVision,
           pupilReflexes: dto.pupilReflexes ?? existing.pupilReflexes,
+          // Segments
           slitLampFindings: dto.slitLampFindings ?? existing.slitLampFindings,
           posteriorSegment: dto.posteriorSegment ?? existing.posteriorSegment,
+          // Tests
           tonometry: tonometryPayload ?? existing.tonometry,
           tearFilmWorkup: dto.tearFilmWorkup ?? existing.tearFilmWorkup,
           biometry: dto.biometry ?? existing.biometry,
+          // Assessment
           diagnoses: dto.diagnoses ?? existing.diagnoses,
           treatmentPlanPathway: dto.treatmentPlanPathway ?? existing.treatmentPlanPathway,
           counselingAdviceGiven: dto.counselingAdviceGiven ?? existing.counselingAdviceGiven,
@@ -104,17 +114,24 @@ export class ClinicalService {
 
       encounterId = updated.id;
     } else {
-      // Create new encounter
       const [inserted] = await this.db
         .insert(clinicalEncounters)
         .values({
           appointmentId: dto.appointmentId,
           patientId: dto.patientId,
           doctorUserId,
+          reasonForVisit: dto.reasonForVisit || null,
           chiefComplaints: dto.chiefComplaints || null,
+          symptomaticHistory: dto.symptomaticHistory || null,
           ocularHistory: dto.ocularHistory || null,
           systemicHistory: dto.systemicHistory || null,
+          medicationHistory: dto.medicationHistory || null,
           medicationsAndCompliance: dto.medicationsAndCompliance || null,
+          familyOcularHistory: dto.familyOcularHistory || null,
+          familySystemicHistory: dto.familySystemicHistory || null,
+          spectaclesHistory: dto.spectaclesHistory || null,
+          contactLensHistory: dto.contactLensHistory || null,
+          lifestyleDemands: dto.lifestyleDemands || null,
           lifestyleAndDemands: dto.lifestyleAndDemands || null,
           visualAcuity: dto.visualAcuity || null,
           binocularVision: dto.binocularVision || null,
@@ -132,14 +149,13 @@ export class ClinicalService {
 
       encounterId = inserted.id;
 
-      // Update appointment status to IN_EXAM
       await this.db
         .update(appointments)
         .set({ status: 'IN_EXAM', updatedAt: new Date() })
         .where(eq(appointments.id, dto.appointmentId));
     }
 
-    // Upsert Refraction Records if provided
+    // Upsert Refraction Records
     if (dto.refractions && dto.refractions.length > 0) {
       await this.db.delete(refractionRecords).where(eq(refractionRecords.encounterId, encounterId));
       for (const rx of dto.refractions) {
@@ -166,7 +182,7 @@ export class ClinicalService {
       }
     }
 
-    // Upsert Canvas Drawing Vectors if provided
+    // Upsert Canvas
     if (dto.canvas) {
       const [existingCanvas] = await this.db
         .select()
@@ -213,15 +229,10 @@ export class ClinicalService {
 
     const [locked] = await this.db
       .update(clinicalEncounters)
-      .set({
-        isLocked: true,
-        lockedAt: new Date(),
-        updatedAt: new Date(),
-      })
+      .set({ isLocked: true, lockedAt: new Date(), updatedAt: new Date() })
       .where(eq(clinicalEncounters.id, id))
       .returning();
 
-    // Mark appointment as COMPLETED
     await this.db
       .update(appointments)
       .set({ status: 'COMPLETED', updatedAt: new Date() })
@@ -248,10 +259,7 @@ export class ClinicalService {
 
     const [updated] = await this.db
       .update(clinicalEncounters)
-      .set({
-        addendumNotes: formattedAddendum,
-        updatedAt: new Date(),
-      })
+      .set({ addendumNotes: formattedAddendum, updatedAt: new Date() })
       .where(eq(clinicalEncounters.id, id))
       .returning();
 
@@ -259,7 +267,7 @@ export class ClinicalService {
   }
 
   async getPatientHistory(patientId: string) {
-    const encounters = await this.db
+    return this.db
       .select({
         id: clinicalEncounters.id,
         appointmentId: clinicalEncounters.appointmentId,
@@ -278,7 +286,5 @@ export class ClinicalService {
       .innerJoin(users, eq(clinicalEncounters.doctorUserId, users.id))
       .where(eq(clinicalEncounters.patientId, patientId))
       .orderBy(desc(clinicalEncounters.createdAt));
-
-    return encounters;
   }
 }

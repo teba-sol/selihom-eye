@@ -8,6 +8,20 @@
       "when": 1787068454985,
       "tag": "0000_condemned_ultimo",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787650317470,
+      "tag": "0001_add_clinical_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787762738493,
+      "tag": "0002_add_appointment_fields",
+      "breakpoints": true
     }
   ]
 }

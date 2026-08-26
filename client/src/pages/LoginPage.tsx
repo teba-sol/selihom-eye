@@ -54,8 +54,8 @@ export const LoginPage: React.FC = () => {
 
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-xs">
             <p className="font-semibold text-blue-900 mb-1">Login Credentials:</p>
-            <p className="text-blue-800"><strong>Doctor:</strong> doctor@selihome.com / 123</p>
-            <p className="text-blue-800"><strong>Receptionist:</strong> receptionist@selihome.com / 123</p>
+            <p className="text-blue-800"><strong>Doctor:</strong> doctor@selihome.com / password123</p>
+            <p className="text-blue-800"><strong>Receptionist:</strong> receptionist@selihome.com / password123</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">

@@ -46,6 +46,7 @@ import { SpectacleDispensingView } from '../features/reports/SpectacleDispensing
 import { useEncounterStore } from '../store/useEncounterStore';
 import { useAppStore } from '../store/useAppStore';
 import { useExamLoader } from '../hooks/useExamLoader';
+import { api } from '../lib/api';
 import type { ComponentType } from 'react';
 
 const TAB_VIEWS: Record<string, ComponentType> = {
@@ -104,11 +105,19 @@ export function ExamDashboard() {
   const appointmentId = useEncounterStore((s) => s.appointmentId);
   const patientName = useEncounterStore((s) => s.patient.name);
   const updateAppointment = useAppStore((s) => s.updateAppointment);
+  const saveEncounter = useEncounterStore((s) => s.saveEncounter);
 
-  const handleEndExam = () => {
+  const handleEndExam = async () => {
+    try {
+      await saveEncounter();
+    } catch {}
     const id = appointmentId ?? routeAppointmentId;
     if (id) {
       updateAppointment(id, { status: 'completed' });
+    }
+    const patientId = useEncounterStore.getState().patient.id;
+    if (patientId) {
+      try { await api.patch(`/patients/${patientId}`, {}); } catch {}
     }
     navigate('/appointments');
   };

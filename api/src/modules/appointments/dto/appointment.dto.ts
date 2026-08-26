@@ -1,4 +1,4 @@
-import { IsUUID, IsNotEmpty, IsDateString, IsIn, IsBoolean, IsOptional } from 'class-validator';
+import { IsUUID, IsNotEmpty, IsDateString, IsIn, IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class BookAppointmentDto {
   @IsUUID()
@@ -8,6 +8,14 @@ export class BookAppointmentDto {
   @IsDateString()
   @IsNotEmpty()
   scheduledDate!: string;
+
+  @IsString()
+  @IsOptional()
+  startTime?: string;
+
+  @IsString()
+  @IsOptional()
+  reason?: string;
 
   @IsBoolean()
   @IsOptional()

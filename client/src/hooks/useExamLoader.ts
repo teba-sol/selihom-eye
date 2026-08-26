@@ -11,6 +11,7 @@ export function useExamLoader() {
   const appointments = useAppStore((s) => s.appointments);
   const getPatientById = useAppStore((s) => s.getPatientById);
   const loadFromAppointment = useEncounterStore((s) => s.loadFromAppointment);
+  const loadEncounterFromDb = useEncounterStore((s) => s.loadEncounterFromDb);
   const storeAppointmentId = useEncounterStore((s) => s.appointmentId);
   const patientName = useEncounterStore((s) => s.patient.name);
 
@@ -40,7 +41,7 @@ export function useExamLoader() {
       reasonForVisit: apt.reason,
       patient: {
         id: patient.id,
-        mrn: `SEL-${patient.id}`,
+        mrn: patient.mrn || patient.id,
         name: `${patient.firstName} ${patient.lastName}`,
         age: calcAge(patient.dateOfBirth),
         gender: patient.gender,
@@ -57,4 +58,21 @@ export function useExamLoader() {
     storeAppointmentId,
     patientName,
   ]);
+
+  useEffect(() => {
+    if (!appointmentId || storeAppointmentId !== appointmentId) return;
+
+    const loadSaved = async () => {
+      try {
+        const { api } = await import('../lib/api');
+        const data = await api.get<any>(`/clinical/appointment/${appointmentId}`);
+        if (data) {
+          loadEncounterFromDb(data);
+        }
+      } catch {
+        // No saved encounter — that's fine
+      }
+    };
+    loadSaved();
+  }, [appointmentId, storeAppointmentId]);
 }

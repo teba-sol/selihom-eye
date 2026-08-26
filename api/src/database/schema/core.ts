@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, date, integer } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, boolean, integer } from 'drizzle-orm/pg-core';
 import { userRoleEnum, appointmentStatusEnum } from './enums';
 
 // 1. Staff Accounts (Receptionist and Doctor)
@@ -20,7 +20,8 @@ export const patients = pgTable('patients', {
   mrn: varchar('mrn', { length: 50 }).notNull().unique(), // e.g. SEL-2026-0001
   firstName: varchar('first_name', { length: 100 }).notNull(),
   lastName: varchar('last_name', { length: 100 }).notNull(),
-  dob: date('dob'),
+  grandfatherName: varchar('grandfather_name', { length: 100 }),
+  dob: varchar('dob', { length: 50 }),
   gender: varchar('gender', { length: 20 }),
   phone: varchar('phone', { length: 50 }).notNull(),
   email: varchar('email', { length: 100 }),
@@ -41,7 +42,11 @@ export const patients = pgTable('patients', {
 export const appointments = pgTable('appointments', {
   id: uuid('id').defaultRandom().primaryKey(),
   patientId: uuid('patient_id').references(() => patients.id, { onDelete: 'cascade' }).notNull(),
+  doctorUserId: uuid('doctor_user_id').references(() => users.id),
   scheduledDate: timestamp('scheduled_date', { withTimezone: true }).notNull(),
+  startTime: varchar('start_time', { length: 10 }),
+  endTime: varchar('end_time', { length: 10 }),
+  reason: varchar('reason', { length: 255 }),
   queueNumber: integer('queue_number'),
   status: appointmentStatusEnum('status').default('CHECKED_IN').notNull(),
 

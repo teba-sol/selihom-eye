@@ -119,3 +119,50 @@ export function formatDisplayDate(iso: string): string {
   const d = new Date(iso + 'T00:00:00');
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
+
+// ── Ethiopian calendar conversion ──────────────────────────────────────
+
+const ETHIOPIC_JDN_OFFSET = 1724220;
+
+function gregorianToJDN(year: number, month: number, day: number): number {
+  const a = Math.floor((14 - month) / 12);
+  const y = year + 4800 - a;
+  const m = month + 12 * a - 3;
+  return day + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+}
+
+function jdnToEthiopic(jdn: number): { year: number; month: number; day: number } {
+  const r0 = jdn - ETHIOPIC_JDN_OFFSET - 1;
+  const cycleIndex = Math.floor(r0 / 1461);
+  const rc = r0 - cycleIndex * 1461;
+  let yOffset: number;
+  let diy: number;
+  if (rc < 365) { yOffset = 0; diy = rc; }
+  else if (rc < 730) { yOffset = 1; diy = rc - 365; }
+  else if (rc < 1096) { yOffset = 2; diy = rc - 730; }
+  else { yOffset = 3; diy = rc - 1096; }
+  const year = cycleIndex * 4 + yOffset + 1;
+  const month = Math.floor(diy / 30) + 1;
+  const day = (diy % 30) + 1;
+  return { year, month, day };
+}
+
+const ETH_MONTH_NAMES = [
+  'Meskerem', 'Tikimt', 'Hidar', 'Tahsas', 'Tir', 'Yekatit',
+  'Mebaza', 'Miazia', 'Ginbot', 'Sene', 'Hamle', 'Nehasa', 'Pagume',
+];
+
+export function formatDobEthiopian(iso: string): string {
+  if (!iso) return '-';
+  return iso;
+}
+
+export function extractRegionZone(address: string | undefined | null): { region: string; zone: string } {
+  if (!address) return { region: '-', zone: '-' };
+  const parts = address.split(',').map((s) => s.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    return { zone: parts[parts.length - 2], region: parts[parts.length - 1] };
+  }
+  if (parts.length === 1) return { region: parts[0], zone: '-' };
+  return { region: '-', zone: '-' };
+}

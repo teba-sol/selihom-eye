@@ -1,0 +1,1 @@
+ALTER TABLE "patients" ALTER COLUMN "dob" TYPE varchar(50) USING dob::text;

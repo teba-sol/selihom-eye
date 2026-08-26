@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { api } from '../lib/api';
 
 interface AuthUser {
   id: string;
@@ -10,6 +11,7 @@ interface AuthUser {
 
 interface AuthState {
   user: AuthUser | null;
+  token: string | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; role?: string }>;
   logout: () => void;
@@ -19,46 +21,33 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
+      token: null,
       isAuthenticated: false,
 
       login: async (email, password) => {
-        await new Promise((r) => setTimeout(r, 400));
-        
-        const emailLower = email.trim().toLowerCase();
-        const passwordTrimmed = password.trim();
-        
-        // Validate credentials
-        if (emailLower === 'receptionist@selihome.com' && passwordTrimmed === '123') {
+        try {
+          const res = await api.post<{ accessToken: string; user: { id: string; email: string; firstName: string; lastName: string; role: string } }>('/auth/login', {
+            email: email.trim(),
+            password: password.trim(),
+          });
+
           set({
             isAuthenticated: true,
+            token: res.accessToken,
             user: {
-              id: 'nurse-1',
-              name: 'Sister Selamawit',
-              email: email.trim(),
-              role: 'RECEPTIONIST',
+              id: res.user.id,
+              name: `${res.user.firstName} ${res.user.lastName}`,
+              email: res.user.email,
+              role: res.user.role as 'DOCTOR' | 'RECEPTIONIST',
             },
           });
-          return { success: true, role: 'RECEPTIONIST' };
+          return { success: true, role: res.user.role };
+        } catch (err: any) {
+          return { success: false, error: err.message || 'Login failed.' };
         }
-        
-        if (emailLower === 'doctor@selihome.com' && passwordTrimmed === '123') {
-          set({
-            isAuthenticated: true,
-            user: {
-              id: 'doc-1',
-              name: 'Dr. Eyasu',
-              email: email.trim(),
-              role: 'DOCTOR',
-            },
-          });
-          return { success: true, role: 'DOCTOR' };
-        }
-        
-        // Invalid credentials
-        return { success: false, error: 'Invalid email or password.' };
       },
 
-      logout: () => set({ user: null, isAuthenticated: false }),
+      logout: () => set({ user: null, token: null, isAuthenticated: false }),
     }),
     { name: 'asira-auth' },
   ),

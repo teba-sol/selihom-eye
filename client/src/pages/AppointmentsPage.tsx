@@ -1,12 +1,12 @@
-import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Calendar, ChevronDown, CheckCircle2, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Calendar, CheckCircle2, X } from 'lucide-react';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { useAppStore } from '../store/useAppStore';
 import { useEncounterStore } from '../store/useEncounterStore';
-import { DOCTORS, calcAge, formatDisplayDate } from '../data/mockData';
+import { calcAge, formatDisplayDate } from '../data/mockData';
 import { buildAppointmentTime } from '../lib/encounterDefaults';
-import type { Appointment, Patient } from '../data/mockData';
+import type { Appointment, Patient } from '../store/useAppStore';
 
 type CalendarView = 'day' | 'week' | 'month';
 
@@ -47,14 +47,21 @@ function timeToLabel(h: number): string {
   return `${h}am`;
 }
 
+function addMinutes(t: string, mins: number): string {
+  const [h, m] = t.split(':').map(Number);
+  const total = h * 60 + m + mins;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
 export const AppointmentsPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const appointments = useAppStore((s) => s.appointments);
   const patients = useAppStore((s) => s.patients);
+  const fetchPatients = useAppStore((s) => s.fetchPatients);
+  const fetchAppointments = useAppStore((s) => s.fetchAppointments);
   const getPatientById = useAppStore((s) => s.getPatientById);
   const getAppointmentsForRange = useAppStore((s) => s.getAppointmentsForRange);
-  const selectedDoctorId = useAppStore((s) => s.selectedDoctorId);
-  const setSelectedDoctor = useAppStore((s) => s.setSelectedDoctor);
   const addAppointment = useAppStore((s) => s.addAppointment);
   const updateAppointment = useAppStore((s) => s.updateAppointment);
   const cancelAppointment = useAppStore((s) => s.cancelAppointment);
@@ -64,18 +71,34 @@ export const AppointmentsPage: React.FC = () => {
   const [view, setView] = useState<CalendarView>('week');
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
   const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
-  const [showDoctorDropdown, setShowDoctorDropdown] = useState(false);
   const [showBookModal, setShowBookModal] = useState(false);
   const [consentChecked, setConsentChecked] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
+  const preselectedPatientId = searchParams.get('patientId') || '';
+
   const [bookForm, setBookForm] = useState({
-    patientId: '',
+    patientId: preselectedPatientId,
     date: '',
     startTime: '10:00',
-    endTime: '10:30',
     reason: 'Routine Eye Examination',
   });
+
+  useEffect(() => {
+    fetchPatients();
+    fetchAppointments();
+  }, [fetchPatients, fetchAppointments]);
+
+  useEffect(() => {
+    if (preselectedPatientId && patients.length > 0) {
+      setBookForm((f) => ({
+        ...f,
+        patientId: preselectedPatientId,
+        date: weekStart.toISOString().split('T')[0],
+      }));
+      setShowBookModal(true);
+    }
+  }, [preselectedPatientId, patients.length]);
 
   const weekEnd = addDays(weekStart, 6);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -83,11 +106,9 @@ export const AppointmentsPage: React.FC = () => {
   today.setHours(0, 0, 0, 0);
 
   const visibleAppointments = useMemo(
-    () => getAppointmentsForRange(weekStart, weekEnd, selectedDoctorId),
-    [appointments, weekStart, weekEnd, selectedDoctorId, getAppointmentsForRange],
+    () => getAppointmentsForRange(weekStart, weekEnd),
+    [appointments, weekStart, weekEnd, getAppointmentsForRange],
   );
-
-  const selectedDoctor = DOCTORS.find((d) => d.id === selectedDoctorId);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -118,10 +139,10 @@ export const AppointmentsPage: React.FC = () => {
       reasonForVisit: selectedApt.reason,
       patient: {
         id: patient.id,
-        mrn: `SEL-${patient.id}`,
+        mrn: patient.mrn || patient.id,
         name: `${patient.firstName} ${patient.lastName}`,
         age: calcAge(patient.dateOfBirth),
-        gender: patient.gender,
+        gender: patient.gender || '',
         appointmentTime: buildAppointmentTime(selectedApt.date, selectedApt.startTime),
         reasonForVisit: selectedApt.reason,
       },
@@ -137,7 +158,6 @@ export const AppointmentsPage: React.FC = () => {
       patientId: selectedApt.patientId,
       date: selectedApt.date,
       startTime: selectedApt.startTime,
-      endTime: selectedApt.endTime,
       reason: selectedApt.reason,
     });
     setShowBookModal(true);
@@ -153,20 +173,22 @@ export const AppointmentsPage: React.FC = () => {
     }
   };
 
-  const handleBook = (e: React.FormEvent) => {
+  const handleBook = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bookForm.patientId || !bookForm.date) return;
-    addAppointment({
-      patientId: bookForm.patientId,
-      date: bookForm.date,
-      startTime: bookForm.startTime,
-      endTime: bookForm.endTime,
-      reason: bookForm.reason,
-      consentObtained: false,
-      doctorId: selectedDoctorId ?? 'doc-1',
-    });
-    setShowBookModal(false);
-    showToast('Appointment booked.');
+    try {
+      await addAppointment({
+        patientId: bookForm.patientId,
+        date: bookForm.date,
+        startTime: bookForm.startTime,
+        reason: bookForm.reason,
+        consentObtained: false,
+      });
+      setShowBookModal(false);
+      showToast('Appointment booked.');
+    } catch {
+      showToast('Failed to book appointment.');
+    }
   };
 
   const renderWeekGrid = () => {
@@ -221,7 +243,7 @@ export const AppointmentsPage: React.FC = () => {
 
                 {dayApts.map((apt) => {
                   const start = parseTime(apt.startTime);
-                  const end = parseTime(apt.endTime);
+                  const end = parseTime(addMinutes(apt.startTime, 30));
                   const top = (start - HOURS[0]) * HOUR_HEIGHT;
                   const height = Math.max((end - start) * HOUR_HEIGHT, 28);
                   const patient = getPatientById(apt.patientId);
@@ -270,50 +292,12 @@ export const AppointmentsPage: React.FC = () => {
             <h1 className="text-2xl font-semibold text-[#2563eb]">Appointments</h1>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => setShowDoctorDropdown(!showDoctorDropdown)}
-                onKeyDown={(e) => e.key === 'Enter' && setShowDoctorDropdown(!showDoctorDropdown)}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-md text-sm min-w-[180px] cursor-pointer"
-              >
-                <span className="flex-1 text-left">{selectedDoctor?.name ?? 'All doctors'}</span>
-                {selectedDoctorId && (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => { e.stopPropagation(); setSelectedDoctor(null); }}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setSelectedDoctor(null); } }}
-                    className="text-slate-400 hover:text-slate-600"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </span>
-                )}
-                <ChevronDown className="w-4 h-4 text-slate-400" />
-              </div>
-              {showDoctorDropdown && (
-                <div className="absolute top-full mt-1 right-0 bg-white border border-slate-200 rounded-md shadow-lg z-40 min-w-[180px]">
-                  {DOCTORS.map((d) => (
-                    <button
-                      key={d.id}
-                      onClick={() => { setSelectedDoctor(d.id); setShowDoctorDropdown(false); }}
-                      className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50"
-                    >
-                      {d.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => { setBookForm({ patientId: '', date: weekStart.toISOString().split('T')[0], startTime: '10:00', endTime: '10:30', reason: 'Routine Eye Examination' }); setShowBookModal(true); }}
-              className="px-5 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm font-medium rounded-md"
-            >
-              Book appointment
-            </button>
-          </div>
+          <button
+            onClick={() => { setBookForm({ patientId: preselectedPatientId || '', date: weekStart.toISOString().split('T')[0], startTime: '10:00', reason: 'Routine Eye Examination' }); setShowBookModal(true); }}
+            className="px-5 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm font-medium rounded-md"
+          >
+            Book appointment
+          </button>
         </div>
 
         <div className="flex items-center justify-between mb-4">
@@ -401,9 +385,6 @@ export const AppointmentsPage: React.FC = () => {
 
             <div className="space-y-1 text-sm text-slate-600 mb-4">
               <p>Phone: {selectedPatient.phone}</p>
-              {selectedPatient.lastVisit && (
-                <p>Last visit: {formatDisplayDate(selectedPatient.lastVisit)}</p>
-              )}
             </div>
 
             <div className="space-y-1 text-sm text-slate-700 mb-4 pb-4 border-b border-slate-100">
@@ -467,10 +448,7 @@ export const AppointmentsPage: React.FC = () => {
                 ))}
               </select>
               <input required type="date" value={bookForm.date} onChange={(e) => setBookForm({ ...bookForm, date: e.target.value })} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
-              <div className="grid grid-cols-2 gap-3">
-                <input required type="time" value={bookForm.startTime} onChange={(e) => setBookForm({ ...bookForm, startTime: e.target.value })} className="border border-slate-300 rounded px-3 py-2 text-sm" />
-                <input required type="time" value={bookForm.endTime} onChange={(e) => setBookForm({ ...bookForm, endTime: e.target.value })} className="border border-slate-300 rounded px-3 py-2 text-sm" />
-              </div>
+              <input required type="time" value={bookForm.startTime} onChange={(e) => setBookForm({ ...bookForm, startTime: e.target.value })} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
               <input required placeholder="Reason for visit" value={bookForm.reason} onChange={(e) => setBookForm({ ...bookForm, reason: e.target.value })} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
               <button type="submit" className="w-full py-2.5 bg-[#2563eb] text-white rounded-md text-sm font-medium">Confirm booking</button>
             </form>

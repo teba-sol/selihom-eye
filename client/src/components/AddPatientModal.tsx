@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, Calendar, User, FileText, Phone, Building2, ShieldCheck, ChevronDown, UserCheck } from 'lucide-react';
-import type { Patient } from '../data/mockData';
+import type { Patient } from '../store/useAppStore';
 import { REGION_DATA, SW_REGION_KEY, SW_KEBELE_DATA } from '../receptionist/data';
 import '../receptionist/index.css';
 
@@ -136,34 +136,14 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
             segs[idx + 1].select();
           }
 
-          if (groupId === 'euroDobGroup') {
-            const euro = readGroup('euroDobD', 'euroDobM', 'euroDobY');
-            if (euro && isValidDate(euro.day, euro.month, euro.year)) {
-              const ethResult = gregorianToEthiopian(euro.year, euro.month, euro.day);
-              writeGroup('ethDobD', 'ethDobM', 'ethDobY', ethResult.day, ethResult.month, ethResult.year);
-              calculateAge(euro.year, euro.month, euro.day);
-            }
-          } else if (groupId === 'ethDobGroup') {
+          if (groupId === 'ethDobGroup') {
             const eth = readGroup('ethDobD', 'ethDobM', 'ethDobY');
             if (eth && isValidEthDate(eth.day, eth.month, eth.year)) {
               const greg = ethiopianToGregorian(eth.year, eth.month, eth.day);
-              writeGroup('euroDobD', 'euroDobM', 'euroDobY', greg.day, greg.month, greg.year);
               calculateAge(greg.year, greg.month, greg.day);
             }
           } else if (groupId === 'regEthGroup') {
-            const eth = readGroup('regEthD', 'regEthM', 'regEthY');
-            if (eth && isValidEthDate(eth.day, eth.month, eth.year)) {
-              const greg = ethiopianToGregorian(eth.year, eth.month, eth.day);
-              writeGroup('regEuroD', 'regEuroM', 'regEuroY', greg.day, greg.month, greg.year);
-              syncMrnYearWithRegDate();
-            }
-          } else if (groupId === 'regEuroGroup') {
-            const euro = readGroup('regEuroD', 'regEuroM', 'regEuroY');
-            if (euro && isValidDate(euro.day, euro.month, euro.year)) {
-              const ethResult = gregorianToEthiopian(euro.year, euro.month, euro.day);
-              writeGroup('regEthD', 'regEthM', 'regEthY', ethResult.day, ethResult.month, ethResult.year);
-              syncMrnYearWithRegDate();
-            }
+            syncMrnYearWithRegDate();
           }
         });
 
@@ -588,7 +568,6 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
       const gm = gregorianDate.getMonth() + 1;
       const gy = gregorianDate.getFullYear();
       const eth = gregorianToEthiopian(gy, gm, gd);
-      writeGroup('regEuroD', 'regEuroM', 'regEuroY', gd, gm, gy);
       writeGroup('regEthD', 'regEthM', 'regEthY', eth.day, eth.month, eth.year);
     }
 
@@ -603,9 +582,7 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
     };
 
     // Initialize all components
-    setupDateGroup('regEuroGroup', 'regEuroD', 'regEuroM', 'regEuroY');
     setupDateGroup('regEthGroup', 'regEthD', 'regEthM', 'regEthY');
-    setupDateGroup('euroDobGroup', 'euroDobD', 'euroDobM', 'euroDobY');
     setupDateGroup('ethDobGroup', 'ethDobD', 'ethDobM', 'ethDobY');
 
     setRegistrationDatePlaceholders(new Date());
@@ -631,14 +608,13 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
         const isReferred = (document.getElementById('isReferred') as HTMLInputElement)?.checked;
         const referralSourceVal = (document.getElementById('referralSource') as HTMLInputElement)?.value;
 
-        const regEuro = readGroup('regEuroD', 'regEuroM', 'regEuroY');
         const regEth = readGroup('regEthD', 'regEthM', 'regEthY');
-        const dobEuro = readGroup('euroDobD', 'euroDobM', 'euroDobY');
         const dobEth = readGroup('ethDobD', 'ethDobM', 'ethDobY');
 
         saveKebeleName(currentWoredaName(), (document.getElementById('kebele') as HTMLInputElement)?.value.trim() || '');
 
         const firstName = (document.getElementById('firstName') as HTMLInputElement)?.value;
+        const grandfatherName = (document.getElementById('grandfatherName') as HTMLInputElement)?.value.trim();
         const fatherName = (document.getElementById('fatherName') as HTMLInputElement)?.value;
         const sex = (document.getElementById('sex') as HTMLSelectElement)?.value;
         const age = (document.getElementById('age') as HTMLInputElement)?.value;
@@ -656,16 +632,17 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
         const addressParts = [kebele, ketena, woreda, zone, region].filter(Boolean);
         const address = addressParts.join(', ');
 
-        // Convert European DOB to ISO format for storage
+        // Format Ethiopian DOB as DD/MM/YYYY string for storage
         let dateOfBirth = '';
-        if (dobEuro && isValidDate(dobEuro.day, dobEuro.month, dobEuro.year)) {
-          dateOfBirth = `${dobEuro.year}-${String(dobEuro.month).padStart(2, '0')}-${String(dobEuro.day).padStart(2, '0')}`;
+        if (dobEth && isValidEthDate(dobEth.day, dobEth.month, dobEth.year)) {
+          dateOfBirth = `${String(dobEth.day).padStart(2, '0')}/${String(dobEth.month).padStart(2, '0')}/${dobEth.year}`;
         }
 
         const patientData: Omit<Patient, 'id' | 'isNew' | 'lastVisit'> = {
           mrn: mrn || '',
           firstName: firstName || '',
           lastName: fatherName || '',
+          grandfatherName: grandfatherName || undefined,
           gender: sex === 'F' ? 'Female' : 'Male',
           dateOfBirth,
           phone: phone || '',
@@ -709,7 +686,7 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
               <div className="p-2 rounded-lg bg-blue-100 text-blue-700"><Calendar className="w-5 h-5" /></div>
               <div>
                 <h3 className="text-base font-extrabold text-slate-800">Registration Date <span className="text-sm font-normal text-blue-700">(የምዝገባ ቀን)</span></h3>
-                <p className="text-xs text-slate-500">Auto-defaults to current date in both calendars</p>
+                <p className="text-xs text-slate-500">Auto-defaults to current date in Ethiopian calendar</p>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -721,16 +698,6 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
                   <input type="text" inputMode="numeric" autoComplete="off" className="date-seg" id="regEthM" placeholder="MM" maxLength={2} />
                   <span className="date-sep">/</span>
                   <input type="text" inputMode="numeric" autoComplete="off" className="date-seg date-seg-yyyy" id="regEthY" placeholder="YYYY" maxLength={4} />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">EUROPEAN DATE</label>
-                <div className="date-input-group" id="regEuroGroup">
-                  <input type="text" inputMode="numeric" autoComplete="off" className="date-seg" id="regEuroD" placeholder="DD" maxLength={2} />
-                  <span className="date-sep">/</span>
-                  <input type="text" inputMode="numeric" autoComplete="off" className="date-seg" id="regEuroM" placeholder="MM" maxLength={2} />
-                  <span className="date-sep">/</span>
-                  <input type="text" inputMode="numeric" autoComplete="off" className="date-seg date-seg-yyyy" id="regEuroY" placeholder="YYYY" maxLength={4} />
                 </div>
               </div>
             </div>
@@ -776,12 +743,12 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
                 <input type="text" id="firstName" required placeholder="e.g. Abebe" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Father's Name (የአባት ስም) <span className="text-red-500">*</span></label>
-                <input type="text" id="fatherName" required placeholder="e.g. Bekele" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">ስም አባት / Grandfather Name <span className="text-red-500">*</span></label>
+                <input type="text" id="grandfatherName" required placeholder="e.g. Kebede" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Grandfather's Name</label>
-                <input type="text" id="grandFatherName" placeholder="e.g. Kebede" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Father's Name (የአባት ስም) <span className="text-red-500">*</span></label>
+                <input type="text" id="fatherName" required placeholder="e.g. Bekele" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
               </div>
             </div>
             <div className="mt-4 max-w-[200px]">
@@ -800,7 +767,7 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
               <div className="p-2 rounded-lg bg-blue-100 text-blue-700"><Calendar className="w-5 h-5" /></div>
               <div>
                 <h3 className="text-base font-extrabold text-slate-800">Date of Birth & Age <span className="text-sm font-normal text-blue-700">(የልደት ቀን እና ዕድሜ)</span></h3>
-                <p className="text-xs text-slate-500">Auto age calculation from Ethiopian or European DOB</p>
+                <p className="text-xs text-slate-500">Auto age calculation from Ethiopian DOB</p>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -812,16 +779,6 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
                   <input type="text" inputMode="numeric" autoComplete="off" className="date-seg" id="ethDobM" placeholder="MM" maxLength={2} />
                   <span className="date-sep">/</span>
                   <input type="text" inputMode="numeric" autoComplete="off" className="date-seg date-seg-yyyy" id="ethDobY" placeholder="YYYY" maxLength={4} />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">EUROPEAN DOB</label>
-                <div className="date-input-group" id="euroDobGroup">
-                  <input type="text" inputMode="numeric" autoComplete="off" className="date-seg" id="euroDobD" placeholder="DD" maxLength={2} />
-                  <span className="date-sep">/</span>
-                  <input type="text" inputMode="numeric" autoComplete="off" className="date-seg" id="euroDobM" placeholder="MM" maxLength={2} />
-                  <span className="date-sep">/</span>
-                  <input type="text" inputMode="numeric" autoComplete="off" className="date-seg date-seg-yyyy" id="euroDobY" placeholder="YYYY" maxLength={4} />
                 </div>
               </div>
             </div>

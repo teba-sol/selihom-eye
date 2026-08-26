@@ -21,12 +21,12 @@ export const ASIRA_EXAM_TREE: SidebarSection[] = [
     id: 'history-and-symptoms',
     label: 'History And Symptoms',
     isExpandable: true,
-    isCompleted: true,
+    isCompleted: false,
     children: [
-      { id: 'reason-for-visit', label: 'Reason For Visit', isCompleted: true },
-      { id: 'symptomatic-history', label: 'Symptomatic History', isCompleted: true },
-      { id: 'ocular-history', label: 'Ocular History', isCompleted: true },
-      { id: 'systemic-history', label: 'Systemic History', isCompleted: true },
+      { id: 'reason-for-visit', label: 'Reason For Visit', isCompleted: false },
+      { id: 'symptomatic-history', label: 'Symptomatic History', isCompleted: false },
+      { id: 'ocular-history', label: 'Ocular History', isCompleted: false },
+      { id: 'systemic-history', label: 'Systemic History', isCompleted: false },
       { id: 'medication', label: 'Medication', isCompleted: false },
       { id: 'family-ocular-history', label: 'Family Ocular History', isCompleted: false },
       { id: 'family-systemic-history', label: 'Family Systemic History', isCompleted: false },
@@ -39,15 +39,15 @@ export const ASIRA_EXAM_TREE: SidebarSection[] = [
     id: 'vision-and-visual-acuity',
     label: 'Vision And Visual Acuity',
     isExpandable: false,
-    isCompleted: true,
+    isCompleted: false,
   },
   {
     id: 'refraction',
     label: 'Refraction',
     isExpandable: true,
-    isCompleted: true,
+    isCompleted: false,
     children: [
-      { id: 'objective-subjective', label: 'Objective-subjective', isCompleted: true },
+      { id: 'objective-subjective', label: 'Objective-subjective', isCompleted: false },
       { id: 'cycloplegic', label: 'Cycloplegic', isCompleted: false },
     ],
   },
@@ -55,14 +55,14 @@ export const ASIRA_EXAM_TREE: SidebarSection[] = [
     id: 'binocular-vision-assessment',
     label: 'Binocular Vision Assessment',
     isExpandable: true,
-    isCompleted: true,
+    isCompleted: false,
     children: [
-      { id: 'worth-4-dot', label: 'Worth 4 Dot Test', isCompleted: true },
-      { id: 'ocular-motor-balance', label: 'Ocular Motor Balance', isCompleted: true },
-      { id: 'near-point-of-convergence', label: 'Near Point Of Convergence', isCompleted: true },
+      { id: 'worth-4-dot', label: 'Worth 4 Dot Test', isCompleted: false },
+      { id: 'ocular-motor-balance', label: 'Ocular Motor Balance', isCompleted: false },
+      { id: 'near-point-of-convergence', label: 'Near Point Of Convergence', isCompleted: false },
       { id: 'amplitude-of-accommodation', label: 'Amplitude Of Accommodation', isCompleted: false },
-      { id: 'ocular-motility', label: 'Ocular Motility', isCompleted: true },
-      { id: 'pupil-evaluation', label: 'Pupil Evaluation', isCompleted: true },
+      { id: 'ocular-motility', label: 'Ocular Motility', isCompleted: false },
+      { id: 'pupil-evaluation', label: 'Pupil Evaluation', isCompleted: false },
       { id: 'stereopsis', label: 'Stereopsis', isCompleted: false },
       { id: 'accommodative-lag', label: 'Accommodative Lag', isCompleted: false },
       { id: 'accommodative-facility', label: 'Accommodative Facility', isCompleted: false },
@@ -73,30 +73,30 @@ export const ASIRA_EXAM_TREE: SidebarSection[] = [
     id: 'anterior-segment-eval',
     label: 'Anterior Segment Evaluation',
     isExpandable: false,
-    isCompleted: true,
+    isCompleted: false,
   },
   {
     id: 'crystalline-lens',
     label: 'Crystalline Lens Evaluation',
     isExpandable: false,
-    isCompleted: true,
+    isCompleted: false,
   },
   {
     id: 'posterior-segment',
     label: 'Posterior Segment Evaluation',
     isExpandable: false,
-    isCompleted: true,
+    isCompleted: false,
   },
   {
     id: 'additional-tests',
     label: 'Additional Tests',
     isExpandable: true,
-    isCompleted: true,
+    isCompleted: false,
     children: [
-      { id: 'tear-film', label: 'Tear Film Evaluation', isCompleted: true },
+      { id: 'tear-film', label: 'Tear Film Evaluation', isCompleted: false },
       { id: 'colour-vision', label: 'Colour Vision', isCompleted: false },
       { id: 'pachymetry', label: 'Pachymetry', isCompleted: false },
-      { id: 'tonometry', label: 'Tonometry', isCompleted: true },
+      { id: 'tonometry', label: 'Tonometry', isCompleted: false },
       { id: 'gonioscopy', label: 'Gonioscopy', isCompleted: false },
       { id: 'amsler', label: 'Amsler', isCompleted: false },
       { id: 'contrast-sensitivity', label: 'Contrast Sensitivity', isCompleted: false },
@@ -169,19 +169,16 @@ export const AsiraSidebar: React.FC = () => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Helper function to check if a section is completed based on actual data
   const isSectionCompleted = (sectionId: string): boolean => {
     switch (sectionId) {
       case 'reason-for-visit':
-        return encounterState.patient.reasonForVisit !== '';
+        return encounterState.patient.reasonForVisit.trim() !== '';
       case 'symptomatic-history':
         return encounterState.symptoms.length > 0;
       case 'ocular-history':
-        return !encounterState.ocularHistory.noHistoryReported || 
-               Object.values(encounterState.ocularHistory.conditions).some(c => c.active);
+        return Object.values(encounterState.ocularHistory.conditions).some(c => c.active);
       case 'systemic-history':
-        return !encounterState.systemicHistory.noHistoryReported ||
-               Object.values(encounterState.systemicHistory.conditions).some((c: any) => c.active);
+        return Object.values(encounterState.systemicHistory.conditions).some((c: any) => c.active);
       case 'medication':
         return encounterState.patientMedications.length > 0;
       case 'family-ocular-history':
@@ -189,21 +186,21 @@ export const AsiraSidebar: React.FC = () => {
       case 'family-systemic-history':
         return encounterState.familySystemicHistory.length > 0;
       case 'spectacles':
-        return encounterState.spectaclesHistory.currentlyWears !== undefined;
+        return encounterState.spectaclesHistory.currentlyWears === true;
       case 'contact-lens':
-        return encounterState.contactLensHistory.currentWearer !== undefined;
+        return encounterState.contactLensHistory.currentWearer === true;
       case 'lifestyle':
-        return encounterState.lifestyleDemands.occupation !== '';
+        return encounterState.lifestyleDemands.occupation.trim() !== '';
       case 'vision-and-visual-acuity':
       case 'visual-acuity':
-        return Object.values(encounterState.visualAcuity).some(v => v !== '');
+        return Object.values(encounterState.visualAcuity).some(v => v.trim() !== '');
       case 'refraction':
       case 'objective-subjective':
-        return encounterState.refraction.odSph !== '' || encounterState.refraction.osSph !== '';
+        return encounterState.refraction.odSph.trim() !== '' || encounterState.refraction.osSph.trim() !== '';
       case 'tonometry':
-        return encounterState.tonometry.odIop !== '' || encounterState.tonometry.osIop !== '';
+        return encounterState.tonometry.odIop.trim() !== '' || encounterState.tonometry.osIop.trim() !== '';
       case 'anterior-segment-eval':
-        return encounterState.slitLamp.cornea !== '' || encounterState.odCanvasVectors !== '';
+        return encounterState.slitLamp.cornea.trim() !== '' || encounterState.odCanvasVectors !== '';
       default:
         return false;
     }

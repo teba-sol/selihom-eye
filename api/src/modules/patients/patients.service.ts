@@ -19,7 +19,7 @@ export class PatientsService {
   }
 
   async create(dto: CreatePatientDto) {
-    const mrn = await this.generateNextMrn();
+    const mrn = dto.mrn || await this.generateNextMrn();
 
     const [newPatient] = await this.db
       .insert(patients)
@@ -27,6 +27,7 @@ export class PatientsService {
         mrn,
         firstName: dto.firstName,
         lastName: dto.lastName,
+        grandfatherName: dto.grandfatherName || null,
         dob: dto.dob ? dto.dob : null,
         gender: dto.gender || null,
         phone: dto.phone,
@@ -55,6 +56,7 @@ export class PatientsService {
           ilike(patients.mrn, `%${query}%`),
           ilike(patients.firstName, `%${query}%`),
           ilike(patients.lastName, `%${query}%`),
+          ilike(patients.grandfatherName, `%${query}%`),
           ilike(patients.phone, `%${query}%`),
         ),
       )
@@ -67,5 +69,27 @@ export class PatientsService {
       throw new NotFoundException(`Patient with ID ${id} not found`);
     }
     return patient;
+  }
+
+  async update(id: string, dto: Record<string, any>) {
+    const fields: Record<string, any> = {};
+    for (const [key, value] of Object.entries(dto)) {
+      if (value !== undefined) {
+        fields[key] = value;
+      }
+    }
+    if (Object.keys(fields).length === 0) {
+      return this.findById(id);
+    }
+    fields.updatedAt = new Date();
+    const [updated] = await this.db
+      .update(patients)
+      .set(fields)
+      .where(eq(patients.id, id))
+      .returning();
+    if (!updated) {
+      throw new NotFoundException(`Patient with ID ${id} not found`);
+    }
+    return updated;
   }
 }

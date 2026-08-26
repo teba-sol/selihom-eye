@@ -183,8 +183,6 @@ interface EncounterState {
   counselingAdvice: string;
   treatmentPathway: string;
 
-  encounterSnapshots: Record<string, EncounterSnapshot>;
-
   // Actions
   setActiveTab: (tab: string) => void;
   setConsent: (val: boolean) => void;
@@ -195,6 +193,8 @@ interface EncounterState {
     consentObtained: boolean;
     reasonForVisit: string;
   }) => void;
+  loadEncounterFromDb: (data: any) => void;
+  saveEncounter: () => Promise<void>;
   updateOcularCondition: (key: keyof OcularHistoryState['conditions'], data: Partial<OcularConditionDetail>) => void;
   setOcularGeneralRemarks: (remarks: string) => void;
   setNoOcularHistory: (val: boolean) => void;
@@ -218,69 +218,6 @@ interface EncounterState {
   updateLifestyle: (data: Partial<LifestyleState>) => void;
 }
 
-export type EncounterSnapshot = Omit<
-  EncounterState,
-  | 'encounterSnapshots'
-  | 'setActiveTab'
-  | 'setConsent'
-  | 'setPatient'
-  | 'loadFromAppointment'
-  | 'updateOcularCondition'
-  | 'setOcularGeneralRemarks'
-  | 'setNoOcularHistory'
-  | 'updateRefraction'
-  | 'updateVisualAcuity'
-  | 'setCanvasVectors'
-  | 'updateSlitLamp'
-  | 'updateTonometry'
-  | 'addOrToggleSymptom'
-  | 'updateSymptom'
-  | 'setVisualAcuityField'
-  | 'updateSystemicCondition'
-  | 'setSystemicGeneralRemarks'
-  | 'setNoSystemicHistory'
-  | 'addPatientMedication'
-  | 'removePatientMedication'
-  | 'addFamilyHistoryItem'
-  | 'removeFamilyHistoryItem'
-  | 'updateSpectacles'
-  | 'updateContactLens'
-  | 'updateLifestyle'
->;
-
-function snapshotFromState(state: EncounterState): EncounterSnapshot {
-  const {
-    encounterSnapshots: _s,
-    setActiveTab: _a,
-    setConsent: _c,
-    setPatient: _p,
-    loadFromAppointment: _l,
-    updateOcularCondition: _o,
-    setOcularGeneralRemarks: _og,
-    setNoOcularHistory: _no,
-    updateRefraction: _r,
-    updateVisualAcuity: _v,
-    setCanvasVectors: _cv,
-    updateSlitLamp: _sl,
-    updateTonometry: _t,
-    addOrToggleSymptom: _as,
-    updateSymptom: _us,
-    setVisualAcuityField: _vf,
-    updateSystemicCondition: _sc,
-    setSystemicGeneralRemarks: _sg,
-    setNoSystemicHistory: _ns,
-    addPatientMedication: _am,
-    removePatientMedication: _rm,
-    addFamilyHistoryItem: _af,
-    removeFamilyHistoryItem: _rf,
-    updateSpectacles: _sp,
-    updateContactLens: _cl,
-    updateLifestyle: _lf,
-    ...snapshot
-  } = state;
-  return snapshot;
-}
-
 export const useEncounterStore = create<EncounterState>((set) => ({
   activeTab: 'reason-for-visit',
   appointmentId: null,
@@ -294,7 +231,6 @@ export const useEncounterStore = create<EncounterState>((set) => ({
     reasonForVisit: '',
   },
   consentObtained: false,
-  encounterSnapshots: {},
   ...getDefaultClinicalState(),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
@@ -302,33 +238,67 @@ export const useEncounterStore = create<EncounterState>((set) => ({
   setPatient: (patient) => set({ patient }),
 
   loadFromAppointment: ({ appointmentId, patient, consentObtained, reasonForVisit }) =>
-    set((state) => {
-      const snapshots = { ...state.encounterSnapshots };
-
-      if (state.appointmentId && state.appointmentId !== appointmentId) {
-        snapshots[state.appointmentId] = snapshotFromState(state);
-      }
-
-      const cached = snapshots[appointmentId];
-      if (cached) {
-        return {
-          ...cached,
-          appointmentId,
-          patient: { ...patient, reasonForVisit },
-          consentObtained,
-          encounterSnapshots: snapshots,
-        };
-      }
-
-      return {
-        ...getDefaultClinicalState(),
-        appointmentId,
-        patient: { ...patient, reasonForVisit },
-        consentObtained,
-        activeTab: 'reason-for-visit',
-        encounterSnapshots: snapshots,
-      };
+    set({
+      ...getDefaultClinicalState(),
+      appointmentId,
+      patient: { ...patient, reasonForVisit },
+      consentObtained,
+      activeTab: 'reason-for-visit',
     }),
+
+  loadEncounterFromDb: (data: any) =>
+    set((state) => {
+      if (!data) return state;
+      const patch: Record<string, any> = {};
+      if (data.reasonForVisit) patch.patient = { ...state.patient, reasonForVisit: data.reasonForVisit };
+      if (data.chiefComplaints) patch.symptoms = data.chiefComplaints;
+      if (data.symptomaticHistory) {
+        if (data.symptomaticHistory.symptoms) patch.symptoms = data.symptomaticHistory.symptoms;
+      }
+      if (data.ocularHistory) patch.ocularHistory = data.ocularHistory;
+      if (data.systemicHistory) patch.systemicHistory = data.systemicHistory;
+      if (data.medicationHistory) patch.patientMedications = data.medicationHistory;
+      if (data.familyOcularHistory) patch.familyOcularHistory = data.familyOcularHistory;
+      if (data.familySystemicHistory) patch.familySystemicHistory = data.familySystemicHistory;
+      if (data.spectaclesHistory) patch.spectaclesHistory = data.spectaclesHistory;
+      if (data.contactLensHistory) patch.contactLensHistory = data.contactLensHistory;
+      if (data.lifestyleDemands) patch.lifestyleDemands = data.lifestyleDemands;
+      if (data.visualAcuity) patch.visualAcuity = data.visualAcuity;
+      if (data.refractions) patch.refraction = data.refractions;
+      if (data.binocularVision) { /* map later if needed */ }
+      if (data.slitLampFindings) patch.slitLamp = data.slitLampFindings;
+      if (data.tonometry) patch.tonometry = data.tonometry;
+      if (data.diagnoses) patch.diagnoses = data.diagnoses;
+      if (data.counselingAdvice) patch.counselingAdvice = data.counselingAdvice;
+      if (data.treatmentPlanPathway) patch.treatmentPathway = data.treatmentPlanPathway;
+      return patch;
+    }),
+
+  saveEncounter: async () => {
+    const state = useEncounterStore.getState();
+    if (!state.appointmentId) return;
+    const { api } = await import('../lib/api');
+    await api.post('/clinical/encounter', {
+      appointmentId: state.appointmentId,
+      reasonForVisit: state.patient.reasonForVisit,
+      symptomaticHistory: { symptoms: state.symptoms },
+      ocularHistory: state.ocularHistory,
+      systemicHistory: state.systemicHistory,
+      medicationHistory: state.patientMedications,
+      familyOcularHistory: state.familyOcularHistory,
+      familySystemicHistory: state.familySystemicHistory,
+      spectaclesHistory: state.spectaclesHistory,
+      contactLensHistory: state.contactLensHistory,
+      lifestyleDemands: state.lifestyleDemands,
+      visualAcuity: state.visualAcuity,
+      refractions: state.refraction,
+      slitLampFindings: state.slitLamp,
+      tonometry: state.tonometry,
+      diagnoses: state.diagnoses,
+      counselingAdvice: state.counselingAdvice,
+      treatmentPlanPathway: state.treatmentPathway,
+    });
+  },
 
   updateOcularCondition: (key, data) =>
     set((state) => ({

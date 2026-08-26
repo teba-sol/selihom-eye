@@ -1,7 +1,7 @@
-import { Controller, Post, Get, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PatientsService } from './patients.service';
-import { CreatePatientDto } from './dto/patient.dto';
+import { CreatePatientDto, UpdatePatientDto } from './dto/patient.dto';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
 
 @Controller('patients')
@@ -25,5 +25,11 @@ export class PatientsController {
   @Roles('RECEPTIONIST', 'DOCTOR')
   async findById(@Param('id') id: string) {
     return this.patientsService.findById(id);
+  }
+
+  @Patch(':id')
+  @Roles('RECEPTIONIST', 'DOCTOR')
+  async update(@Param('id') id: string, @Body() dto: UpdatePatientDto) {
+    return this.patientsService.update(id, dto);
   }
 }
