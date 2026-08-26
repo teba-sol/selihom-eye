@@ -27,7 +27,7 @@ export const OcularHistoryView: React.FC = () => {
   return (
     <div className="p-8 max-w-4xl bg-white rounded-xl shadow-xs border border-slate-200 space-y-6">
       <div className="border-b border-slate-200 pb-4">
-        <h1 className="text-xl font-bold text-[#1E3A8A]">Ocular History</h1>
+        <h1 className="text-2xl font-bold text-[#2563eb]">Ocular History</h1>
         <p className="text-xs text-slate-500 mt-0.5">
           Record past ocular pathologies, surgeries, and trauma with discharge summary flags.
         </p>

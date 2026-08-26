@@ -19,7 +19,7 @@ export const FamilySystemicHistoryView: React.FC = () => {
 
   return (
     <div className="p-8 max-w-4xl bg-white min-h-full">
-      <h1 className="text-xl font-bold text-[#1E3A8A] mb-6">Family Systemic History</h1>
+      <h1 className="text-2xl font-bold text-[#2563eb] mb-6">Family Systemic History</h1>
 
       <div className="space-y-4 mb-8">
         <label className="flex items-center gap-3 text-sm font-medium text-slate-800 cursor-pointer">

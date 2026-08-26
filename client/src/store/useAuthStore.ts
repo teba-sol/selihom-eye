@@ -60,6 +60,19 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => set({ user: null, isAuthenticated: false }),
     }),
-    { name: 'asira-auth' },
+    { 
+      name: 'asira-auth',
+      // Safely handle corrupted persisted state
+      merge: (persisted, current) => {
+        try {
+          if (persisted && typeof persisted === 'object') {
+            return { ...current, ...(persisted as Partial<AuthState>) };
+          }
+        } catch {
+          // corrupted — reset
+        }
+        return current;
+      },
+    },
   ),
 );

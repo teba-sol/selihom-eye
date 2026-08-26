@@ -1,246 +1,169 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useEncounterStore } from '../store/useEncounterStore';
+import { useAppStore } from '../store/useAppStore';
 
-interface PrescriptionItem {
-  id: string;
-  name: string;
-  eye: string;
-  type: string;
-  dose: string;
-  duration: string;
-  remark: string;
+interface MedItem { id: string; name: string; eye: string; type: string; dose: string; duration: string; remark: string; }
+
+const REFERRAL_OPTIONS = ['None','Referral to Ophthalmologist','Speciality Contact Lens Fitting','Glaucoma Evaluation','Diabetic Eye Examination','Vitreo-Retinal Evaluation','Neuro-Ophthalmology Evaluation','Cataract Evaluation','Orthoptic Evaluation','Refractive Surgery Evaluation','Referral to Low Vision Clinic','Referral to Vision Therapy Clinic','Referral to Dry Eye Clinic','Referral to Paediatric Clinic','Referral to Myopia Clinic','Referral to General Physician','Referral to Neurologist','Referral to Diabetologist','Referral to Cardiologist'];
+const URGENCY_OPTIONS = ['None','Immediate','Within 24 Hours','Within 1 week','Within 1 month','Within 3 months','Within 6 months'];
+const EYE_OPTIONS = ['None','RE','LE','BE'];
+const TYPE_OPTIONS = ['Drop','Ointment'];
+const DOSE_OPTIONS = ['Dose','1 drop, 1 x daily','1 drop, 2 x daily','1 drop, 3 x daily','1 drop, 4 x daily','1 drop, 5 x daily','1 drop, 6 x daily'];
+const DURATION_OPTIONS = ['Duration','2 days','3 days','4 days','5 days','1 week','2 weeks','4 weeks','6 weeks','12 weeks'];
+const REMARK_SUGGESTIONS = ['use especially while working on the screen','every 12 hours','Pataday','Hyla PF','Eye mist gel','at night','AM and OM','AM and PM'];
+const DRUG_SUGGESTIONS = ['Hyla PF','Hylo','Pataday Eye Drops','Eye mist','Flogel','Refresh Tears'];
+const SPECTACLE_OPTIONS = ['','Single Vision Distance','Single Vision Near','Progressive Addition Lenses (PALs)','Bifocals','Not Recommended'];
+const FOLLOWUP_OPTIONS = ['None','1 week','2 weeks','1 month','3 months','6 months','1 year'];
+
+const SEL_CLS = 'px-2 py-1.5 text-sm border border-slate-300 rounded-md bg-white text-slate-800 focus:outline-none focus:border-blue-500';
+const FULL_SEL_CLS = 'w-full px-3 py-2 text-sm border border-slate-300 rounded-md bg-white text-slate-800 focus:outline-none focus:border-blue-500';
+
+function AC({ value, onChange, suggestions, placeholder, inputCls = '' }: {
+  value: string; onChange: (v: string) => void; suggestions: string[]; placeholder: string; inputCls?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const filtered = suggestions.filter(s => s.toLowerCase().includes(value.toLowerCase()));
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+  return (
+    <div ref={ref} className="relative">
+      <input type="text" value={value} onChange={e => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)} placeholder={placeholder}
+        className={`w-full px-2.5 py-1.5 text-sm border border-slate-300 rounded-md bg-white text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 ${inputCls}`} />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 top-full left-0 min-w-[180px] mt-0.5 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+          {filtered.map(s => (
+            <div key={s} onMouseDown={e => { e.preventDefault(); onChange(s); setOpen(false); }}
+              className="px-3 py-2 text-sm text-slate-700 cursor-pointer hover:bg-blue-50">{s}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
-const REFERRAL_OPTIONS = [
-  'None',
-  'Referral to Ophthalmologist',
-  'Speciality Contact Lens Fitting',
-  'Glaucoma Evaluation',
-  'Diabetic Eye Examination',
-  'Vitreo-Retinal Evaluation',
-  'Neuro-Ophthalmology Evaluation',
-  'Cataract Evaluation',
-  'Orthoptic Evaluation',
-  'Refractive Surgery Evaluation',
-  'Referral to Low Vision Clinic',
-  'Referral to Vision Therapy Clinic',
-  'Referral to Dry Eye Clinic',
-  'Referral to Paediatric Clinic',
-  'Referral to Myopia Clinic',
-  'Referral to General Physician',
-  'Referral to Neurologist',
-  'Referral to Diabetologist',
-  'Referral to Cardiologist',
-];
-
-const URGENCY_OPTIONS = [
-  'Within 1 month',
-  'Within 2 - 4 weeks',
-  'Within 1 week',
-  'Within 24 hours / Emergency',
-  'Routine (1 - 3 months)',
-];
-
-const EYE_OPTIONS = ['BE', 'RE', 'LE'];
-const DRUG_TYPES = ['Drop', 'Ointment', 'Gel', 'Tablet', 'Suspension'];
-const DOSE_OPTIONS = [
-  '1 drop, 3 x daily',
-  '1 drop, 2 x daily',
-  '1 drop, 4 x daily',
-  '1 drop, 1 x daily (Bedtime)',
-  '1 drop, every 2 hours',
-  '1 application at bedtime',
-];
-const DURATION_OPTIONS = ['12 weeks', '8 weeks', '4 weeks', '2 weeks', '1 week', 'SOS / As needed'];
-
 export const ActionAndAdviceView: React.FC = () => {
-  const [referral, setReferral] = useState('Referral to Ophthalmologist');
-  const [urgency, setUrgency] = useState('Within 1 month');
+  const appointmentId = useEncounterStore(s => s.appointmentId);
+  const updateAppointment = useAppStore(s => s.updateAppointment);
 
-  const [medName, setMedName] = useState('Flogel');
-  const [medEye, setMedEye] = useState('BE');
-  const [medType, setMedType] = useState('Ointment');
-  const [medDose, setMedDose] = useState('1 drop, 2 x daily');
-  const [medDuration, setMedDuration] = useState('12 weeks');
-  const [medRemark, setMedRemark] = useState('AM');
-
-  const [prescriptions, setPrescriptions] = useState<PrescriptionItem[]>([
-    {
-      id: '1',
-      name: 'Hyla PF',
-      eye: 'BE',
-      type: 'Drop',
-      dose: '1 drop, 3 x daily',
-      duration: '12 weeks',
-      remark: '-',
-    },
-    {
-      id: '2',
-      name: 'Flogel',
-      eye: 'BE',
-      type: 'Ointment',
-      dose: '1 drop, 2 x daily',
-      duration: '12 weeks',
-      remark: 'AM and PM',
-    },
-  ]);
-
-  const [spectacleRecommendation, setSpectacleRecommendation] = useState('');
-  const [followUpPeriod, setFollowUpPeriod] = useState('6 months');
-  const [remarks, setRemarks] = useState(
-    'Referred to Dr. Agarwal:\nDear Dr. Agarwal, Mr. Obama has had a dramatic increase in the astigmatism in his RE in the last 6 months.'
-  );
+  const [referral, setReferral] = useState('None');
+  const [urgency, setUrgency] = useState('None');
+  const [medName, setMedName] = useState('');
+  const [medEye, setMedEye] = useState('None');
+  const [medType, setMedType] = useState('Drop');
+  const [medDose, setMedDose] = useState('Dose');
+  const [medDuration, setMedDuration] = useState('Duration');
+  const [medRemark, setMedRemark] = useState('');
+  const [meds, setMeds] = useState<MedItem[]>([]);
+  const [spectacle, setSpectacle] = useState('');
+  const [followUp, setFollowUp] = useState('None');
+  const [remarks, setRemarks] = useState('');
   const [showInDischarge, setShowInDischarge] = useState(false);
 
-  const handleAddMedication = () => {
+  const addMed = () => {
     if (!medName.trim()) return;
-    const newItem: PrescriptionItem = {
-      id: Date.now().toString(),
-      name: medName,
-      eye: medEye,
-      type: medType,
-      dose: medDose,
-      duration: medDuration,
-      remark: medRemark || '-',
-    };
-    setPrescriptions((prev) => [...prev, newItem]);
-    setMedName('');
-    setMedRemark('');
-  };
-
-  const handleRemoveMedication = (id: string) => {
-    setPrescriptions((prev) => prev.filter((item) => item.id !== id));
+    setMeds(p => [...p, {
+      id: Date.now().toString(), name: medName, eye: medEye,
+      type: medType, dose: medDose, duration: medDuration, remark: medRemark || '-'
+    }]);
+    setMedName(''); setMedEye('None'); setMedType('Drop');
+    setMedDose('Dose'); setMedDuration('Duration'); setMedRemark('');
   };
 
   return (
-    <div className="p-8 max-w-5xl bg-white min-h-full">
-      <h1 className="text-xl font-bold text-[#1E3A8A] mb-8">Action And Advice</h1>
+    <div className="p-8 max-w-4xl bg-white min-h-full">
+      <h1 className="text-2xl font-bold text-[#2563eb] mb-6">Action And Advice</h1>
 
-      <div className="space-y-6 max-w-4xl mb-8">
+      <div className="space-y-5 mb-6">
         {/* Further Referral / Tests */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-          <label className="text-xs font-bold text-slate-800">Further Referral / Tests</label>
-          <div className="md:col-span-3">
-            <select
-              value={referral}
-              onChange={(e) => setReferral(e.target.value)}
-              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
-            >
-              {REFERRAL_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          </div>
+        <div>
+          <label className="text-sm font-bold text-slate-800 block mb-1.5">Further Referral / Tests</label>
+          <select value={referral} onChange={e => setReferral(e.target.value)} className={FULL_SEL_CLS}>
+            {REFERRAL_OPTIONS.map(o => <option key={o}>{o}</option>)}
+          </select>
         </div>
 
         {/* Urgency */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-          <label className="text-xs font-bold text-slate-800">Urgency</label>
-          <div className="md:col-span-3">
-            <select
-              value={urgency}
-              onChange={(e) => setUrgency(e.target.value)}
-              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
-            >
-              {URGENCY_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          </div>
+        <div>
+          <label className="text-sm font-bold text-slate-800 block mb-1.5">Urgency</label>
+          <select value={urgency} onChange={e => setUrgency(e.target.value)} className={FULL_SEL_CLS}>
+            {URGENCY_OPTIONS.map(o => <option key={o}>{o}</option>)}
+          </select>
         </div>
 
-        {/* Medication Builder & List */}
-        <div className="pt-2">
-          <label className="text-xs font-bold text-slate-800 block mb-2">Medication</label>
+        {/* Medication */}
+        <div>
+          <label className="text-sm font-bold text-slate-800 block mb-2">Medication</label>
 
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <input
-              type="text"
-              value={medName}
-              onChange={(e) => setMedName(e.target.value)}
-              placeholder="Drug name"
-              className="w-32 px-2.5 py-1.5 text-xs border border-slate-300 rounded bg-white font-medium"
-            />
-            <select
-              value={medEye}
-              onChange={(e) => setMedEye(e.target.value)}
-              className="w-16 px-2 py-1.5 text-xs border border-slate-300 rounded bg-white font-medium"
-            >
-              {EYE_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
+          {/* Input row — exactly matches screenshot order */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Drug name — blue border when focused, wider */}
+            <div className="w-[130px]">
+              <AC value={medName} onChange={setMedName} suggestions={DRUG_SUGGESTIONS}
+                placeholder="Medication na..." inputCls="focus:border-blue-600 focus:ring-1 focus:ring-blue-300" />
+            </div>
+
+            <select value={medEye} onChange={e => setMedEye(e.target.value)} className={`${SEL_CLS} w-[80px]`}>
+              {EYE_OPTIONS.map(o => <option key={o}>{o}</option>)}
             </select>
-            <select
-              value={medType}
-              onChange={(e) => setMedType(e.target.value)}
-              className="w-24 px-2 py-1.5 text-xs border border-slate-300 rounded bg-white font-medium"
-            >
-              {DRUG_TYPES.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
+
+            <select value={medType} onChange={e => setMedType(e.target.value)} className={`${SEL_CLS} w-[110px]`}>
+              {TYPE_OPTIONS.map(o => <option key={o}>{o}</option>)}
             </select>
-            <select
-              value={medDose}
-              onChange={(e) => setMedDose(e.target.value)}
-              className="w-36 px-2 py-1.5 text-xs border border-slate-300 rounded bg-white font-medium"
-            >
-              {DOSE_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
+
+            <select value={medDose} onChange={e => setMedDose(e.target.value)} className={`${SEL_CLS} w-[140px]`}>
+              {DOSE_OPTIONS.map(o => <option key={o}>{o}</option>)}
             </select>
-            <select
-              value={medDuration}
-              onChange={(e) => setMedDuration(e.target.value)}
-              className="w-24 px-2 py-1.5 text-xs border border-slate-300 rounded bg-white font-medium"
-            >
-              {DURATION_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
+
+            <select value={medDuration} onChange={e => setMedDuration(e.target.value)} className={`${SEL_CLS} w-[120px]`}>
+              {DURATION_OPTIONS.map(o => <option key={o}>{o}</option>)}
             </select>
-            <input
-              type="text"
-              value={medRemark}
-              onChange={(e) => setMedRemark(e.target.value)}
-              placeholder="Remark"
-              className="w-16 px-2 py-1.5 text-xs border border-slate-300 rounded bg-white text-center font-medium"
-            />
-            <button
-              type="button"
-              onClick={handleAddMedication}
-              className="px-4 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded transition-colors"
-            >
+
+            {/* Remark — text input with autocomplete (turns into "AM a" style shown in screenshot) */}
+            <div className="w-[90px]">
+              <AC value={medRemark} onChange={setMedRemark} suggestions={REMARK_SUGGESTIONS} placeholder="" />
+            </div>
+
+            {/* Gray Add (for remark context, does nothing alone) */}
+            <button type="button"
+              className="px-3 py-1.5 text-sm font-semibold border border-slate-300 text-slate-600 rounded-md hover:bg-slate-50 bg-white">
+              Add
+            </button>
+
+            {/* Blue Add — adds full row to table */}
+            <button type="button" onClick={addMed}
+              className="px-4 py-1.5 text-sm font-bold bg-[#2563eb] text-white rounded-md hover:bg-[#1d4ed8] transition-colors">
               Add
             </button>
           </div>
 
-          {prescriptions.length > 0 && (
-            <div className="border border-slate-200 rounded overflow-hidden mt-3 mb-4">
-              <table className="w-full text-xs text-left border-collapse">
+          {/* Medication table — shown as soon as first med is added */}
+          {meds.length > 0 && (
+            <div className="mt-3 border border-slate-200 rounded-md overflow-hidden">
+              <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-700 font-bold">
-                    <th className="py-2.5 px-3">Name</th>
-                    <th className="py-2.5 px-3">Eye</th>
-                    <th className="py-2.5 px-3">Type</th>
-                    <th className="py-2.5 px-3">Dose</th>
-                    <th className="py-2.5 px-3">Duration</th>
-                    <th className="py-2.5 px-3">Remark</th>
-                    <th className="py-2.5 px-3 text-center">Action</th>
+                  <tr className="bg-slate-100/80 border-b border-slate-200">
+                    {['Name','Eye','Type','Dose','Duration','Remark','Action'].map(h => (
+                      <th key={h} className="px-3 py-2 text-left text-xs font-bold text-slate-700">{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
-                  {prescriptions.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/50">
-                      <td className="py-2.5 px-3 font-semibold text-slate-800">{item.name}</td>
-                      <td className="py-2.5 px-3 text-slate-600">{item.eye}</td>
-                      <td className="py-2.5 px-3 text-slate-600">{item.type}</td>
-                      <td className="py-2.5 px-3 text-slate-600">{item.dose}</td>
-                      <td className="py-2.5 px-3 text-slate-600">{item.duration}</td>
-                      <td className="py-2.5 px-3 text-slate-600">{item.remark}</td>
-                      <td className="py-2.5 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveMedication(item.id)}
-                          className="px-3 py-1 text-[11px] font-semibold text-blue-600 border border-blue-200 rounded hover:bg-blue-50 transition-colors"
-                        >
+                  {meds.map(m => (
+                    <tr key={m.id} className="hover:bg-slate-50/60">
+                      <td className="px-3 py-2.5 font-semibold text-slate-800">{m.name}</td>
+                      <td className="px-3 py-2.5 text-slate-600">{m.eye}</td>
+                      <td className="px-3 py-2.5 text-slate-600">{m.type}</td>
+                      <td className="px-3 py-2.5 text-slate-600">{m.dose}</td>
+                      <td className="px-3 py-2.5 text-slate-600">{m.duration}</td>
+                      <td className="px-3 py-2.5 text-slate-500">{m.remark}</td>
+                      <td className="px-3 py-2.5">
+                        <button onClick={() => setMeds(p => p.filter(x => x.id !== m.id))}
+                          className="px-3 py-1 text-xs font-semibold border border-slate-300 rounded hover:bg-slate-50 text-slate-600">
                           Remove
                         </button>
                       </td>
@@ -253,67 +176,45 @@ export const ActionAndAdviceView: React.FC = () => {
         </div>
 
         {/* Spectacle Recommendation */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-          <label className="text-xs font-bold text-slate-800">Spectacle Recommendation</label>
-          <div className="md:col-span-3">
-            <select
-              value={spectacleRecommendation}
-              onChange={(e) => setSpectacleRecommendation(e.target.value)}
-              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
-            >
+        <div>
+          <label className="text-sm font-bold text-slate-800 block mb-1.5">Spectacle Recommendation</label>
+          <div className="relative">
+            <select value={spectacle} onChange={e => setSpectacle(e.target.value)} className={FULL_SEL_CLS}>
               <option value="">Select...</option>
-              <option value="Single Vision Distance">Single Vision Distance</option>
-              <option value="Single Vision Near">Single Vision Near</option>
-              <option value="Progressive Addition Lenses (PALs)">Progressive Addition Lenses (PALs)</option>
-              <option value="Bifocals (D-Segment / Kryptok)">Bifocals (D-Segment / Kryptok)</option>
-              <option value="Not Recommended / Trial Frame Only">Not Recommended / Trial Frame Only</option>
+              {SPECTACLE_OPTIONS.filter(Boolean).map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           </div>
         </div>
 
         {/* Follow up period */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-          <label className="text-xs font-bold text-slate-800">Follow up period</label>
-          <div className="md:col-span-3">
-            <select
-              value={followUpPeriod}
-              onChange={(e) => setFollowUpPeriod(e.target.value)}
-              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
-            >
-              <option value="1 week">1 week</option>
-              <option value="2 weeks">2 weeks</option>
-              <option value="1 month">1 month</option>
-              <option value="3 months">3 months</option>
-              <option value="6 months">6 months</option>
-              <option value="1 year">1 year</option>
-            </select>
-          </div>
+        <div>
+          <label className="text-sm font-bold text-slate-800 block mb-1.5">Follow up period</label>
+          <select value={followUp} onChange={e => setFollowUp(e.target.value)} className={FULL_SEL_CLS}>
+            {FOLLOWUP_OPTIONS.map(o => <option key={o}>{o}</option>)}
+          </select>
         </div>
       </div>
 
       {/* Any remarks? */}
-      <div className="mb-6 max-w-4xl">
-        <label className="text-xs font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
-        <textarea
-          rows={4}
-          value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
+      <div className="mb-5">
+        <label className="text-sm font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
+        <textarea rows={4} value={remarks} onChange={e => setRemarks(e.target.value)}
           placeholder="Add any remarks..."
-          className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 leading-relaxed font-sans"
-        />
+          className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-500 resize-none" />
       </div>
 
-      {/* Show in Discharge Summary */}
-      <div className="flex justify-end max-w-4xl">
-        <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showInDischarge}
-            onChange={(e) => setShowInDischarge(e.target.checked)}
-            className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
-          />
-          <span>Show in Discharge Summary</span>
+      {/* Footer */}
+      <div className="flex items-center justify-end gap-6">
+        <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+          <input type="checkbox" checked={showInDischarge} onChange={e => setShowInDischarge(e.target.checked)}
+            className="w-4 h-4 rounded border-slate-300 accent-blue-600" />
+          Show in Discharge Summary
         </label>
+        <button type="button"
+          onClick={() => appointmentId && updateAppointment(appointmentId, { status: 'completed' })}
+          className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors">
+          Finish examination
+        </button>
       </div>
     </div>
   );

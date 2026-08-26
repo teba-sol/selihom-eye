@@ -31,7 +31,7 @@ export const TopographyView: React.FC = () => {
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full">
-      <h1 className="text-xl font-bold text-[#1E3A8A] mb-8">Corneal Topography</h1>
+      <h1 className="text-2xl font-bold text-[#2563eb] mb-8">Corneal Topography</h1>
 
       <div className="space-y-6 max-w-3xl mb-8">
         {/* Device */}

@@ -9,7 +9,7 @@ export const ContrastSensitivityView: React.FC = () => {
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full">
-      <h1 className="text-xl font-bold text-[#1E3A8A] mb-8">Contrast Sensitivity</h1>
+      <h1 className="text-2xl font-bold text-[#2563eb] mb-8">Contrast Sensitivity</h1>
 
       <div className="space-y-6 max-w-3xl mb-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
@@ -62,13 +62,13 @@ export const ContrastSensitivityView: React.FC = () => {
       </div>
 
       <div className="mb-6 max-w-3xl">
-        <label className="text-xs font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
+        <label className="text-sm font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
         <textarea
           rows={3}
           value={remarks}
           onChange={(e) => setRemarks(e.target.value)}
           placeholder="Add any remarks..."
-          className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600"
+          className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none focus:ring-1 focus:ring-blue-200"
         />
       </div>
 
