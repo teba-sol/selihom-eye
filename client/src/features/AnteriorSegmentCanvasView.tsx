@@ -82,7 +82,7 @@ export const AnteriorSegmentCanvasView: React.FC = () => {
   return (
     <div className="p-8 max-w-5xl bg-white rounded-xl shadow-xs border border-slate-200">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-[#1E3A8A]">Anterior Segment & Slit Lamp Canvas</h1>
+        <h1 className="text-2xl font-bold text-[#2563eb]">Anterior Segment & Slit Lamp Canvas</h1>
         <p className="text-xs text-slate-500 mt-0.5">
           Annotate corneal scars, staining, and infiltrates using validated clinical color codes.
         </p>

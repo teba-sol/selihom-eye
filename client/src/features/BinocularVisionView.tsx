@@ -32,7 +32,7 @@ export const BinocularVisionView: React.FC = () => {
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full space-y-8">
       <div className="border-b border-slate-200 pb-4">
-        <h1 className="text-xl font-bold text-[#1E3A8A]">Binocular Vision Assessment</h1>
+        <h1 className="text-2xl font-bold text-[#2563eb]">Binocular Vision Assessment</h1>
         <p className="text-xs text-slate-500 mt-0.5">
           Comprehensive motor balance, convergence, accommodation, and binocular fusion diagnostics.
         </p>

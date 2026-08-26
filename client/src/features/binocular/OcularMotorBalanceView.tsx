@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 
 type VisionTab = 'Distance Vision' | 'Intermediate Vision' | 'Near Vision';
 
-interface DistanceData {
+interface TabData {
   testType: 'Cover test' | 'Maddox Rod / Maddox wing';
   deviation: string;
   eye: string;
@@ -11,7 +11,7 @@ interface DistanceData {
   recovery: string;
 }
 
-const DEFAULT_STATE: DistanceData = {
+const DEFAULT: TabData = {
   testType: 'Cover test',
   deviation: '',
   eye: '',
@@ -20,42 +20,60 @@ const DEFAULT_STATE: DistanceData = {
   recovery: '',
 };
 
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[180px_1fr] items-center gap-4 py-1">
+      <span className="text-sm font-semibold text-slate-800">{label}</span>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function Select({ value, onChange, options, placeholder = 'Select...' }: {
+  value: string; onChange: (v: string) => void; options: string[]; placeholder?: string;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full max-w-lg px-3 py-2 text-sm border border-slate-300 rounded-md bg-white text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-200 appearance-none"
+      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}
+    >
+      <option value="">{placeholder}</option>
+      {options.map(o => <option key={o} value={o}>{o}</option>)}
+    </select>
+  );
+}
+
 export const OcularMotorBalanceView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<VisionTab>('Distance Vision');
-
-  const [data, setData] = useState<Record<VisionTab, DistanceData>>({
-    'Distance Vision': { ...DEFAULT_STATE, deviation: 'Exophoria', prismDiopter: '10', recovery: 'Good' },
-    'Intermediate Vision': { ...DEFAULT_STATE },
-    'Near Vision': { ...DEFAULT_STATE, deviation: 'Orthophoric' },
+  const [data, setData] = useState<Record<VisionTab, TabData>>({
+    'Distance Vision': { ...DEFAULT },
+    'Intermediate Vision': { ...DEFAULT },
+    'Near Vision': { ...DEFAULT },
   });
-
   const [remarks, setRemarks] = useState('');
   const [showInDischarge, setShowInDischarge] = useState(false);
 
-  const current = data[activeTab];
-
-  const updateCurrent = (fields: Partial<DistanceData>) => {
-    setData((prev) => ({
-      ...prev,
-      [activeTab]: { ...prev[activeTab], ...fields },
-    }));
-  };
+  const cur = data[activeTab];
+  const upd = (fields: Partial<TabData>) =>
+    setData(p => ({ ...p, [activeTab]: { ...p[activeTab], ...fields } }));
 
   return (
-    <div className="p-8 max-w-5xl bg-white min-h-full">
-      <h1 className="text-xl font-bold text-[#1E3A8A] mb-4">Ocular Motor Balance</h1>
+    <div className="p-8 max-w-4xl bg-white min-h-full">
+      <h1 className="text-2xl font-bold text-[#2563eb] mb-5">Ocular Motor Balance</h1>
 
       {/* Sub-tabs */}
-      <div className="flex gap-6 border-b border-slate-200 mb-6">
-        {(['Distance Vision', 'Intermediate Vision', 'Near Vision'] as VisionTab[]).map((tab) => (
+      <div className="flex gap-8 border-b border-slate-200 mb-6">
+        {(['Distance Vision', 'Intermediate Vision', 'Near Vision'] as VisionTab[]).map(tab => (
           <button
             key={tab}
             type="button"
             onClick={() => setActiveTab(tab)}
-            className={`pb-2 text-xs font-semibold tracking-wide transition-colors ${
+            className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === tab
-                ? 'text-blue-700 border-b-2 border-blue-700 font-bold'
-                : 'text-slate-400 hover:text-slate-600'
+                ? 'text-blue-700 border-blue-700 font-semibold'
+                : 'text-slate-400 border-transparent hover:text-slate-600'
             }`}
           >
             {tab}
@@ -63,156 +81,92 @@ export const OcularMotorBalanceView: React.FC = () => {
         ))}
       </div>
 
-      {/* Form Fields Grid */}
-      <div className="space-y-4 max-w-3xl mb-8">
-        {/* Testing distance radio */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-          <label className="text-xs font-bold text-slate-800">Testing distance</label>
-          <div className="md:col-span-2 flex items-center gap-6 text-xs text-slate-700">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="testType"
-                value="Cover test"
-                checked={current.testType === 'Cover test'}
-                onChange={() => updateCurrent({ testType: 'Cover test' })}
-                className="text-blue-600 focus:ring-0"
-              />
-              <span>Cover test</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="testType"
-                value="Maddox Rod / Maddox wing"
-                checked={current.testType === 'Maddox Rod / Maddox wing'}
-                onChange={() => updateCurrent({ testType: 'Maddox Rod / Maddox wing' })}
-                className="text-blue-600 focus:ring-0"
-              />
-              <span>Maddox Rod / Maddox wing</span>
-            </label>
+      <div className="space-y-4 max-w-2xl mb-8">
+        {/* Testing distance */}
+        <Row label="Testing distance">
+          <div className="flex items-center gap-6 text-sm text-slate-700">
+            {(['Cover test', 'Maddox Rod / Maddox wing'] as const).map(opt => (
+              <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name={`testType-${activeTab}`}
+                  checked={cur.testType === opt}
+                  onChange={() => upd({ testType: opt })}
+                  className="w-4 h-4 text-blue-600 focus:ring-0 accent-blue-600"
+                />
+                <span>{opt}</span>
+              </label>
+            ))}
           </div>
-        </div>
+        </Row>
 
         {/* Deviation */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-          <label className="text-xs font-bold text-slate-800">Deviation</label>
-          <div className="md:col-span-2">
-            <select
-              value={current.deviation}
-              onChange={(e) => updateCurrent({ deviation: e.target.value })}
-              className={`w-full px-3 py-2 text-xs border rounded-md font-medium focus:outline-none focus:border-blue-600 ${
-                current.deviation ? 'border-slate-300 text-slate-900 bg-white' : 'border-slate-200 text-slate-400 bg-white'
-              }`}
-            >
-              <option value="">Select...</option>
-              <option value="Orthophoric">Orthophoric</option>
-              <option value="Exophoria">Exophoria</option>
-              <option value="Esophoria">Esophoria</option>
-              <option value="Exotropia">Exotropia</option>
-              <option value="Esotropia">Esotropia</option>
-              <option value="Hyperphoria">Hyperphoria</option>
-              <option value="Hypophoria">Hypophoria</option>
-            </select>
-          </div>
-        </div>
+        <Row label="Deviation">
+          <Select
+            value={cur.deviation}
+            onChange={v => upd({ deviation: v })}
+            options={['Orthophoria', 'Exophoria', 'Esophoria', 'Hyperphoria', 'Hypophoria', 'Exotropia', 'Esotropia', 'Hypertropia', 'Hypotropia']}
+          />
+        </Row>
 
         {/* Eye */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-          <label className="text-xs font-bold text-slate-800">Eye</label>
-          <div className="md:col-span-2">
-            <select
-              value={current.eye}
-              onChange={(e) => updateCurrent({ eye: e.target.value })}
-              className={`w-full px-3 py-2 text-xs border rounded-md font-medium focus:outline-none focus:border-blue-600 ${
-                current.eye ? 'border-slate-300 text-slate-900 bg-white' : 'border-slate-200 text-slate-400 bg-white'
-              }`}
-            >
-              <option value="">Select...</option>
-              <option value="Right Eye">Right Eye</option>
-              <option value="Left Eye">Left Eye</option>
-              <option value="Both Eyes">Both Eyes</option>
-              <option value="Alternating">Alternating</option>
-            </select>
-          </div>
-        </div>
+        <Row label="Eye">
+          <Select
+            value={cur.eye}
+            onChange={v => upd({ eye: v })}
+            options={['-', 'Left eye', 'Right eye', 'Both eyes', 'Alternating']}
+          />
+        </Row>
 
         {/* Prism Diopter */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-          <label className="text-xs font-bold text-slate-800">Prism Diopter</label>
-          <div className="md:col-span-2">
-            <input
-              type="text"
-              value={current.prismDiopter}
-              onChange={(e) => updateCurrent({ prismDiopter: e.target.value })}
-              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-800 focus:outline-none focus:border-blue-600 bg-white"
-            />
-          </div>
-        </div>
+        <Row label="Prism Diopter">
+          <input
+            type="number"
+            value={cur.prismDiopter}
+            onChange={e => upd({ prismDiopter: e.target.value })}
+            className="w-full max-w-lg px-3 py-2 text-sm border border-slate-300 rounded-md bg-white text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-200"
+          />
+        </Row>
 
         {/* Base Direction */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-          <label className="text-xs font-bold text-slate-800">Base Direction</label>
-          <div className="md:col-span-2">
-            <select
-              value={current.baseDirection}
-              onChange={(e) => updateCurrent({ baseDirection: e.target.value })}
-              className={`w-full px-3 py-2 text-xs border rounded-md font-medium focus:outline-none focus:border-blue-600 ${
-                current.baseDirection ? 'border-slate-300 text-slate-900 bg-white' : 'border-slate-200 text-slate-400 bg-white'
-              }`}
-            >
-              <option value="">Select...</option>
-              <option value="Base In (BI)">Base In (BI)</option>
-              <option value="Base Out (BO)">Base Out (BO)</option>
-              <option value="Base Up (BU)">Base Up (BU)</option>
-              <option value="Base Down (BD)">Base Down (BD)</option>
-            </select>
-          </div>
-        </div>
+        <Row label="Base Direction">
+          <Select
+            value={cur.baseDirection}
+            onChange={v => upd({ baseDirection: v })}
+            options={['-', 'In', 'Out', 'Down', 'Up']}
+          />
+        </Row>
 
         {/* Recovery */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-          <label className="text-xs font-bold text-slate-800">Recovery</label>
-          <div className="md:col-span-2">
-            <select
-              value={current.recovery}
-              onChange={(e) => updateCurrent({ recovery: e.target.value })}
-              className={`w-full px-3 py-2 text-xs border rounded-md font-medium focus:outline-none focus:border-blue-600 ${
-                current.recovery ? 'border-slate-300 text-slate-900 bg-white' : 'border-slate-200 text-slate-400 bg-white'
-              }`}
-            >
-              <option value="">Select...</option>
-              <option value="Good">Good</option>
-              <option value="Fair">Fair</option>
-              <option value="Poor">Poor</option>
-              <option value="Nil">Nil</option>
-            </select>
-          </div>
-        </div>
+        <Row label="Recovery">
+          <Select
+            value={cur.recovery}
+            onChange={v => upd({ recovery: v })}
+            options={['-', 'Slow', 'Medium', 'Fast']}
+          />
+        </Row>
       </div>
 
-      {/* Any remarks? */}
-      <div className="mb-6">
-        <label className="text-xs font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
+      <div className="mb-6 max-w-2xl">
+        <label className="text-sm font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
         <textarea
           rows={3}
           value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
+          onChange={e => setRemarks(e.target.value)}
           placeholder="Add any remarks..."
-          className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600"
+          className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none"
         />
       </div>
 
-      {/* Show in Discharge Summary */}
-      <div className="flex justify-end">
+      <div className="flex justify-end max-w-2xl">
         <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
           <input
             type="checkbox"
             checked={showInDischarge}
-            onChange={(e) => setShowInDischarge(e.target.checked)}
-            className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
+            onChange={e => setShowInDischarge(e.target.checked)}
+            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0"
           />
-          <span>Show in Discharge Summary</span>
+          Show in Discharge Summary
         </label>
       </div>
     </div>

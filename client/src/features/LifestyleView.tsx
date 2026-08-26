@@ -8,7 +8,7 @@ export const LifestyleView: React.FC = () => {
 
   return (
     <div className="p-8 max-w-4xl bg-white min-h-full">
-      <h1 className="text-xl font-bold text-[#1E3A8A] mb-6">Lifestyle</h1>
+      <h1 className="text-2xl font-bold text-[#2563eb] mb-6">Lifestyle</h1>
 
       <div className="space-y-5 mb-8">
         <div>

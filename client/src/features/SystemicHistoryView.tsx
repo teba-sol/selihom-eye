@@ -103,7 +103,7 @@ export const SystemicHistoryView: React.FC = () => {
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full">
-      <h1 className="text-xl font-bold text-[#1E3A8A] mb-6">Systemic History</h1>
+      <h1 className="text-2xl font-bold text-[#2563eb] mb-6">Systemic History</h1>
 
       {/* No Systemic History Reported Master Toggle */}
       <div className="mb-6">

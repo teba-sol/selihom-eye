@@ -17,12 +17,14 @@ import {
   UserCheck,
   Activity,
   Stethoscope,
-  LogOut
+  LogOut,
+  Users
 } from 'lucide-react';
 import { REGION_DATA, SW_REGION_KEY, SW_KEBELE_DATA } from './data.ts';
 import { TriageTab } from './components/TriageTab.tsx';
 import { ReportsTab } from './components/ReportsTab.tsx';
 import { SettingsTab } from './components/SettingsTab.tsx';
+import { QueueTab } from './components/QueueTab.tsx';
 import type { RegisteredPatient, NurseTriageRecord } from './types.ts';
 
 const INITIAL_DEMO_PATIENTS: RegisteredPatient[] = [
@@ -150,7 +152,7 @@ const INITIAL_DEMO_PATIENTS: RegisteredPatient[] = [
 ];
 
 export default function ReceptionistApp() {
-  const [activeTab, setActiveTab] = useState<'registration' | 'triage' | 'reports' | 'settings'>('registration');
+  const [activeTab, setActiveTab] = useState<'registration' | 'triage' | 'queue' | 'reports' | 'settings'>('registration');
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [patients, setPatients] = useState<RegisteredPatient[]>(() => {
     try {
@@ -1529,6 +1531,15 @@ export default function ReceptionistApp() {
               <span>Patient Registration</span>
             </button>
 
+            <button
+              type="button"
+              onClick={() => setActiveTab('queue')}
+              className={`clinic-nav-item w-full text-left cursor-pointer transition-colors ${activeTab === 'queue' ? 'active' : ''}`}
+            >
+              <Users className="w-4 h-4 shrink-0" />
+              <span>Patient Queue</span>
+            </button>
+
 
 
             <button
@@ -1583,6 +1594,18 @@ export default function ReceptionistApp() {
                 }`}
               >
                 <UserCheck className="w-3.5 h-3.5" /> Reg
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('queue')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-1.5 transition-all ${
+                  activeTab === 'queue'
+                    ? 'bg-blue-700 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" /> Queue
               </button>
 
               <button
@@ -1966,6 +1989,18 @@ export default function ReceptionistApp() {
             </div>
 
 
+
+            {/* Queue View */}
+            {activeTab === 'queue' && (
+              <QueueTab
+                patients={patients}
+                onGoToTriage={(id) => {
+                  setSelectedPatientId(id);
+                  setActiveTab('triage');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              />
+            )}
 
             {/* Reports View */}
             {activeTab === 'reports' && (

@@ -67,6 +67,10 @@ export const ASIRA_EXAM_TREE: SidebarSection[] = [
       { id: 'accommodative-lag', label: 'Accommodative Lag', isCompleted: false },
       { id: 'accommodative-facility', label: 'Accommodative Facility', isCompleted: false },
       { id: 'relative-accommodation', label: 'Relative Accommodation', isCompleted: false },
+      { id: 'fusional-vergences', label: 'Fusional Vergences', isCompleted: false },
+      { id: 'diplopia-charting', label: 'Diplopia Charting', isCompleted: false },
+      { id: 'hess-screen', label: 'Hess Screen', isCompleted: false },
+      { id: 'aca-ratio', label: 'Ac-a Ratio', isCompleted: false },
     ],
   },
   {
@@ -101,12 +105,6 @@ export const ASIRA_EXAM_TREE: SidebarSection[] = [
       { id: 'amsler', label: 'Amsler', isCompleted: false },
       { id: 'contrast-sensitivity', label: 'Contrast Sensitivity', isCompleted: false },
     ],
-  },
-  {
-    id: 'imaging-and-diagnostics',
-    label: 'Imaging And Diagnostics',
-    isExpandable: false,
-    isCompleted: false,
   },
   {
     id: 'contact-lens-evaluation',

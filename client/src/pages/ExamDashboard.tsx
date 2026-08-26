@@ -10,6 +10,8 @@ import { FamilyOcularHistoryView } from '../features/FamilyOcularHistoryView';
 import { FamilySystemicHistoryView } from '../features/FamilySystemicHistoryView';
 import { SpectaclesView } from '../features/SpectaclesView';
 import { ContactLensView } from '../features/ContactLensView';
+import { ClPreFitView } from '../features/ClPreFitView';
+import { ClFittingView } from '../features/ClFittingView';
 import { LifestyleView } from '../features/LifestyleView';
 import { VisionAndVisualAcuityView } from '../features/VisionAndVisualAcuityView';
 import { RefractionView } from '../features/RefractionView';
@@ -26,6 +28,10 @@ import { StereopsisView } from '../features/binocular/StereopsisView';
 import { AccommodativeLagView } from '../features/binocular/AccommodativeLagView';
 import { AccommodativeFacilityView } from '../features/binocular/AccommodativeFacilityView';
 import { RelativeAccommodationView } from '../features/binocular/RelativeAccommodationView';
+import { FusionalVergencesView } from '../features/binocular/FusionalVergencesView';
+import { DipliopiaChartingView } from '../features/binocular/DipliopiaChartingView';
+import { HessScreenView } from '../features/binocular/HessScreenView';
+import { AcaRatioView } from '../features/binocular/AcaRatioView';
 import { AnteriorSegmentEvaluationView } from '../features/AnteriorSegmentEvaluationView';
 import { CrystallineLensView } from '../features/CrystallineLensView';
 import { PosteriorSegmentEvaluationView } from '../features/PosteriorSegmentEvaluationView';
@@ -60,6 +66,9 @@ const TAB_VIEWS: Record<string, ComponentType> = {
   'family-systemic-history': FamilySystemicHistoryView,
   spectacles: SpectaclesView,
   'contact-lens': ContactLensView,
+  'contact-lens-evaluation': ClPreFitView,
+  'cl-pre-fit': ClPreFitView,
+  'cl-fitting': ClFittingView,
   lifestyle: LifestyleView,
   'vision-and-visual-acuity': VisionAndVisualAcuityView,
   'visual-acuity': VisionAndVisualAcuityView,
@@ -77,6 +86,10 @@ const TAB_VIEWS: Record<string, ComponentType> = {
   'accommodative-lag': AccommodativeLagView,
   'accommodative-facility': AccommodativeFacilityView,
   'relative-accommodation': RelativeAccommodationView,
+  'fusional-vergences': FusionalVergencesView,
+  'diplopia-charting': DipliopiaChartingView,
+  'hess-screen': HessScreenView,
+  'aca-ratio': AcaRatioView,
   'anterior-segment-eval': AnteriorSegmentEvaluationView,
   'crystalline-lens': CrystallineLensView,
   'posterior-segment': PosteriorSegmentEvaluationView,

@@ -21,7 +21,7 @@ export const PosteriorSegmentView: React.FC = () => {
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full space-y-6">
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-        <h1 className="text-xl font-bold text-[#1E3A8A]">Posterior Segment Examination</h1>
+        <h1 className="text-2xl font-bold text-[#2563eb]">Posterior Segment Examination</h1>
 
         <div className="inline-flex rounded-md border border-slate-300 bg-slate-50 p-0.5">
           {(['Dilated', 'Undilated'] as const).map((status) => (

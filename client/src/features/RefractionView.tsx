@@ -38,7 +38,7 @@ export const RefractionView: React.FC = () => {
     <div className="p-8 max-w-5xl bg-white rounded-xl shadow-xs border border-slate-200">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-[#1E3A8A]">Refraction & Optical Prescription</h1>
+          <h1 className="text-2xl font-bold text-[#2563eb]">Refraction & Optical Prescription</h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Document objective retinoscopy and subjective trial lens values per eye.
           </p>

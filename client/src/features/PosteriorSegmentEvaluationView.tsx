@@ -1,413 +1,407 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import * as fabric from 'fabric';
+import { MultiSelect } from '../components/MultiSelect';
+import { MousePointer2, Pencil, Eraser, Type, Circle, ArrowUpRight, MoreHorizontal, Upload } from 'lucide-react';
 
-interface EyeObservation {
-  od: string;
-  os: string;
-  sameForLeft: boolean;
-}
+const MYDRIATIC_OPTIONS = [
+  'None', 'Tropicamide 0.5%', 'Tropicamide 0.8%', 'Tropicamide 1%',
+  'Phenylephrine 2.5%', 'Phenylephrine 5%', 'Phenylephrine 10%',
+  'Tropicamide 0.8% + Phenylephrine 5%', 'Tropicamide 1% + Phenylephrine 5%',
+  'Cyclopentolate 1%', 'Homatropine 2%', 'Atropine 1%',
+];
+
+const INSTRUMENT_OPTIONS = [
+  'Direct Ophthalmoscope', '90D', '78D', 'Volk Superfield',
+  'Volk Digital Widefield', 'Head Mounted IO', 'Binocular Indirect Ophthalmoscope (BIO 20D)',
+];
 
 const VITREOUS_OPTIONS = [
-  'Select...',
-  'Clean and clear / Within normal limits',
-  'Posterior Vitreous Detachment (PVD)',
-  'Vitreous Floaters / Opacities',
-  'Asteroid Hyalosis',
-  'Vitreous Hemorrhage',
-  'Shafer\'s Sign / Tobacco Dust',
+  'Clear / Within normal limits',
+  'Synchisis scintillans', 'Vitreous Floaters',
+  "Schaffer's sign / tobacco dust", 'Weiss ring floater',
+  'Asteroid Hyalosis', 'Full Posterior Vitreous Detachment',
+  'Partial Posterior Vitreous Detachment', 'Vitreous Hemorrhage',
+  'Vitreous Membrane / Strands',
 ];
 
 const ONH_OPTIONS = [
-  'Select...',
-  'Pink, well-defined margins / Within normal limits',
-  'Pale optic disc / Atrophy',
-  'Suspicious glaucomatous cupping',
-  'Notching of neuroretinal rim',
-  'Disc swelling / Papilledema',
-  'Optic disc drusen',
-  'Coloboma',
-];
-
-const MACULA_OPTIONS = [
-  'Select...',
-  'Clean and healthy / Within normal limits',
-  'Normal foveal reflex',
-  'Drusen (Hard / Soft)',
-  'Macular edema / CME',
-  'Dry AMD (RPE changes / Geographic atrophy)',
-  'Wet AMD / CNVM',
-  'Macular hole',
-  'Epiretinal membrane (ERM)',
+  'NRR Pink, Flat and Healthy', 'ISNT Rule Followed',
+  'Within Normal Limits', 'Pale optic disc / Disc atrophy',
+  'Suspicious glaucomatous cupping', 'Notching of neuroretinal rim',
+  'Disc swelling / Papilledema', 'Optic disc drusen',
+  'Coloboma', 'Tilted disc',
 ];
 
 const VESSELS_OPTIONS = [
-  'Select...',
-  'Normal caliber and course / Within normal limits',
-  'Arteriolar attenuation / Copper wiring',
-  'AV nicking / Crossing changes',
-  'Dot and blot hemorrhages',
-  'Flame hemorrhages',
-  'Microaneurysms',
-  'Neovascularization of disc (NVD)',
-  'Neovascularization elsewhere (NVE)',
+  'Healthy / WNL',
+  'Proliferative Diabetic Retinopathy', 'Dot Haemorrhage',
+  'Blot Haemorrhage', 'Flame Haemorrhage', 'Microaneurysm',
+  'Hypertensive Retinopathy', 'Arteriovenous Nipping',
+  'AV nicking / Crossing changes', 'Arteriolar attenuation',
+  'Neovascularization of disc (NVD)', 'Neovascularization elsewhere (NVE)',
+  'Hard exudates', 'Soft exudates / Cotton wool spots',
+  'Silver / Copper wiring',
 ];
 
-const PERIPHERY_OPTIONS = [
-  'Select...',
-  'Flat and intact 360\u00b0 / Within normal limits',
-  'Lattice degeneration',
-  'Retinal tear / Hole',
-  'Retinal detachment',
-  'Pavingstone degeneration',
-  'Retinoschisis',
+const AV_RATIO_OPTIONS = ['None', '1/4', '1/2', '2/3', '3/4'];
+
+const MACULA_OPTIONS = [
+  'Healthy and Flat', 'Foveal Reflex Visible', 'WNL',
+  'Epiretinal Membrane', 'Pseudohole', 'Macular Pucker',
+  'Macular Hole', 'Diabetic Macular Edema (DME)',
+  'Dry AMD (Drusen)', 'Wet AMD / CNVM',
+  'Central Serous Retinopathy (CSR)', 'Macular Scar',
+  'Cystoid Macular Edema (CME)', 'Subretinal hemorrhage',
 ];
 
-export const PosteriorSegmentEvaluationView: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'Form' | 'Diagram'>('Form');
-  const [mydriaticDrug, setMydriaticDrug] = useState('');
-  const [instrument, setInstrument] = useState('');
+const PERIPHERAL_OPTIONS = [
+  'Flat and Intact / WNL',
+  'Lattice degeneration', 'Snailtrack degeneration',
+  'Snowflake degeneration', 'White Without Pressure (WWOP)',
+  'Microcystoid degeneration', 'Degenerative Retinoschisis',
+  'Pars Plana Cyst', 'Retinal tear / Hole',
+  'Rhegmatogenous Retinal Detachment',
+  'Tractional Retinal Detachment',
+  'Exudative Retinal Detachment',
+  'Choroidal nevus', 'Ora serrata changes',
+];
 
-  const [vitreous, setVitreous] = useState<EyeObservation>({ od: '', os: '', sameForLeft: false });
-  const [onh, setOnh] = useState<EyeObservation>({ od: '', os: '', sameForLeft: false });
-  const [cdrOd, setCdrOd] = useState('0.3');
-  const [cdrOs, setCdrOs] = useState('0.3');
+// ── Fundus Drawing Canvas ─────────────────────────────────────────────────────
+const FUNDUS_TOOLS = [
+  { id: 'cursor', label: 'Cursor', icon: <MousePointer2 className="w-5 h-5"/> },
+  { id: 'pen', label: 'Pen', icon: <Pencil className="w-5 h-5"/> },
+  { id: 'eraser', label: 'Eraser', icon: <Eraser className="w-5 h-5"/> },
+  { id: 'annotate', label: 'Annotate', icon: <Type className="w-5 h-5"/> },
+  { id: 'circle', label: 'Outline Circle', icon: <Circle className="w-5 h-5"/> },
+  { id: 'arrow', label: 'Arrow', icon: <ArrowUpRight className="w-5 h-5 text-amber-500"/> },
+];
 
-  const [macula, setMacula] = useState<EyeObservation>({ od: '', os: '', sameForLeft: false });
-  const [vessels, setVessels] = useState<EyeObservation>({ od: '', os: '', sameForLeft: false });
-  const [periphery, setPeriphery] = useState<EyeObservation>({ od: '', os: '', sameForLeft: false });
+const FUNDUS_COLORS = [
+  { hex: '#1e293b', label: 'Black' },
+  { hex: '#dc2626', label: 'Red' },
+  { hex: '#16a34a', label: 'Green' },
+  { hex: '#f97316', label: 'Orange' },
+];
 
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+// SVG fundus diagram: outer circle (retina) + small disc circle (left) + fovea dot (right)
+function FundusEyeSVG() {
+  return (
+    <svg viewBox="0 0 300 300" className="absolute inset-0 w-full h-full pointer-events-none">
+      {/* Outer retina boundary */}
+      <circle cx="150" cy="150" r="140" fill="none" stroke="#94a3b8" strokeWidth="2"/>
+      {/* Optic disc */}
+      <circle cx="90" cy="150" r="22" fill="none" stroke="#94a3b8" strokeWidth="1.5"/>
+      <circle cx="90" cy="150" r="10" fill="none" stroke="#94a3b8" strokeWidth="1"/>
+      {/* Fovea */}
+      <circle cx="200" cy="150" r="14" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="3 2"/>
+      <circle cx="200" cy="150" r="3" fill="#94a3b8"/>
+      {/* Main vessels from disc */}
+      <path d="M 112 140 Q 150 135 200 130" stroke="#cbd5e1" strokeWidth="1.5" fill="none"/>
+      <path d="M 112 160 Q 150 165 200 170" stroke="#cbd5e1" strokeWidth="1.5" fill="none"/>
+      <path d="M 105 130 Q 130 110 155 115" stroke="#cbd5e1" strokeWidth="1" fill="none"/>
+      <path d="M 105 170 Q 130 190 155 185" stroke="#cbd5e1" strokeWidth="1" fill="none"/>
+    </svg>
+  );
+}
 
-  const handleObsChange = (
-    setter: React.Dispatch<React.SetStateAction<EyeObservation>>,
-    eye: 'od' | 'os',
-    val: string
-  ) => {
-    setter((prev) => {
-      if (eye === 'od' && prev.sameForLeft) {
-        return { ...prev, od: val, os: val };
-      }
-      return { ...prev, [eye]: val };
-    });
-  };
+function FundusCanvas({ canvasRef, fabricRef, tool, color }: {
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  fabricRef: React.MutableRefObject<fabric.Canvas | null>;
+  tool: string;
+  color: string;
+}) {
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    if (fabricRef.current) fabricRef.current.dispose();
+    const canvas = new fabric.Canvas(canvasRef.current, { width: 300, height: 300, backgroundColor: 'transparent' });
+    fabricRef.current = canvas;
+    return () => { canvas.dispose(); };
+  }, []);
 
-  const handleSameChange = (
-    setter: React.Dispatch<React.SetStateAction<EyeObservation>>,
-    checked: boolean
-  ) => {
-    setter((prev) => ({
-      ...prev,
-      sameForLeft: checked,
-      os: checked ? prev.od : prev.os,
-    }));
+  useEffect(() => {
+    const canvas = fabricRef.current;
+    if (!canvas) return;
+    if (tool === 'pen') {
+      canvas.isDrawingMode = true;
+      const brush = new fabric.PencilBrush(canvas);
+      brush.color = color;
+      brush.width = 2;
+      canvas.freeDrawingBrush = brush;
+    } else if (tool === 'eraser') {
+      canvas.isDrawingMode = true;
+      const brush = new fabric.PencilBrush(canvas);
+      brush.color = 'white';
+      brush.width = 14;
+      canvas.freeDrawingBrush = brush;
+    } else {
+      canvas.isDrawingMode = false;
+      canvas.selection = tool === 'cursor';
+    }
+  }, [tool, color]);
+
+  return <canvas ref={canvasRef as React.RefObject<HTMLCanvasElement>} className="absolute inset-0"/>;
+}
+
+function PosteriorDiagram() {
+  const [tool, setTool] = useState('pen');
+  const [color, setColor] = useState('#dc2626');
+  const [showMore, setShowMore] = useState(false);
+  const odRef = useRef<HTMLCanvasElement>(null);
+  const osRef = useRef<HTMLCanvasElement>(null);
+  const odFab = useRef<fabric.Canvas | null>(null);
+  const osFab = useRef<fabric.Canvas | null>(null);
+
+  const clearAll = () => {
+    [odFab, osFab].forEach(r => { if (r.current) { r.current.clear(); r.current.renderAll(); } });
   };
 
   return (
-    <div className="p-8 max-w-5xl bg-white min-h-full">
-      <h1 className="text-xl font-bold text-[#1E3A8A] mb-2">Posterior Segment Evaluation</h1>
+    <div>
+      {/* Toolbar */}
+      <div className="border border-slate-200 rounded-xl p-3 mb-4 flex flex-wrap gap-2 items-end">
+        {FUNDUS_TOOLS.map(t => (
+          <button key={t.id} type="button" onClick={() => setTool(t.id)}
+            className={`flex flex-col items-center gap-1 p-2 rounded-lg border-2 min-w-[58px] transition-all ${tool === t.id ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+            {t.icon}
+            <span className="text-[9px] font-medium text-slate-600 text-center">{t.label}</span>
+          </button>
+        ))}
+        {/* Color swatches when pen active */}
+        {tool === 'pen' && (
+          <div className="flex items-center gap-1.5 ml-2">
+            {FUNDUS_COLORS.map(c => (
+              <button key={c.hex} type="button" onClick={() => setColor(c.hex)}
+                title={c.label}
+                className={`w-6 h-6 rounded-full border-2 transition-transform ${color === c.hex ? 'border-blue-600 scale-125' : 'border-slate-300'}`}
+                style={{ backgroundColor: c.hex }}/>
+            ))}
+          </div>
+        )}
+        <button type="button" onClick={clearAll}
+          className="ml-auto px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
+          Clear All
+        </button>
+        <button type="button" className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50">
+          <Upload className="w-3.5 h-3.5"/> Upload image
+        </button>
+      </div>
 
-      {/* Sub-tabs */}
+      {/* Diagrams */}
+      <div className="border border-slate-200 rounded-xl p-6 bg-slate-50/50">
+        <div className="grid grid-cols-2 gap-10">
+          {[
+            { label: 'RIGHT', ref: odRef, fab: odFab },
+            { label: 'LEFT', ref: osRef, fab: osFab },
+          ].map(eye => (
+            <div key={eye.label} className="flex flex-col items-center gap-3">
+              <span className="text-sm font-bold text-slate-400 tracking-widest uppercase">{eye.label}</span>
+              <div className="relative w-[300px] h-[300px] rounded-full overflow-hidden bg-white border-2 border-slate-200 shadow-sm">
+                <FundusEyeSVG />
+                <FundusCanvas canvasRef={eye.ref} fabricRef={eye.fab} tool={tool} color={color}/>
+              </div>
+              <p className="text-[10px] text-slate-400">Disc (left circle) · Fovea (right dashed)</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface StructureState {
+  od: string[];
+  os: string[];
+  same: boolean;
+}
+
+function useStructure(initial: Partial<StructureState> = {}): [StructureState, (od: string[]) => void, (os: string[]) => void, (same: boolean) => void] {
+  const [state, setState] = useState<StructureState>({ od: [], os: [], same: false, ...initial });
+  const setOd = (od: string[]) => setState(p => ({ ...p, od, os: p.same ? od : p.os }));
+  const setOs = (os: string[]) => setState(p => ({ ...p, os }));
+  const setSame = (same: boolean) => setState(p => ({ ...p, same, os: same ? p.od : p.os }));
+  return [state, setOd, setOs, setSame];
+}
+
+function StructureRow({ label, options, state, onOd, onOs, onSame, extra }: {
+  label: string;
+  options: string[];
+  state: StructureState;
+  onOd: (v: string[]) => void;
+  onOs: (v: string[]) => void;
+  onSame: (v: boolean) => void;
+  extra?: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[180px_1fr_1fr] gap-4 items-start py-3 border-b border-slate-100 last:border-0">
+      <span className="text-sm font-semibold text-slate-800 pt-2">{label}</span>
+      <div className="space-y-1.5">
+        <MultiSelect options={options} value={state.od} onChange={onOd} />
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={state.same} onChange={e => onSame(e.target.checked)}
+            className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 accent-blue-600 focus:ring-0" />
+          <span className="text-xs text-slate-500">Same for left eye</span>
+        </label>
+        {extra}
+      </div>
+      <div>
+        <MultiSelect options={options} value={state.same ? state.od : state.os}
+          onChange={v => !state.same && onOs(v)} disabled={state.same} />
+      </div>
+    </div>
+  );
+}
+
+export const PosteriorSegmentEvaluationView: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'Form' | 'Diagram'>('Form');
+  const [mydriaticDrug, setMydriaticDrug] = useState<string[]>([]);
+  const [instrument, setInstrument] = useState('');
+
+  const [vitreous, setVitOd, setVitOs, setVitSame] = useStructure();
+  const [onh, setOnhOd, setOnhOs, setOnhSame] = useStructure();
+  const [cdrOd, setCdrOd] = useState('0');
+  const [cdrOs, setCdrOs] = useState('0');
+  const [vessels, setVesOd, setVesOs, setVesSame] = useStructure();
+  const [avOd, setAvOd] = useState('None');
+  const [avOs, setAvOs] = useState('None');
+  const [macula, setMacOd, setMacOs, setMacSame] = useStructure();
+  const [peripheral, setPerOd, setPerOs, setPerSame] = useStructure();
+  const [remarks, setRemarks] = useState('');
+  const [showInDischarge, setShowInDischarge] = useState(false);
+
+  return (
+    <div className="p-8 max-w-5xl bg-white min-h-full">
+      <h1 className="text-2xl font-bold text-[#2563eb] mb-2">Posterior Segment Evaluation</h1>
+
       <div className="flex gap-6 border-b border-slate-200 mb-6">
-        {(['Form', 'Diagram'] as const).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setActiveTab(tab)}
-            className={`pb-2 text-xs font-semibold tracking-wide transition-colors ${
-              activeTab === tab
-                ? 'text-blue-700 border-b-2 border-blue-700 font-bold'
-                : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
+        {(['Form', 'Diagram'] as const).map(tab => (
+          <button key={tab} type="button" onClick={() => setActiveTab(tab)}
+            className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab ? 'text-blue-700 border-blue-700 font-semibold' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
             {tab}
           </button>
         ))}
       </div>
 
-      {activeTab === 'Diagram' ? (
-        <div className="p-8 border border-slate-200 rounded-lg text-center text-xs text-slate-400">
-          Posterior Segment Retina &amp; Disc Drawing Canvas
-        </div>
-      ) : (
-        <div className="space-y-6 max-w-4xl mb-8">
+      {activeTab === 'Diagram' && (
+        <PosteriorDiagram />
+      )}
+
+      {activeTab === 'Form' && (
+        <div>
           {/* Mydriatic Drug */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-            <label className="text-xs font-bold text-slate-800">Mydriatic Drug</label>
-            <div className="md:col-span-3">
-              <select
-                value={mydriaticDrug}
-                onChange={(e) => setMydriaticDrug(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
-              >
-                <option value="">Select...</option>
-                <option value="Tropicamide 0.8% + Phenylephrine 5%">Tropicamide 0.8% + Phenylephrine 5%</option>
-                <option value="Tropicamide 1%">Tropicamide 1%</option>
-                <option value="Cyclopentolate 1%">Cyclopentolate 1%</option>
-                <option value="None / Undilated">None / Undilated</option>
-              </select>
-            </div>
+          <div className="grid grid-cols-[180px_1fr] items-start gap-4 mb-4">
+            <span className="text-sm font-bold text-slate-800 pt-2">Mydriatic Drug</span>
+            <MultiSelect options={MYDRIATIC_OPTIONS} value={mydriaticDrug} onChange={setMydriaticDrug} placeholder="Select mydriatic drug..." />
           </div>
 
           {/* Instrument */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-            <label className="text-xs font-bold text-slate-800">Instrument</label>
-            <div className="md:col-span-3">
-              <select
-                value={instrument}
-                onChange={(e) => setInstrument(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
-              >
-                <option value="">Select...</option>
-                <option value="Slit Lamp Biomicroscopy (90D / 78D / SuperField)">Slit Lamp Biomicroscopy (90D / 78D / SuperField)</option>
-                <option value="Binocular Indirect Ophthalmoscopy (BIO 20D)">Binocular Indirect Ophthalmoscopy (BIO 20D)</option>
-                <option value="Direct Ophthalmoscopy">Direct Ophthalmoscopy</option>
-              </select>
-            </div>
+          <div className="grid grid-cols-[180px_1fr] items-start gap-4 mb-6">
+            <span className="text-sm font-bold text-slate-800 pt-2">Instrument</span>
+            <select value={instrument} onChange={e => setInstrument(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md bg-white text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-200">
+              <option value=""></option>
+              {INSTRUMENT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
           </div>
 
-          {/* Observation Grid */}
-          <div className="border border-slate-200 rounded overflow-hidden">
-            <table className="w-full border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 bg-white">
-                  <th className="py-2.5 px-4 text-left font-bold text-slate-900 w-1/4">Ocular Structure</th>
-                  <th className="py-2.5 px-4 text-left font-bold text-slate-900 w-[37.5%]">Right Eye Observation</th>
-                  <th className="py-2.5 px-4 text-left font-bold text-slate-900 w-[37.5%]">Left Eye Observation</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {/* 1. Vitreous */}
-                <tr>
-                  <td className="py-3 px-4 font-semibold text-slate-800 align-top">Vitreous</td>
-                  <td className="py-2 px-3 align-top">
-                    <select
-                      value={vitreous.od}
-                      onChange={(e) => handleObsChange(setVitreous, 'od', e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md bg-white text-slate-900 focus:outline-none focus:border-blue-600 mb-1"
-                    >
-                      {VITREOUS_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt === 'Select...' ? '' : opt}>{opt}</option>
-                      ))}
-                    </select>
-                    <label className="flex items-center gap-1.5 text-[11px] text-slate-600 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={vitreous.sameForLeft}
-                        onChange={(e) => handleSameChange(setVitreous, e.target.checked)}
-                        className="w-3.5 h-3.5 rounded text-blue-600 border-slate-300"
-                      />
-                      <span>Same for left eye</span>
-                    </label>
-                  </td>
-                  <td className="py-2 px-3 align-top">
-                    <select
-                      value={vitreous.os}
-                      disabled={vitreous.sameForLeft}
-                      onChange={(e) => handleObsChange(setVitreous, 'os', e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md bg-white text-slate-900 focus:outline-none focus:border-blue-600 disabled:bg-slate-100"
-                    >
-                      {VITREOUS_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt === 'Select...' ? '' : opt}>{opt}</option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
+          {/* Column headers */}
+          <div className="grid grid-cols-[180px_1fr_1fr] gap-4 mb-1 px-1">
+            <span className="text-sm font-bold text-slate-800">Ocular Structure</span>
+            <span className="text-sm font-bold text-slate-800">Right Eye Observation</span>
+            <span className="text-sm font-bold text-slate-800">Left Eye Observation</span>
+          </div>
 
-                {/* 2. Optic Nerve Head */}
-                <tr>
-                  <td className="py-3 px-4 font-semibold text-slate-800 align-top">Optic Nerve Head</td>
-                  <td className="py-2 px-3 align-top">
-                    <select
-                      value={onh.od}
-                      onChange={(e) => handleObsChange(setOnh, 'od', e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md bg-white text-slate-900 focus:outline-none focus:border-blue-600 mb-1"
-                    >
-                      {ONH_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt === 'Select...' ? '' : opt}>{opt}</option>
-                      ))}
-                    </select>
-                    <label className="flex items-center gap-1.5 text-[11px] text-slate-600 cursor-pointer mb-2">
-                      <input
-                        type="checkbox"
-                        checked={onh.sameForLeft}
-                        onChange={(e) => handleSameChange(setOnh, e.target.checked)}
-                        className="w-3.5 h-3.5 rounded text-blue-600 border-slate-300"
-                      />
-                      <span>Same for left eye</span>
-                    </label>
-                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
-                      <span className="text-[11px] font-bold text-slate-700">Cup Disc Ratio</span>
-                      <input
-                        type="text"
-                        value={cdrOd}
-                        onChange={(e) => setCdrOd(e.target.value)}
-                        className="w-20 px-2 py-1 text-xs border border-slate-300 rounded text-center font-bold"
-                      />
-                    </div>
-                  </td>
-                  <td className="py-2 px-3 align-top">
-                    <select
-                      value={onh.os}
-                      disabled={onh.sameForLeft}
-                      onChange={(e) => handleObsChange(setOnh, 'os', e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md bg-white text-slate-900 focus:outline-none focus:border-blue-600 disabled:bg-slate-100 mb-6"
-                    >
-                      {ONH_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt === 'Select...' ? '' : opt}>{opt}</option>
-                      ))}
-                    </select>
-                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
-                      <span className="text-[11px] font-bold text-slate-700">Cup Disc Ratio</span>
-                      <input
-                        type="text"
-                        value={cdrOs}
-                        onChange={(e) => setCdrOs(e.target.value)}
-                        className="w-20 px-2 py-1 text-xs border border-slate-300 rounded text-center font-bold"
-                      />
-                    </div>
-                  </td>
-                </tr>
+          {/* Rows */}
+          <div>
+            {/* Vitreous */}
+            <StructureRow label="Vitreous" options={VITREOUS_OPTIONS}
+              state={vitreous} onOd={setVitOd} onOs={setVitOs} onSame={setVitSame} />
 
-                {/* 3. Macula */}
-                <tr>
-                  <td className="py-3 px-4 font-semibold text-slate-800 align-top">Macula</td>
-                  <td className="py-2 px-3 align-top">
-                    <select
-                      value={macula.od}
-                      onChange={(e) => handleObsChange(setMacula, 'od', e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md bg-white text-slate-900 focus:outline-none focus:border-blue-600 mb-1"
-                    >
-                      {MACULA_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt === 'Select...' ? '' : opt}>{opt}</option>
-                      ))}
-                    </select>
-                    <label className="flex items-center gap-1.5 text-[11px] text-slate-600 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={macula.sameForLeft}
-                        onChange={(e) => handleSameChange(setMacula, e.target.checked)}
-                        className="w-3.5 h-3.5 rounded text-blue-600 border-slate-300"
-                      />
-                      <span>Same for left eye</span>
-                    </label>
-                  </td>
-                  <td className="py-2 px-3 align-top">
-                    <select
-                      value={macula.os}
-                      disabled={macula.sameForLeft}
-                      onChange={(e) => handleObsChange(setMacula, 'os', e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md bg-white text-slate-900 focus:outline-none focus:border-blue-600 disabled:bg-slate-100"
-                    >
-                      {MACULA_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt === 'Select...' ? '' : opt}>{opt}</option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
+            {/* Optic Nerve Head with Cup Disc Ratio */}
+            <div className="grid grid-cols-[180px_1fr_1fr] gap-4 items-start py-3 border-b border-slate-100">
+              <span className="text-sm font-semibold text-slate-800 pt-2">Optic Nerve Head</span>
+              <div className="space-y-1.5">
+                <MultiSelect options={ONH_OPTIONS} value={onh.od} onChange={setOnhOd} />
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={onh.same} onChange={e => setOnhSame(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 focus:ring-0" />
+                  <span className="text-xs text-slate-500">Same for left eye</span>
+                </label>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-sm font-semibold text-slate-700">Cup Disc Ratio</span>
+                  <input type="number" step="0.1" min="0" max="1" value={cdrOd} onChange={e => setCdrOd(e.target.value)}
+                    className="w-20 px-2 py-1.5 text-sm text-center border border-slate-300 rounded-md font-semibold focus:outline-none focus:border-blue-600" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <MultiSelect options={ONH_OPTIONS} value={onh.same ? onh.od : onh.os}
+                  onChange={v => !onh.same && setOnhOs(v)} disabled={onh.same} />
+                <div className="flex items-center gap-2 mt-7">
+                  <span className="text-sm font-semibold text-slate-700">Cup Disc Ratio</span>
+                  <input type="number" step="0.1" min="0" max="1" value={onh.same ? cdrOd : cdrOs}
+                    onChange={e => setCdrOs(e.target.value)} disabled={onh.same}
+                    className="w-20 px-2 py-1.5 text-sm text-center border border-slate-300 rounded-md font-semibold focus:outline-none focus:border-blue-600 disabled:opacity-60" />
+                </div>
+              </div>
+            </div>
 
-                {/* 4. Retinal Vessels */}
-                <tr>
-                  <td className="py-3 px-4 font-semibold text-slate-800 align-top">Retinal Vessels</td>
-                  <td className="py-2 px-3 align-top">
-                    <select
-                      value={vessels.od}
-                      onChange={(e) => handleObsChange(setVessels, 'od', e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md bg-white text-slate-900 focus:outline-none focus:border-blue-600 mb-1"
-                    >
-                      {VESSELS_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt === 'Select...' ? '' : opt}>{opt}</option>
-                      ))}
-                    </select>
-                    <label className="flex items-center gap-1.5 text-[11px] text-slate-600 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={vessels.sameForLeft}
-                        onChange={(e) => handleSameChange(setVessels, e.target.checked)}
-                        className="w-3.5 h-3.5 rounded text-blue-600 border-slate-300"
-                      />
-                      <span>Same for left eye</span>
-                    </label>
-                  </td>
-                  <td className="py-2 px-3 align-top">
-                    <select
-                      value={vessels.os}
-                      disabled={vessels.sameForLeft}
-                      onChange={(e) => handleObsChange(setVessels, 'os', e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md bg-white text-slate-900 focus:outline-none focus:border-blue-600 disabled:bg-slate-100"
-                    >
-                      {VESSELS_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt === 'Select...' ? '' : opt}>{opt}</option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
+            {/* Retinal Blood Vessels with Artery/Vein Ratio */}
+            <div className="grid grid-cols-[180px_1fr_1fr] gap-4 items-start py-3 border-b border-slate-100">
+              <span className="text-sm font-semibold text-slate-800 pt-2">Retinal Blood Vessels</span>
+              <div className="space-y-1.5">
+                <MultiSelect options={VESSELS_OPTIONS} value={vessels.od} onChange={setVesOd} />
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={vessels.same} onChange={e => setVesSame(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 focus:ring-0" />
+                  <span className="text-xs text-slate-500">Same for left eye</span>
+                </label>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-sm font-semibold text-slate-700">Artery / Vein Ratio</span>
+                  <select value={avOd} onChange={e => { setAvOd(e.target.value); if (vessels.same) setAvOs(e.target.value); }}
+                    className="px-2 py-1.5 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:border-blue-600">
+                    {AV_RATIO_OPTIONS.map(o => <option key={o}>{o}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <MultiSelect options={VESSELS_OPTIONS} value={vessels.same ? vessels.od : vessels.os}
+                  onChange={v => !vessels.same && setVesOs(v)} disabled={vessels.same} />
+                <div className="flex items-center gap-2 mt-8">
+                  <span className="text-sm font-semibold text-slate-700">Artery / Vein Ratio</span>
+                  <select value={vessels.same ? avOd : avOs} onChange={e => setAvOs(e.target.value)} disabled={vessels.same}
+                    className="px-2 py-1.5 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:border-blue-600 disabled:opacity-60">
+                    {AV_RATIO_OPTIONS.map(o => <option key={o}>{o}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
 
-                {/* 5. Peripheral Retina */}
-                <tr>
-                  <td className="py-3 px-4 font-semibold text-slate-800 align-top">Peripheral Retina</td>
-                  <td className="py-2 px-3 align-top">
-                    <select
-                      value={periphery.od}
-                      onChange={(e) => handleObsChange(setPeriphery, 'od', e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md bg-white text-slate-900 focus:outline-none focus:border-blue-600 mb-1"
-                    >
-                      {PERIPHERY_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt === 'Select...' ? '' : opt}>{opt}</option>
-                      ))}
-                    </select>
-                    <label className="flex items-center gap-1.5 text-[11px] text-slate-600 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={periphery.sameForLeft}
-                        onChange={(e) => handleSameChange(setPeriphery, e.target.checked)}
-                        className="w-3.5 h-3.5 rounded text-blue-600 border-slate-300"
-                      />
-                      <span>Same for left eye</span>
-                    </label>
-                  </td>
-                  <td className="py-2 px-3 align-top">
-                    <select
-                      value={periphery.os}
-                      disabled={periphery.sameForLeft}
-                      onChange={(e) => handleObsChange(setPeriphery, 'os', e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md bg-white text-slate-900 focus:outline-none focus:border-blue-600 disabled:bg-slate-100"
-                    >
-                      {PERIPHERY_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt === 'Select...' ? '' : opt}>{opt}</option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            {/* Macula/Fovea */}
+            <StructureRow label="Macula/Fovea" options={MACULA_OPTIONS}
+              state={macula} onOd={setMacOd} onOs={setMacOs} onSame={setMacSame} />
+
+            {/* Peripheral Retina */}
+            <StructureRow label="Peripheral Retina" options={PERIPHERAL_OPTIONS}
+              state={peripheral} onOd={setPerOd} onOs={setPerOs} onSame={setPerSame} />
+          </div>
+
+          <div className="mt-6">
+            <label className="text-sm font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
+            <textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)}
+              placeholder="Add any remarks..."
+              className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none" />
+          </div>
+
+          <div className="flex justify-end mt-4">
+            <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
+              <input type="checkbox" checked={showInDischarge} onChange={e => setShowInDischarge(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0" />
+              Show in Discharge Summary
+            </label>
           </div>
         </div>
       )}
-
-      {/* Any remarks */}
-      <div className="mb-6">
-        <label className="text-xs font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
-        <textarea
-          rows={3}
-          value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
-          placeholder="Add any remarks..."
-          className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600"
-        />
-      </div>
-
-      {/* Show in Discharge Summary */}
-      <div className="flex justify-end">
-        <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showInDischarge}
-            onChange={(e) => setShowInDischarge(e.target.checked)}
-            className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
-          />
-          <span>Show in Discharge Summary</span>
-        </label>
-      </div>
     </div>
   );
 };

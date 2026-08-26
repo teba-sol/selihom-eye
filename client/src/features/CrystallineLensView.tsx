@@ -1,24 +1,109 @@
 import React, { useState } from 'react';
+import { MultiSelect } from '../components/MultiSelect';
 
-const LENS_OBSERVATIONS = [
-  'Clean and clear / Within normal limits',
-  'Clear crystalline lens',
+// ── LOCS III Grading Component ────────────────────────────────────────────────
+type LocsGrade = { od: number; os: number };
+
+function GradeSlider({ label, description, maxGrade, value, onChange }: {
+  label: string; description: string; maxGrade: number;
+  value: LocsGrade; onChange: (v: LocsGrade) => void;
+}) {
+  const grades = Array.from({ length: maxGrade + 1 }, (_, i) => i);
+  return (
+    <div className="border border-slate-200 rounded-xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <span className="text-sm font-bold text-slate-800">{label}</span>
+          <span className="text-xs text-slate-400 ml-2">({description})</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-6">
+        {(['od', 'os'] as const).map(eye => (
+          <div key={eye}>
+            <p className="text-xs font-semibold text-slate-500 uppercase mb-2">{eye === 'od' ? 'Right Eye (OD)' : 'Left Eye (OS)'}</p>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {grades.map(g => (
+                <button key={g} type="button"
+                  onClick={() => onChange({ ...value, [eye]: g })}
+                  className={`w-9 h-9 rounded-lg text-sm font-bold border-2 transition-all ${
+                    value[eye] === g
+                      ? g === 0 ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        : g <= 2 ? 'border-amber-400 bg-amber-50 text-amber-700'
+                        : 'border-red-500 bg-red-50 text-red-700'
+                      : 'border-slate-200 bg-white text-slate-500 hover:border-slate-400'
+                  }`}>
+                  {g}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">
+              {value[eye] === 0 ? 'Clear / WNL'
+                : value[eye] === 1 ? 'Trace'
+                : value[eye] === 2 ? 'Mild'
+                : value[eye] === 3 ? 'Moderate'
+                : value[eye] === 4 ? 'Dense'
+                : 'Very dense / Mature'}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LocsIIIGrading() {
+  const [no, setNo] = useState<LocsGrade>({ od: 0, os: 0 }); // Nuclear Opalescence 0-6
+  const [nc, setNc] = useState<LocsGrade>({ od: 0, os: 0 }); // Nuclear Color 0-6
+  const [c, setC] = useState<LocsGrade>({ od: 0, os: 0 });   // Cortical 0-5
+  const [p, setP] = useState<LocsGrade>({ od: 0, os: 0 });   // Posterior Subcapsular 0-5
+
+  return (
+    <div className="space-y-4 max-w-3xl">
+      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+        <strong>LOCS III</strong> — Lens Opacities Classification System III. Grade each eye independently.
+        <span className="ml-2 text-blue-500">0 = Clear · 1 = Trace · 2 = Mild · 3 = Moderate · 4 = Dense · 5+ = Mature</span>
+      </div>
+
+      <GradeSlider label="Nuclear Opalescence (NO)" description="0 – 6" maxGrade={6} value={no} onChange={setNo} />
+      <GradeSlider label="Nuclear Color (NC)" description="0 – 6" maxGrade={6} value={nc} onChange={setNc} />
+      <GradeSlider label="Cortical Cataract (C)" description="0 – 5" maxGrade={5} value={c} onChange={setC} />
+      <GradeSlider label="Posterior Subcapsular (P)" description="0 – 5" maxGrade={5} value={p} onChange={setP} />
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LENS_OPTIONS = [
+  'Clear / Within Normal Limits',
+  'Congenital Cataract',
+  'Nuclear sclerosis',
+  'Cortical cataract',
+  'Mature Cataract',
+  'Hypermature Cataract',
+  'Traumatic Cataract',
+  'Complicated Cataract',
+  'Posterior Subcapsular Cataract (PSC)',
   'Nuclear Sclerosis Grade 1 (NC1/NO1)',
   'Nuclear Sclerosis Grade 2 (NC2/NO2)',
   'Nuclear Sclerosis Grade 3 (NC3/NO3)',
-  'Cortical Cataract (C1 - C5)',
-  'Posterior Subcapsular Cataract (P1 - P5)',
   'Pseudophakic (PCIOL in situ / Clear axis)',
   'Posterior Capsular Opacification (PCO)',
   'Aphakic',
   'Subluxated / Dislocated Lens',
+  'Anterior Polar Cataract',
+  'Posterior Polar Cataract',
 ];
 
 const MYDRIATIC_OPTIONS = [
-  'Select...',
-  'None / Undilated',
-  'Tropicamide 0.8% + Phenylephrine 5%',
+  'None',
+  'Tropicamide 0.5%',
+  'Tropicamide 0.8%',
   'Tropicamide 1%',
+  'Phenylephrine 2.5%',
+  'Phenylephrine 5%',
+  'Phenylephrine 10%',
+  'Tropicamide 0.8% + Phenylephrine 5%',
+  'Tropicamide 1% + Phenylephrine 5%',
   'Cyclopentolate 1%',
   'Homatropine 2%',
   'Atropine 1%',
@@ -26,185 +111,98 @@ const MYDRIATIC_OPTIONS = [
 
 export const CrystallineLensView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'Form' | 'LOCS III Grading scale'>('Form');
-  const [mydriaticDrug, setMydriaticDrug] = useState('');
+  const [mydriaticDrug, setMydriaticDrug] = useState<string[]>([]);
   const [instrument, setInstrument] = useState<'Torch Light' | 'Slit Lamp'>('Slit Lamp');
-  const [rightEyeObs, setRightEyeObs] = useState('');
-  const [leftEyeObs, setLeftEyeObs] = useState('');
-  const [sameForLeftEye, setSameForLeftEye] = useState(false);
+  const [odObs, setOdObs] = useState<string[]>([]);
+  const [osObs, setOsObs] = useState<string[]>([]);
+  const [sameForOS, setSameForOS] = useState(false);
   const [remarks, setRemarks] = useState('');
   const [showInDischarge, setShowInDischarge] = useState(false);
 
-  const handleRightEyeChange = (val: string) => {
-    setRightEyeObs(val);
-    if (sameForLeftEye) {
-      setLeftEyeObs(val);
-    }
+  const handleOdChange = (v: string[]) => {
+    setOdObs(v);
+    if (sameForOS) setOsObs(v);
   };
 
-  const handleSameForLeftEyeChange = (checked: boolean) => {
-    setSameForLeftEye(checked);
-    if (checked) {
-      setLeftEyeObs(rightEyeObs);
-    }
+  const handleSame = (checked: boolean) => {
+    setSameForOS(checked);
+    if (checked) setOsObs(odObs);
   };
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full">
-      <h1 className="text-xl font-bold text-[#1E3A8A] mb-2">Crystalline Lens Evaluation</h1>
+      <h1 className="text-2xl font-bold text-[#2563eb] mb-2">Crystalline Lens Evaluation</h1>
 
       {/* Sub-tabs */}
       <div className="flex gap-6 border-b border-slate-200 mb-6">
-        {(['Form', 'LOCS III Grading scale'] as const).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setActiveTab(tab)}
-            className={`pb-2 text-xs font-semibold tracking-wide transition-colors ${
-              activeTab === tab
-                ? 'text-blue-700 border-b-2 border-blue-700 font-bold'
-                : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
+        {(['Form', 'LOCS III Grading scale'] as const).map(tab => (
+          <button key={tab} type="button" onClick={() => setActiveTab(tab)}
+            className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab ? 'text-blue-700 border-blue-700 font-semibold' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
             {tab}
           </button>
         ))}
       </div>
 
       {activeTab === 'LOCS III Grading scale' ? (
-        <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 mb-6">
-          <p className="font-bold text-slate-800 mb-2">LOCS III Reference Standard:</p>
-          <ul className="list-disc pl-5 space-y-1">
-            <li>Nuclear Opalescence (NO1 - NO6) &amp; Nuclear Color (NC1 - NC6)</li>
-            <li>Cortical Cataract (C1 - C5)</li>
-            <li>Posterior Subcapsular (P1 - P5)</li>
-          </ul>
-        </div>
+        <LocsIIIGrading />
       ) : (
         <div className="space-y-5 max-w-4xl mb-8">
           {/* Mydriatic Drug */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-            <label className="text-xs font-bold text-slate-800">Mydriatic Drug</label>
-            <div className="md:col-span-3">
-              <select
-                value={mydriaticDrug}
-                onChange={(e) => setMydriaticDrug(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
-              >
-                {MYDRIATIC_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt === 'Select...' ? '' : opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="grid grid-cols-[200px_1fr] items-start gap-4">
+            <span className="text-sm font-bold text-slate-800 pt-2">Mydriatic Drug</span>
+            <MultiSelect options={MYDRIATIC_OPTIONS} value={mydriaticDrug} onChange={setMydriaticDrug} placeholder="Select mydriatic drug..." />
           </div>
 
           {/* Instrument */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-            <label className="text-xs font-bold text-slate-800">Instrument</label>
-            <div className="md:col-span-3 flex items-center gap-6 text-xs text-slate-700">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="lensInstrument"
-                  value="Torch Light"
-                  checked={instrument === 'Torch Light'}
-                  onChange={() => setInstrument('Torch Light')}
-                  className="text-blue-600 focus:ring-0"
-                />
-                <span>Torch Light</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="lensInstrument"
-                  value="Slit Lamp"
-                  checked={instrument === 'Slit Lamp'}
-                  onChange={() => setInstrument('Slit Lamp')}
-                  className="text-blue-600 focus:ring-0"
-                />
-                <span>Slit Lamp</span>
-              </label>
+          <div className="grid grid-cols-[200px_1fr] items-center gap-4">
+            <span className="text-sm font-bold text-slate-800">Instrument</span>
+            <div className="flex items-center gap-6 text-sm text-slate-700">
+              {(['Torch Light', 'Slit Lamp'] as const).map(opt => (
+                <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="lensInstrument" checked={instrument === opt} onChange={() => setInstrument(opt)}
+                    className="w-4 h-4 text-blue-600 accent-blue-600 focus:ring-0" />
+                  <span>{opt}</span>
+                </label>
+              ))}
             </div>
           </div>
 
-          {/* Table-like Structure Row */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start pt-2">
-            <div>
-              <span className="text-xs font-bold text-slate-900 block mb-1">Ocular Structure</span>
-              <span className="text-xs font-medium text-slate-700">Crystalline Lens</span>
-            </div>
+          {/* Column headers */}
+          <div className="grid grid-cols-[200px_1fr_1fr] gap-4 pt-2">
+            <span className="text-sm font-bold text-slate-800">Ocular Structure</span>
+            <span className="text-sm font-bold text-slate-800">Right Eye Observation</span>
+            <span className="text-sm font-bold text-slate-800">Left Eye Observation</span>
+          </div>
 
-            {/* Right Eye Observation */}
+          {/* Crystalline Lens Row */}
+          <div className="grid grid-cols-[200px_1fr_1fr] gap-4 items-start">
+            <span className="text-sm font-semibold text-slate-700 pt-2">Crystalline Lens</span>
             <div>
-              <label className="text-xs font-bold text-slate-900 block mb-1">Right Eye Observation</label>
-              <select
-                value={rightEyeObs}
-                onChange={(e) => handleRightEyeChange(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600 mb-2"
-              >
-                <option value="">Select...</option>
-                {LENS_OBSERVATIONS.map((obs) => (
-                  <option key={obs} value={obs}>
-                    {obs}
-                  </option>
-                ))}
-              </select>
-
-              <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={sameForLeftEye}
-                  onChange={(e) => handleSameForLeftEyeChange(e.target.checked)}
-                  className="w-3.5 h-3.5 rounded text-blue-600 border-slate-300 focus:ring-0"
-                />
-                <span>Same for left eye</span>
+              <MultiSelect options={LENS_OPTIONS} value={odObs} onChange={handleOdChange} />
+              <label className="flex items-center gap-2 mt-1.5 cursor-pointer">
+                <input type="checkbox" checked={sameForOS} onChange={e => handleSame(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 accent-blue-600 focus:ring-0" />
+                <span className="text-xs text-slate-500">Same for left eye</span>
               </label>
             </div>
-
-            {/* Left Eye Observation */}
-            <div>
-              <label className="text-xs font-bold text-slate-900 block mb-1">Left Eye Observation</label>
-              <select
-                value={leftEyeObs}
-                disabled={sameForLeftEye}
-                onChange={(e) => setLeftEyeObs(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-400"
-              >
-                <option value="">Select...</option>
-                {LENS_OBSERVATIONS.map((obs) => (
-                  <option key={obs} value={obs}>
-                    {obs}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <MultiSelect options={LENS_OPTIONS} value={sameForOS ? odObs : osObs}
+              onChange={v => !sameForOS && setOsObs(v)} disabled={sameForOS} />
           </div>
         </div>
       )}
 
-      {/* Any remarks */}
-      <div className="mb-6">
-        <label className="text-xs font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
-        <textarea
-          rows={3}
-          value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
+      <div className="mb-6 max-w-4xl">
+        <label className="text-sm font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
+        <textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)}
           placeholder="Add any remarks..."
-          className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600"
-        />
+          className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none" />
       </div>
 
-      {/* Show in Discharge Summary */}
-      <div className="flex justify-end">
+      <div className="flex justify-end max-w-4xl">
         <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showInDischarge}
-            onChange={(e) => setShowInDischarge(e.target.checked)}
-            className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
-          />
-          <span>Show in Discharge Summary</span>
+          <input type="checkbox" checked={showInDischarge} onChange={e => setShowInDischarge(e.target.checked)}
+            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0" />
+          Show in Discharge Summary
         </label>
       </div>
     </div>

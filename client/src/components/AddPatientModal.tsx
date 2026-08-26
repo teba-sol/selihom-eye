@@ -7,7 +7,7 @@ import '../receptionist/index.css';
 interface AddPatientModalProps {
   open: boolean;
   onClose: () => void;
-  onSave: (patient: Omit<Patient, 'id' | 'isNew' | 'lastVisit'>) => void;
+  onSave: (patient: Omit<Patient, 'id'>) => void;
 }
 
 export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose, onSave }) => {
@@ -581,6 +581,65 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
       }
     };
 
+    function clearFeedback(elId: string) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      el.className = 'conversion-feedback';
+    }
+
+    // Auto-calculate birth year from age + day + month (same as receptionist)
+    function tryCalculateYearFromAge() {
+      const ageEl = document.getElementById('age') as HTMLInputElement;
+      const ageVal = parseInt(digitsOnly(ageEl?.value), 10);
+      if (isNaN(ageVal) || ageVal < 0) return;
+
+      const todayRef = authoritativeToday || new Date();
+      const todayEuroParts = getAddisParts(todayRef);
+      const todayEthParts = gregorianToEthiopian(todayEuroParts.year, todayEuroParts.month, todayEuroParts.day);
+
+      // Check European DOB day & month
+      const euroDEl = document.getElementById('euroDobD') as HTMLInputElement;
+      const euroMEl = document.getElementById('euroDobM') as HTMLInputElement;
+      const euroYEl = document.getElementById('euroDobY') as HTMLInputElement;
+      const ed = parseInt(digitsOnly(euroDEl?.value), 10);
+      const em = parseInt(digitsOnly(euroMEl?.value), 10);
+
+      if (ed && em && em >= 1 && em <= 12 && ed >= 1 && ed <= 31) {
+        let bYear = todayEuroParts.year - ageVal;
+        if (todayEuroParts.month < em || (todayEuroParts.month === em && todayEuroParts.day < ed)) {
+          bYear--;
+        }
+        if (bYear >= 1800 && bYear <= 2200) {
+          euroYEl.value = String(bYear);
+          const ethResult = gregorianToEthiopian(bYear, em, ed);
+          writeGroup('ethDobD', 'ethDobM', 'ethDobY', ethResult.day, ethResult.month, ethResult.year);
+          clearFeedback('dobFeedback');
+          return;
+        }
+      }
+
+      // Check Ethiopian DOB day & month
+      const ethDEl = document.getElementById('ethDobD') as HTMLInputElement;
+      const ethMEl = document.getElementById('ethDobM') as HTMLInputElement;
+      const ethYEl = document.getElementById('ethDobY') as HTMLInputElement;
+      const etd = parseInt(digitsOnly(ethDEl?.value), 10);
+      const etm = parseInt(digitsOnly(ethMEl?.value), 10);
+
+      if (etd && etm && etm >= 1 && etm <= 13 && etd >= 1 && etd <= 30) {
+        let bYear = todayEthParts.year - ageVal;
+        if (todayEthParts.month < etm || (todayEthParts.month === etm && todayEthParts.day < etd)) {
+          bYear--;
+        }
+        if (bYear >= 1892 && bYear <= 2200) {
+          ethYEl.value = String(bYear);
+          const greg = ethiopianToGregorian(bYear, etm, etd);
+          writeGroup('euroDobD', 'euroDobM', 'euroDobY', greg.day, greg.month, greg.year);
+          clearFeedback('dobFeedback');
+          return;
+        }
+      }
+    }
+
     // Initialize all components
     setupDateGroup('regEthGroup', 'regEthD', 'regEthM', 'regEthY');
     setupDateGroup('ethDobGroup', 'ethDobD', 'ethDobM', 'ethDobY');
@@ -590,11 +649,43 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
     (window as any).toggleReferralField();
     initAddressDropdowns();
 
+    // Wire up age -> year auto-calculation
+    const ageInputEl = document.getElementById('age');
+    if (ageInputEl) ageInputEl.addEventListener('input', tryCalculateYearFromAge);
+    ['ethDobD', 'ethDobM', 'euroDobD', 'euroDobM'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', tryCalculateYearFromAge);
+    });
+
+    // MRN blur: normalize format
+    const mrnEl = document.getElementById('mrn') as HTMLInputElement;
+    if (mrnEl) {
+      mrnEl.addEventListener('blur', function() {
+        const val = this.value.trim();
+        if (!val) return;
+        const yy = currentRegEthYY();
+        const slashIdx = val.indexOf('/');
+        const rawSeq = slashIdx >= 0 ? val.slice(0, slashIdx).trim() : val;
+        const specifiedYY = slashIdx >= 0 ? val.slice(slashIdx + 1).trim() : yy;
+        const parsed = parseInt(digitsOnly(rawSeq), 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          this.value = formatMRN(parsed, specifiedYY || yy);
+        }
+      });
+    }
+
+    // Wire up registration date year change -> MRN sync
+    ['regEthY', 'regEthM', 'regEthD'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', syncMrnYearWithRegDate);
+    });
+
     // Load online date
     fetchOnlineCurrentDate().then(online => {
       if (online) {
         authoritativeToday = online;
         setRegistrationDatePlaceholders(online);
+        updateAgeDateStatus();
       }
     });
 
