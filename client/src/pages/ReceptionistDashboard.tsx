@@ -5,7 +5,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { AddPatientModal } from '../components/AddPatientModal';
 import { api } from '../lib/api';
-import { formatDobEthiopian } from '../data/mockData';
+import { formatDobEthiopian } from '../lib/formatters';
 
 interface ApiPatient {
   id: string;
@@ -42,14 +42,9 @@ export const ReceptionistDashboard: React.FC = () => {
   const [searching, setSearching] = useState(false);
 
   const [todayAppts, setTodayAppts] = useState<ApiAppointment[]>([]);
-  const [stats, setStats] = useState({ today: 0, week: 0, appointmentsToday: 0 });
+  const [recentRegistrations, setRecentRegistrations] = useState<ApiPatient[]>([]);
 
   const todayStr = new Date().toISOString().split('T')[0];
-
-  const weekStart = new Date();
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
-  weekStart.setHours(0, 0, 0, 0);
-  const weekStartStr = weekStart.toISOString().split('T')[0];
 
   const fetchDashboardData = async () => {
     try {
@@ -59,19 +54,11 @@ export const ReceptionistDashboard: React.FC = () => {
       ]);
       setTodayAppts(todayApts);
 
-      const todayCount = allPatients.filter((p) => {
-        return p.createdAt ? p.createdAt.split('T')[0] === todayStr : false;
-      }).length;
-
-      const weekCount = allPatients.filter((p) => {
-        return p.createdAt ? p.createdAt.split('T')[0] >= weekStartStr : false;
-      }).length;
-
-      setStats({
-        today: todayCount || todayApts.length,
-        week: weekCount || allPatients.length,
-        appointmentsToday: todayApts.length,
-      });
+      const recent = allPatients
+        .slice()
+        .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+        .slice(0, 8);
+      setRecentRegistrations(recent);
     } catch {
       // silent
     }
@@ -120,12 +107,6 @@ export const ReceptionistDashboard: React.FC = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const statCards = [
-    { label: 'Registered Today', value: stats.today, color: 'bg-teal-50 text-teal-700 border-teal-200' },
-    { label: 'This Week', value: stats.week, color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    { label: 'Appointments Today', value: stats.appointmentsToday, color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  ];
-
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-100">
       {/* Header */}
@@ -150,124 +131,189 @@ export const ReceptionistDashboard: React.FC = () => {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-6">
-        {/* Top actions */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <Users className="w-6 h-6 text-teal-600" />
-            <h1 className="text-2xl font-semibold text-slate-800">Reception</h1>
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-6xl mx-auto px-6 py-6">
+          {/* Page header — title left, primary button right */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-2">
+              <Users className="w-6 h-6 text-teal-600" />
+              <div>
+                <h1 className="text-2xl font-semibold text-slate-800">Reception</h1>
+                <p className="text-sm text-slate-500">Register and manage patient intake</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-xl shadow-md transition-colors"
+            >
+              <UserPlus className="w-5 h-5" />
+              Register New Patient
+            </button>
           </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-xl shadow-md transition-colors"
-          >
-            <UserPlus className="w-5 h-5" />
-            Register New Patient
-          </button>
-        </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          {statCards.map((card) => (
-            <div key={card.label} className={`rounded-xl border p-4 ${card.color}`}>
-              <p className="text-xs font-medium uppercase tracking-wide opacity-70">{card.label}</p>
-              <p className="text-3xl font-bold mt-1">{card.value}</p>
-            </div>
-          ))}
-        </div>
+          {/* Main feature card — 50/50 register | search */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-8">
+            <div className="grid md:grid-cols-2 md:min-h-[520px]">
+              {/* LEFT — register */}
+              <div className="flex flex-col items-center justify-center text-center px-12 py-16 md:border-r border-slate-200">
+                <div className="w-20 h-20 rounded-full bg-teal-50 flex items-center justify-center mb-6">
+                  <UserPlus className="w-10 h-10 text-teal-600" />
+                </div>
+                <h2 className="text-lg font-bold text-slate-800">Register New Patient</h2>
+                <p className="text-sm text-slate-500 max-w-xs mt-3">
+                  Create a new patient record and start the intake process.
+                </p>
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="mt-8 inline-flex items-center gap-2 px-8 py-3 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-xl shadow-md transition-colors"
+                >
+                  <UserPlus className="w-5 h-5" />
+                  Register patient
+                </button>
+              </div>
 
-        <div className="grid grid-cols-2 gap-6">
-          {/* Patient Search */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Search className="w-5 h-5 text-slate-500" />
-              <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Patient Search</h2>
+              {/* RIGHT — search */}
+              <div className="flex flex-col px-10 py-10">
+                <div className="flex items-center gap-2 mb-2">
+                  <Search className="w-5 h-5 text-slate-500" />
+                  <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Patient Search</h2>
+                </div>
+                <p className="text-xs text-slate-500 mb-5">
+                  Find an existing patient by name, MRN, or phone.
+                </p>
+                <div className="relative mb-5">
+                  <input
+                    type="text"
+                    placeholder="Search by name, MRN, or phone..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full px-4 py-3 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                  />
+                  {searching && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">Searching...</span>
+                  )}
+                </div>
+
+                <div className="flex-1 min-h-0">
+                  {searchResults.length > 0 ? (
+                    <div className="h-full overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-xs text-slate-500 uppercase border-b border-slate-100">
+                            <th className="pb-2 font-semibold">MRN</th>
+                            <th className="pb-2 font-semibold">Name</th>
+                            <th className="pb-2 font-semibold">Phone</th>
+                            <th className="pb-2 font-semibold">DOB</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {searchResults.map((p) => (
+                            <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50">
+                              <td className="py-2 font-semibold text-slate-700">{p.mrn}</td>
+                              <td className="py-2 text-slate-800">{p.firstName} {p.lastName} {p.grandfatherName || ''}</td>
+                              <td className="py-2 text-slate-600">{p.phone}</td>
+                              <td className="py-2 text-slate-600">{formatDobEthiopian(p.dob || '')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : searchQuery.trim() && !searching ? (
+                    <div className="h-full flex items-center justify-center">
+                      <p className="text-sm text-slate-400">No patients found</p>
+                    </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center">
+                      <p className="text-sm text-slate-400">Type to search patients</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="relative mb-4">
-              <input
-                type="text"
-                placeholder="Search by name, MRN, or phone..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-              />
-              {searching && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">Searching...</span>
+          </div>
+
+          {/* Lower grid — 3:1 */}
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(280px,1fr)] gap-6 lg:items-stretch">
+            {/* Recent registrations */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6 min-w-0 lg:min-h-[340px]">
+              <div className="flex items-center gap-2 mb-5">
+                <Users className="w-5 h-5 text-slate-500" />
+                <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Recent Registrations</h2>
+              </div>
+
+              {recentRegistrations.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-slate-500 uppercase border-b border-slate-100">
+                        <th className="pb-2 font-semibold">MRN</th>
+                        <th className="pb-2 font-semibold">Name</th>
+                        <th className="pb-2 font-semibold">Phone</th>
+                        <th className="pb-2 font-semibold">Registered</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentRegistrations.map((p) => (
+                        <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50">
+                          <td className="py-2.5 font-semibold text-slate-700">{p.mrn}</td>
+                          <td className="py-2.5 text-slate-800">{p.firstName} {p.lastName} {p.grandfatherName || ''}</td>
+                          <td className="py-2.5 text-slate-600">{p.phone}</td>
+                          <td className="py-2.5 text-slate-600">
+                            {p.createdAt
+                              ? new Date(p.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                              : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-400 text-center py-10">No patients registered yet</p>
               )}
             </div>
 
-            {searchResults.length > 0 && (
-              <div className="max-h-[300px] overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs text-slate-500 uppercase border-b border-slate-100">
-                      <th className="pb-2 font-semibold">MRN</th>
-                      <th className="pb-2 font-semibold">Name</th>
-                      <th className="pb-2 font-semibold">Phone</th>
-                      <th className="pb-2 font-semibold">DOB</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {searchResults.map((p) => (
-                      <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50">
-                        <td className="py-2 font-semibold text-slate-700">{p.mrn}</td>
-                        <td className="py-2 text-slate-800">{p.firstName} {p.lastName} {p.grandfatherName || ''}</td>
-                        <td className="py-2 text-slate-600">{p.phone}</td>
-                        <td className="py-2 text-slate-600">{formatDobEthiopian(p.dob || '')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {/* Today's appointments */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6 min-w-0 lg:min-h-[340px]">
+              <div className="flex items-center gap-2 mb-5">
+                <Calendar className="w-5 h-5 text-slate-500" />
+                <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Today's Appointments</h2>
               </div>
-            )}
-            {searchQuery.trim() && !searching && searchResults.length === 0 && (
-              <p className="text-sm text-slate-400 text-center py-4">No patients found</p>
-            )}
-            {!searchQuery.trim() && (
-              <p className="text-sm text-slate-400 text-center py-4">Type to search patients</p>
-            )}
-          </div>
 
-          {/* Today's Appointments */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Calendar className="w-5 h-5 text-slate-500" />
-              <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Today's Appointments</h2>
+              {todayAppts.length > 0 ? (
+                <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                  {todayAppts.map((apt) => {
+                    const name = apt.patient
+                      ? `${apt.patient.firstName} ${apt.patient.lastName}`
+                      : 'Unknown';
+                    const statusColor =
+                      apt.status === 'COMPLETED'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : apt.status === 'IN_EXAM'
+                        ? 'bg-blue-100 text-blue-700'
+                        : apt.status === 'CANCELLED'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-slate-100 text-slate-600';
+                    return (
+                      <div key={apt.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">{name}</p>
+                          <p className="text-xs text-slate-500">{apt.reason || 'Routine Eye Examination'}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-slate-700">{apt.startTime || '-'}</p>
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor}`}>
+                            {apt.status.replace('_', ' ')}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-400 text-center py-10">No appointments today</p>
+              )}
             </div>
-
-            {todayAppts.length > 0 ? (
-              <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                {todayAppts.map((apt) => {
-                  const name = apt.patient
-                    ? `${apt.patient.firstName} ${apt.patient.lastName}`
-                    : 'Unknown';
-                  const statusColor =
-                    apt.status === 'COMPLETED'
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : apt.status === 'IN_EXAM'
-                      ? 'bg-blue-100 text-blue-700'
-                      : apt.status === 'CANCELLED'
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-slate-100 text-slate-600';
-                  return (
-                    <div key={apt.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">{name}</p>
-                        <p className="text-xs text-slate-500">{apt.reason || 'Routine Eye Examination'}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-slate-700">{apt.startTime || '-'}</p>
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor}`}>
-                          {apt.status.replace('_', ' ')}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-400 text-center py-8">No appointments today</p>
-            )}
           </div>
         </div>
       </div>

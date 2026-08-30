@@ -1,14 +1,16 @@
 import { create } from 'zustand';
 import { getDefaultClinicalState } from '../lib/encounterDefaults';
+import { apiEncounterToSnapshot } from '../lib/encounterMappers';
 
 export interface SymptomItem {
   id: string;
   name: string;
-  eye: 'Left Eye' | 'Right Eye' | 'Both Eyes';
-  durationValue: number;
-  durationUnit: 'days' | 'weeks' | 'months' | 'years';
-  frequency: 'Constant' | 'Intermittent' | 'Morning' | 'Evening' | 'Near work';
-  severity: 'Mild' | 'Moderate' | 'Severe';
+  eye: string;
+  durationValue?: number;
+  durationUnit?: string;
+  since?: string;
+  frequency?: string;
+  severity?: string;
   remarks?: string;
 }
 
@@ -51,12 +53,13 @@ export interface OcularHistoryState {
 
 export interface SystemicConditionDetail {
   active: boolean;
-  durationValue: number;
-  durationUnit: 'days' | 'weeks' | 'months' | 'years';
+  dateOfDiagnosis?: string;
+  durationValue?: number;
+  durationUnit?: string;
   type?: string;
-  controlStatus: 'Well Controlled' | 'Moderately Controlled' | 'Poorly Controlled' | 'Uncontrolled';
-  remarks: string;
-  showInDischarge: boolean;
+  controlStatus?: 'Well Controlled' | 'Moderately Controlled' | 'Poorly Controlled' | 'Uncontrolled';
+  remarks?: string;
+  showInDischarge?: boolean;
 }
 
 export interface MedicationEntry {
@@ -72,7 +75,7 @@ export interface MedicationEntry {
 
 export interface FamilyHistoryItem {
   id: string;
-  relation: 'Father' | 'Mother' | 'Sibling' | 'Maternal Grandparent' | 'Paternal Grandparent';
+  relation: 'Father' | 'Mother' | 'Sibling' | 'Parent' | 'Grandparent' | 'Maternal Grandparent' | 'Paternal Grandparent';
   condition: string;
   notes: string;
   showInDischarge: boolean;
@@ -80,7 +83,7 @@ export interface FamilyHistoryItem {
 
 export interface SpectaclesState {
   currentlyWears: boolean;
-  type: 'Single Vision (Distance)' | 'Single Vision (Near)' | 'Bifocal' | 'Progressive (PAL)' | 'None';
+  type: 'Single Vision (Distance)' | 'Single Vision (Intermediate)' | 'Single Vision (Near)' | 'Bifocal' | 'Progressive (PAL)' | 'None';
   ageOfCurrentGlasses: string;
   material: 'CR-39 (Plastic)' | 'Polycarbonate' | 'High Index' | 'Glass';
   coating: string[];
@@ -107,9 +110,32 @@ export interface LifestyleState {
   drivingRequirements: 'Daytime Only' | 'Night Driving Frequent' | 'Commercial Driver' | 'None';
 }
 
+export interface EyeData {
+  unaided: string;
+  aided: string;
+  pinhole: string;
+}
+
+export interface VisionEyeData {
+  dist: EyeData;
+  near: EyeData;
+}
+
+export interface VisualAcuityState {
+  unit: string;
+  od: VisionEyeData;
+  os: VisionEyeData;
+  ou: VisionEyeData;
+  remarks: string;
+}
+
 interface EncounterState {
   activeTab: string;
   appointmentId: string | null;
+  encounterId: string | null;
+  isLocked: boolean;
+  lockedAt: string | null;
+  addendumNotes: string | null;
   patient: {
     id: string;
     mrn: string;
@@ -120,20 +146,14 @@ interface EncounterState {
     reasonForVisit: string;
   };
   consentObtained: boolean;
+  encounterSnapshots: Record<string, EncounterSnapshot>;
 
   // 1. History and Symptoms
   ocularHistory: OcularHistoryState;
   symptoms: SymptomItem[];
 
   // 2. Visual Acuity
-  visualAcuity: {
-    unaidedOd: string;
-    unaidedOs: string;
-    aidedOd: string;
-    aidedOs: string;
-    pinholeOd: string;
-    pinholeOs: string;
-  };
+  visualAcuity: VisualAcuityState;
 
   // 3. Refraction
   refraction: RefractionGridValues;
@@ -153,16 +173,7 @@ interface EncounterState {
   systemicHistory: {
     noHistoryReported: boolean;
     generalRemarks: string;
-    conditions: {
-      diabetes: SystemicConditionDetail;
-      hypertension: SystemicConditionDetail;
-      thyroid: SystemicConditionDetail;
-      autoimmune: SystemicConditionDetail;
-      cardiovascular: SystemicConditionDetail;
-      respiratoryAsthma: SystemicConditionDetail;
-      cholesterol: SystemicConditionDetail;
-      allergies: SystemicConditionDetail;
-    };
+    conditions: Record<string, SystemicConditionDetail>;
   };
   patientMedications: MedicationEntry[];
   familyOcularHistory: FamilyHistoryItem[];
@@ -183,10 +194,15 @@ interface EncounterState {
   counselingAdvice: string;
   treatmentPathway: string;
 
+  // Module section data (keyed by ASIRA section/tab id) for exam views that
+  // manage their own local state. Autosaved wholesale and restored on load.
+  sectionData: Record<string, any>;
+
   // Actions
   setActiveTab: (tab: string) => void;
   setConsent: (val: boolean) => void;
   setPatient: (patient: EncounterState['patient']) => void;
+  setSectionData: (section: string, data: any) => void;
   loadFromAppointment: (params: {
     appointmentId: string;
     patient: EncounterState['patient'];
@@ -195,17 +211,31 @@ interface EncounterState {
   }) => void;
   loadEncounterFromDb: (data: any) => void;
   saveEncounter: () => Promise<void>;
+  markExamFinalized: (encounterId: string) => void;
   updateOcularCondition: (key: keyof OcularHistoryState['conditions'], data: Partial<OcularConditionDetail>) => void;
   setOcularGeneralRemarks: (remarks: string) => void;
   setNoOcularHistory: (val: boolean) => void;
   updateRefraction: (data: Partial<RefractionGridValues>) => void;
   updateVisualAcuity: (data: Partial<EncounterState['visualAcuity']>) => void;
+  setVisualAcuityCell: (
+    eye: 'od' | 'os' | 'ou',
+    scope: 'dist' | 'near',
+    key: 'unaided' | 'aided' | 'pinhole',
+    value: string,
+  ) => void;
+  setVisualAcuityUnit: (unit: string) => void;
   setCanvasVectors: (eye: 'OD' | 'OS', vectors: string) => void;
   updateSlitLamp: (data: Partial<EncounterState['slitLamp']>) => void;
   updateTonometry: (data: Partial<EncounterState['tonometry']>) => void;
   addOrToggleSymptom: (name: string) => void;
   updateSymptom: (id: string, data: Partial<SymptomItem>) => void;
-  setVisualAcuityField: (field: keyof EncounterState['visualAcuity'], value: string) => void;
+  setSymptoms: (items: SymptomItem[]) => void;
+  setSystemicConditions: (conditions: Record<string, SystemicConditionDetail>) => void;
+  setPatientMedications: (items: MedicationEntry[]) => void;
+  setFamilyOcularHistory: (items: FamilyHistoryItem[]) => void;
+  setFamilySystemicHistory: (items: FamilyHistoryItem[]) => void;
+  setSpectaclesHistory: (data: SpectaclesState) => void;
+  setContactLensHistory: (data: ContactLensState) => void;
   updateSystemicCondition: (key: string, data: Partial<SystemicConditionDetail>) => void;
   setSystemicGeneralRemarks: (remarks: string) => void;
   setNoSystemicHistory: (val: boolean) => void;
@@ -218,9 +248,73 @@ interface EncounterState {
   updateLifestyle: (data: Partial<LifestyleState>) => void;
 }
 
-export const useEncounterStore = create<EncounterState>((set) => ({
+export interface EncounterSnapshot {
+  appointmentId: string | null;
+  encounterId: string | null;
+  isLocked: boolean;
+  lockedAt: string | null;
+  addendumNotes: string | null;
+  patient: EncounterState['patient'];
+  consentObtained: boolean;
+  activeTab: string;
+  ocularHistory: OcularHistoryState;
+  symptoms: SymptomItem[];
+  visualAcuity: EncounterState['visualAcuity'];
+  refraction: RefractionGridValues;
+  slitLamp: EncounterState['slitLamp'];
+  odCanvasVectors: string;
+  osCanvasVectors: string;
+  systemicHistory: EncounterState['systemicHistory'];
+  patientMedications: MedicationEntry[];
+  familyOcularHistory: FamilyHistoryItem[];
+  familySystemicHistory: FamilyHistoryItem[];
+  spectaclesHistory: SpectaclesState;
+  contactLensHistory: ContactLensState;
+  lifestyleDemands: LifestyleState;
+  tonometry: EncounterState['tonometry'];
+  diagnoses: EncounterState['diagnoses'];
+  counselingAdvice: string;
+  treatmentPathway: string;
+  sectionData: Record<string, any>;
+}
+
+// Read-only guard: when the exam is locked (finalized), every `set` is a
+// no-op unless it is a meta transition (navigating exams / restoring DB
+// data) or touches lock state itself. UX layer only — the API enforces the
+// real immutability.
+const META_KEYS = new Set([
+  'isLocked', 'lockedAt', 'encounterId', 'appointmentId', 'activeTab',
+  'patient', 'consentObtained', 'encounterSnapshots',
+]);
+
+export const useEncounterStore = create<EncounterState>((rawSet, get) => {
+  const set: typeof rawSet = (partial, replace?) => {
+    const locked = get().isLocked;
+    if (!locked) {
+      rawSet(partial, replace as any);
+      return;
+    }
+    const patch = typeof partial === 'function' ? (partial as any)(get()) : partial;
+    const keys = Object.keys(patch ?? {});
+    if (keys.length === 0) {
+      rawSet(partial, replace as any);
+      return;
+    }
+    const isRestore = keys.includes('isLocked') || keys.includes('appointmentId');
+    const allowedKeys = keys.filter((k) => META_KEYS.has(k) || isRestore);
+    if (allowedKeys.length === 0) return;
+    const filtered: Record<string, unknown> = {};
+    for (const k of allowedKeys) filtered[k] = (patch as Record<string, unknown>)[k];
+    rawSet(filtered as any, replace as any);
+  };
+
+  return {
   activeTab: 'reason-for-visit',
   appointmentId: null,
+  encounterId: null,
+  isLocked: false,
+  lockedAt: null,
+  addendumNotes: null,
   patient: {
     id: '',
     mrn: '',
@@ -231,57 +325,101 @@ export const useEncounterStore = create<EncounterState>((set) => ({
     reasonForVisit: '',
   },
   consentObtained: false,
+  encounterSnapshots: {},
   ...getDefaultClinicalState(),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
   setConsent: (val) => set({ consentObtained: val }),
   setPatient: (patient) => set({ patient }),
 
+  setSectionData: (section, data) =>
+    set((state) => ({ sectionData: { ...state.sectionData, [section]: data } })),
+
   loadFromAppointment: ({ appointmentId, patient, consentObtained, reasonForVisit }) =>
-    set({
-      ...getDefaultClinicalState(),
-      appointmentId,
-      patient: { ...patient, reasonForVisit },
-      consentObtained,
-      activeTab: 'reason-for-visit',
+    set((state) => {
+      const snapshots = { ...state.encounterSnapshots };
+      if (state.appointmentId && state.appointmentId !== appointmentId) {
+        const { appointmentId: prevId, encounterSnapshots: _snaps, ...rest } = state;
+        const { setActiveTab, setConsent, setPatient, setSectionData, loadFromAppointment, loadEncounterFromDb,
+          saveEncounter, markExamFinalized, updateOcularCondition, setOcularGeneralRemarks, setNoOcularHistory,
+          updateRefraction, updateVisualAcuity, setVisualAcuityCell, setVisualAcuityUnit,
+          setCanvasVectors, updateSlitLamp, updateTonometry,
+          addOrToggleSymptom, updateSymptom, setSymptoms, setSystemicConditions, setPatientMedications,
+          setFamilyOcularHistory, setFamilySystemicHistory, setSpectaclesHistory, setContactLensHistory,
+          updateSystemicCondition,
+          setSystemicGeneralRemarks, setNoSystemicHistory, addPatientMedication, removePatientMedication,
+          addFamilyHistoryItem, removeFamilyHistoryItem, updateSpectacles, updateContactLens,
+          updateLifestyle, ...dataOnly } = rest;
+        snapshots[prevId as string] = { appointmentId: prevId, ...dataOnly };
+      }
+      return {
+        ...getDefaultClinicalState(),
+        appointmentId,
+        encounterId: null,
+        isLocked: false,
+        lockedAt: null,
+        addendumNotes: null,
+        patient: { ...patient, reasonForVisit },
+        consentObtained,
+        activeTab: 'reason-for-visit',
+        encounterSnapshots: snapshots,
+      };
     }),
 
   loadEncounterFromDb: (data: any) =>
     set((state) => {
       if (!data) return state;
-      const patch: Record<string, any> = {};
-      if (data.reasonForVisit) patch.patient = { ...state.patient, reasonForVisit: data.reasonForVisit };
-      if (data.chiefComplaints) patch.symptoms = data.chiefComplaints;
-      if (data.symptomaticHistory) {
-        if (data.symptomaticHistory.symptoms) patch.symptoms = data.symptomaticHistory.symptoms;
-      }
-      if (data.ocularHistory) patch.ocularHistory = data.ocularHistory;
-      if (data.systemicHistory) patch.systemicHistory = data.systemicHistory;
-      if (data.medicationHistory) patch.patientMedications = data.medicationHistory;
-      if (data.familyOcularHistory) patch.familyOcularHistory = data.familyOcularHistory;
-      if (data.familySystemicHistory) patch.familySystemicHistory = data.familySystemicHistory;
-      if (data.spectaclesHistory) patch.spectaclesHistory = data.spectaclesHistory;
-      if (data.contactLensHistory) patch.contactLensHistory = data.contactLensHistory;
-      if (data.lifestyleDemands) patch.lifestyleDemands = data.lifestyleDemands;
-      if (data.visualAcuity) patch.visualAcuity = data.visualAcuity;
-      if (data.refractions) patch.refraction = data.refractions;
-      if (data.binocularVision) { /* map later if needed */ }
-      if (data.slitLampFindings) patch.slitLamp = data.slitLampFindings;
-      if (data.tonometry) patch.tonometry = data.tonometry;
-      if (data.diagnoses) patch.diagnoses = data.diagnoses;
-      if (data.counselingAdvice) patch.counselingAdvice = data.counselingAdvice;
-      if (data.treatmentPlanPathway) patch.treatmentPathway = data.treatmentPlanPathway;
-      return patch;
+      return apiEncounterToSnapshot(data, state as unknown as EncounterSnapshot);
     }),
 
   saveEncounter: async () => {
     const state = useEncounterStore.getState();
-    if (!state.appointmentId) return;
+    if (state.isLocked) return;
+    if (!state.appointmentId || !state.patient.id) return;
     const { api } = await import('../lib/api');
-    await api.post('/clinical/encounter', {
+
+    let refractions: any[] = [];
+    const r = state.refraction;
+    const hasRefraction = [r.odSph, r.odCyl, r.odAxis, r.odAdd, r.osSph, r.osCyl, r.osAxis, r.osAdd]
+      .some((v) => (v ?? '').trim() !== '');
+    if (hasRefraction) {
+      const n = (v: string): number | undefined => {
+        const parsed = Number.parseFloat(v);
+        return Number.isFinite(parsed) ? parsed : undefined;
+      };
+      const od = { sph: n(r.odSph), cyl: n(r.odCyl), axis: n(r.odAxis), va: r.odVa.trim() || undefined, add: n(r.odAdd) };
+      const os = { sph: n(r.osSph), cyl: n(r.osCyl), axis: n(r.osAxis), va: r.osVa.trim() || undefined, add: n(r.osAdd) };
+      refractions = [{
+        type: 'MAIN',
+        od: Object.fromEntries(Object.entries(od).filter(([, v]) => v !== undefined)),
+        os: Object.fromEntries(Object.entries(os).filter(([, v]) => v !== undefined)),
+        pdBinocular: n(r.pdBinocular.trim() === '' ? '' : r.pdBinocular),
+        bvdMm: n(r.bvdMm.trim() === '' ? '' : r.bvdMm),
+      }];
+    }
+
+    let canvas: any;
+    if (state.odCanvasVectors || state.osCanvasVectors) {
+      const parseVec = (raw: string): any => {
+        if (!raw) return null;
+        try { return JSON.parse(raw); } catch { return null; }
+      };
+      canvas = {
+        segmentType: 'CORNEA_ANTERIOR',
+        odVectorData: parseVec(state.odCanvasVectors),
+        osVectorData: parseVec(state.osCanvasVectors),
+      };
+    }
+
+    const payload: Record<string, any> = {
       appointmentId: state.appointmentId,
-      reasonForVisit: state.patient.reasonForVisit,
-      symptomaticHistory: { symptoms: state.symptoms },
+      patientId: state.patient.id,
+      reasonForVisit: {
+        selectedReason: state.patient.reasonForVisit || '',
+        remarks: '',
+        showInDischarge: false,
+      },
+      symptomaticHistory: { symptoms: state.symptoms, remarks: '', showInDischarge: false },
       ocularHistory: state.ocularHistory,
       systemicHistory: state.systemicHistory,
       medicationHistory: state.patientMedications,
@@ -291,14 +429,25 @@ export const useEncounterStore = create<EncounterState>((set) => ({
       contactLensHistory: state.contactLensHistory,
       lifestyleDemands: state.lifestyleDemands,
       visualAcuity: state.visualAcuity,
-      refractions: state.refraction,
       slitLampFindings: state.slitLamp,
       tonometry: state.tonometry,
       diagnoses: state.diagnoses,
-      counselingAdvice: state.counselingAdvice,
       treatmentPlanPathway: state.treatmentPathway,
-    });
+      counselingAdviceGiven: state.counselingAdvice,
+    };
+    if (refractions.length > 0) payload.refractions = refractions;
+    if (canvas) payload.canvas = canvas;
+    if (Object.keys(state.sectionData).length > 0) payload.sectionData = state.sectionData;
+
+    await api.post('/clinical/encounter', payload);
+
+    if (state.consentObtained !== undefined) {
+      await api.patch(`/appointments/${state.appointmentId}/consent`, { consentObtained: state.consentObtained }).catch(() => {});
+    }
   },
+
+  markExamFinalized: (encounterId) =>
+    set({ encounterId, isLocked: true, lockedAt: new Date().toISOString() }),
 
   updateOcularCondition: (key, data) =>
     set((state) => ({
@@ -322,10 +471,22 @@ export const useEncounterStore = create<EncounterState>((set) => ({
     set((state) => ({ refraction: { ...state.refraction, ...data } })),
   updateVisualAcuity: (data) =>
     set((state) => ({ visualAcuity: { ...state.visualAcuity, ...data } })),
-  setCanvasVectors: (eye, vectors) =>
+  setVisualAcuityCell: (eye, scope, key, value) =>
     set((state) => ({
-      [eye === 'OD' ? 'odCanvasVectors' : 'osCanvasVectors']: vectors,
+      visualAcuity: {
+        ...state.visualAcuity,
+        [eye]: {
+          ...state.visualAcuity[eye],
+          [scope]: { ...state.visualAcuity[eye][scope], [key]: value },
+        },
+      },
     })),
+  setVisualAcuityUnit: (unit) =>
+    set((state) => ({ visualAcuity: { ...state.visualAcuity, unit } })),
+  setCanvasVectors: (eye, vectors) =>
+    set({
+      [eye === 'OD' ? 'odCanvasVectors' : 'osCanvasVectors']: vectors,
+    }),
   updateSlitLamp: (data) =>
     set((state) => ({ slitLamp: { ...state.slitLamp, ...data } })),
   updateTonometry: (data) =>
@@ -352,17 +513,21 @@ export const useEncounterStore = create<EncounterState>((set) => ({
     set((state) => ({
       symptoms: state.symptoms.map((s) => (s.id === id ? { ...s, ...data } : s)),
     })),
-  setVisualAcuityField: (field, value) =>
-    set((state) => ({
-      visualAcuity: { ...state.visualAcuity, [field]: value },
-    })),
+  setSymptoms: (symptoms) => set({ symptoms }),
+  setSystemicConditions: (conditions) =>
+    set((state) => ({ systemicHistory: { ...state.systemicHistory, conditions } })),
+  setPatientMedications: (patientMedications) => set({ patientMedications }),
+  setFamilyOcularHistory: (familyOcularHistory) => set({ familyOcularHistory }),
+  setFamilySystemicHistory: (familySystemicHistory) => set({ familySystemicHistory }),
+  setSpectaclesHistory: (spectaclesHistory) => set({ spectaclesHistory }),
+  setContactLensHistory: (contactLensHistory) => set({ contactLensHistory }),
   updateSystemicCondition: (key, data) =>
     set((state) => ({
       systemicHistory: {
         ...state.systemicHistory,
         conditions: {
           ...state.systemicHistory.conditions,
-          [key]: { ...(state.systemicHistory.conditions as any)[key], ...data },
+          [key]: { ...state.systemicHistory.conditions[key], ...data },
         },
       },
     })),
@@ -400,4 +565,5 @@ export const useEncounterStore = create<EncounterState>((set) => ({
     set((state) => ({ contactLensHistory: { ...state.contactLensHistory, ...data } })),
   updateLifestyle: (data) =>
     set((state) => ({ lifestyleDemands: { ...state.lifestyleDemands, ...data } })),
-}));
+  };
+});

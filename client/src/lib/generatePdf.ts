@@ -77,8 +77,8 @@ export function downloadEncounterPdf(state: EncounterState) {
     <table>
       <thead><tr><th>Eye</th><th>Unaided</th><th>Pinhole</th><th>Best Corrected</th></tr></thead>
       <tbody>
-        <tr><td>Right Eye (OD)</td><td>${va.unaidedVaOD || '—'}</td><td>${va.pinholeVaOD || '—'}</td><td>${va.bestCorrectedVaOD || '—'}</td></tr>
-        <tr><td>Left Eye (OS)</td><td>${va.unaidedVaOS || '—'}</td><td>${va.pinholeVaOS || '—'}</td><td>${va.bestCorrectedVaOS || '—'}</td></tr>
+        <tr><td>Right Eye (OD)</td><td>${va?.od?.dist?.unaided || '—'}</td><td>${va?.od?.dist?.pinhole || '—'}</td><td>${va?.od?.dist?.aided || '—'}</td></tr>
+        <tr><td>Left Eye (OS)</td><td>${va?.os?.dist?.unaided || '—'}</td><td>${va?.os?.dist?.pinhole || '—'}</td><td>${va?.os?.dist?.aided || '—'}</td></tr>
       </tbody>
     </table>
   </div>` : ''}

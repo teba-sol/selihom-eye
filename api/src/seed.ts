@@ -21,8 +21,8 @@ async function seed() {
     {
       email: 'doctor@selihome.com',
       password: 'password123',
-      firstName: 'Dr. Sarah',
-      lastName: 'Khan',
+      firstName: 'Dr.',
+      lastName: 'Tarekegn',
       role: 'DOCTOR' as const,
       licenseNumber: 'OPT-2024-001',
     },

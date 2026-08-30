@@ -1,7 +1,6 @@
 import React from 'react';
 import type { OcularConditionDetail } from '../store/useEncounterStore';
 import { useEncounterStore } from '../store/useEncounterStore';
-import { FileCheck } from 'lucide-react';
 
 const CONDITIONS_CONFIG: Array<{
   key: keyof ReturnType<typeof useEncounterStore.getState>['ocularHistory']['conditions'];
@@ -23,9 +22,17 @@ export const OcularHistoryView: React.FC = () => {
     setOcularGeneralRemarks,
     setNoOcularHistory,
   } = useEncounterStore();
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+
+  const extra = (sectionData['ocular-history'] ?? { showInDischarge: false }) as {
+    showInDischarge: boolean;
+  };
+  const updateExtra = (patch: Partial<typeof extra>) =>
+    setSectionData('ocular-history', { ...extra, ...patch });
 
   return (
-    <div className="p-8 max-w-4xl bg-white rounded-xl shadow-xs border border-slate-200 space-y-6">
+    <div className="p-8 max-w-4xl bg-white min-h-full space-y-6">
       <div className="border-b border-slate-200 pb-4">
         <h1 className="text-2xl font-bold text-[#2563eb]">Ocular History</h1>
         <p className="text-xs text-slate-500 mt-0.5">
@@ -70,20 +77,6 @@ export const OcularHistoryView: React.FC = () => {
                     />
                     <span>{config.title}</span>
                   </label>
-
-                  {/* Show in discharge checkbox */}
-                  {detail.active && (
-                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer bg-white px-2.5 py-1 rounded border border-slate-200 shadow-2xs">
-                      <input
-                        type="checkbox"
-                        checked={detail.showInDischarge}
-                        onChange={(e) => updateOcularCondition(config.key, { showInDischarge: e.target.checked })}
-                        className="w-3.5 h-3.5 rounded text-teal-600 border-slate-300 focus:ring-0"
-                      />
-                      <FileCheck className="w-3.5 h-3.5 text-teal-600" />
-                      <span>Show in discharge</span>
-                    </label>
-                  )}
                 </div>
 
                 {/* Sub-form drawer for every active condition */}
@@ -168,6 +161,19 @@ export const OcularHistoryView: React.FC = () => {
           placeholder="Enter any additional ocular history, family notes, or observations not captured above..."
           className="w-full p-3 text-xs border border-slate-300 rounded-lg bg-white focus:outline-hidden focus:border-teal-600"
         />
+      </div>
+
+      {/* Show in Discharge Summary */}
+      <div className="flex justify-end">
+        <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={extra.showInDischarge}
+            onChange={(e) => updateExtra({ showInDischarge: e.target.checked })}
+            className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
+          />
+          <span>Show in Discharge Summary</span>
+        </label>
       </div>
     </div>
   );

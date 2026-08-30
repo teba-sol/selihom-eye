@@ -1,4 +1,5 @@
-﻿import React, { useState } from 'react';
+﻿import React from 'react';
+import { useEncounterStore } from '../../store/useEncounterStore';
 
 // Dot pattern configurations matching the screenshot
 const PATTERNS = [
@@ -72,6 +73,18 @@ const PATTERNS = [
   },
 ];
 
+type Worth4DotData = {
+  selected: string;
+  remarks: string;
+  showInDischarge: boolean;
+};
+
+const DEFAULT: Worth4DotData = {
+  selected: 'normal',
+  remarks: '',
+  showInDischarge: false,
+};
+
 function DotPatternCard({ pattern, selected, onSelect }: {
   pattern: typeof PATTERNS[0]; selected: boolean; onSelect: () => void;
 }) {
@@ -96,9 +109,11 @@ function DotPatternCard({ pattern, selected, onSelect }: {
 }
 
 export const Worth4DotView: React.FC = () => {
-  const [selected, setSelected] = useState<string>('normal');
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const f = Object.assign({}, DEFAULT, sectionData['worth-4-dot'] ?? {}) as Worth4DotData;
+  const patch = (p: Partial<Worth4DotData>) => setSectionData('worth-4-dot', { ...f, ...p });
+  const { selected, remarks, showInDischarge } = f;
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full">
@@ -118,7 +133,7 @@ export const Worth4DotView: React.FC = () => {
             key={p.key}
             pattern={p}
             selected={selected === p.key}
-            onSelect={() => setSelected(p.key)}
+            onSelect={() => patch({ selected: p.key })}
           />
         ))}
       </div>
@@ -128,7 +143,7 @@ export const Worth4DotView: React.FC = () => {
         <textarea
           rows={3}
           value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
+          onChange={(e) => patch({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none"
         />
@@ -139,7 +154,7 @@ export const Worth4DotView: React.FC = () => {
           <input
             type="checkbox"
             checked={showInDischarge}
-            onChange={(e) => setShowInDischarge(e.target.checked)}
+            onChange={(e) => patch({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0"
           />
           Show in Discharge Summary

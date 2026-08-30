@@ -50,23 +50,28 @@ export interface SystemicHistoryData {
   showInDischarge: boolean;
 }
 
-export interface MedicationHistoryData {
-  none: boolean;
-  eyeDrops: boolean;
-  tablets: boolean;
-  injection: boolean;
-  remarks: string;
+export interface MedicationHistoryItemData {
+  id: string;
+  drugName: string;
+  dosage: string;
+  frequency: string;
+  route: string;
+  targetEye?: string;
+  compliance: string;
   showInDischarge: boolean;
 }
 
-export interface FamilyHistoryData {
-  noHistory: boolean;
-  parent: boolean;
-  sibling: boolean;
-  grandparent: boolean;
-  remarks: string;
+export interface MedicationHistoryData extends Array<MedicationHistoryItemData> {}
+
+export interface FamilyHistoryItemData {
+  id: string;
+  relation: string;
+  condition: string;
+  notes?: string;
   showInDischarge: boolean;
 }
+
+export interface FamilyHistoryData extends Array<FamilyHistoryItemData> {}
 
 export interface SpectaclesHistoryData {
   none: boolean;
@@ -319,6 +324,11 @@ export const clinicalEncounters = pgTable('clinical_encounters', {
   diagnoses: jsonb('diagnoses').$type<Array<{ icd10Code?: string; title: string; eye: string; notes?: string }>>(),
   treatmentPlanPathway: varchar('treatment_plan_pathway', { length: 100 }),
   counselingAdviceGiven: text('counseling_advice_given'),
+
+  // Section data (keyed by ASIRA exam section id) — generic home for module
+  // level exam state that has no dedicated typed column (e.g. binocular
+  // children, crystalline lens, additional tests, CL evaluation, referral).
+  sectionData: jsonb('section_data').$type<Record<string, unknown>>(),
 
   // Medicolegal
   isLocked: boolean('is_locked').default(false).notNull(),

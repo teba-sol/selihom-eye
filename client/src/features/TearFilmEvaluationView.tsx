@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useEncounterStore } from '../store/useEncounterStore';
 
 function EyeRow({ label, unit, od, os, onOd, onOs }: {
   label: string; unit: string;
@@ -28,35 +29,52 @@ function EyeRow({ label, unit, od, os, onOd, onOs }: {
   );
 }
 
+type TearFilmData = {
+  schirmer1: { od: string; os: string };
+  schirmer2: { od: string; os: string };
+  tbut: { od: string; os: string };
+  nibut: { od: string; os: string };
+  remarks: string;
+  showInDischarge: boolean;
+};
+
+const DEFAULT_TEAR_FILM: TearFilmData = {
+  schirmer1: { od: '0', os: '0' },
+  schirmer2: { od: '8', os: '9' },
+  tbut: { od: '6', os: '4' },
+  nibut: { od: '0', os: '0' },
+  remarks: '',
+  showInDischarge: true,
+};
+
 export const TearFilmEvaluationView: React.FC = () => {
-  const [schirmer1, setSchirmer1] = useState({ od: '0', os: '0' });
-  const [schirmer2, setSchirmer2] = useState({ od: '8', os: '9' });
-  const [tbut, setTbut]   = useState({ od: '6', os: '4' });
-  const [nibut, setNibut] = useState({ od: '0', os: '0' });
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(true);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const f = Object.assign({}, DEFAULT_TEAR_FILM, sectionData['tear-film'] ?? {}) as TearFilmData;
+  const patch = (p: Partial<TearFilmData>) => setSectionData('tear-film', { ...f, ...p });
+  const { schirmer1, schirmer2, tbut, nibut, remarks, showInDischarge } = f;
 
   return (
     <div className="p-8 max-w-4xl bg-white min-h-full">
       <h1 className="text-2xl font-bold text-[#2563eb] mb-8">Tear Film Evaluation</h1>
 
       <div className="space-y-2 max-w-3xl mb-8 divide-y divide-slate-100">
-        <EyeRow label="Schirmer I"  unit="mm"  od={schirmer1.od} os={schirmer1.os} onOd={v => setSchirmer1(p=>({...p,od:v}))} onOs={v => setSchirmer1(p=>({...p,os:v}))} />
-        <EyeRow label="Schirmer II" unit="mm"  od={schirmer2.od} os={schirmer2.os} onOd={v => setSchirmer2(p=>({...p,od:v}))} onOs={v => setSchirmer2(p=>({...p,os:v}))} />
-        <EyeRow label="TBUT"        unit="sec" od={tbut.od}      os={tbut.os}      onOd={v => setTbut(p=>({...p,od:v}))}      onOs={v => setTbut(p=>({...p,os:v}))} />
-        <EyeRow label="NIBUT"       unit="sec" od={nibut.od}     os={nibut.os}     onOd={v => setNibut(p=>({...p,od:v}))}     onOs={v => setNibut(p=>({...p,os:v}))} />
+        <EyeRow label="Schirmer I"  unit="mm"  od={schirmer1.od} os={schirmer1.os} onOd={v => patch({ schirmer1: { ...schirmer1, od: v } })} onOs={v => patch({ schirmer1: { ...schirmer1, os: v } })} />
+        <EyeRow label="Schirmer II" unit="mm"  od={schirmer2.od} os={schirmer2.os} onOd={v => patch({ schirmer2: { ...schirmer2, od: v } })} onOs={v => patch({ schirmer2: { ...schirmer2, os: v } })} />
+        <EyeRow label="TBUT"        unit="sec" od={tbut.od}      os={tbut.os}      onOd={v => patch({ tbut: { ...tbut, od: v } })}      onOs={v => patch({ tbut: { ...tbut, os: v } })} />
+        <EyeRow label="NIBUT"       unit="sec" od={nibut.od}     os={nibut.os}     onOd={v => patch({ nibut: { ...nibut, od: v } })}     onOs={v => patch({ nibut: { ...nibut, os: v } })} />
       </div>
 
       <div className="mb-6 max-w-3xl">
         <label className="text-sm font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
-        <textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)}
+        <textarea rows={3} value={remarks} onChange={e => patch({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none" />
       </div>
 
       <div className="flex justify-end max-w-3xl">
         <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
-          <input type="checkbox" checked={showInDischarge} onChange={e => setShowInDischarge(e.target.checked)}
+          <input type="checkbox" checked={showInDischarge} onChange={e => patch({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0" />
           Show in Discharge Summary
         </label>

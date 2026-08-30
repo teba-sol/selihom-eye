@@ -1,20 +1,55 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useEncounterStore } from '../store/useEncounterStore';
+import type { FamilyHistoryItem } from '../store/useEncounterStore';
+
+const DEFAULT_FLAGS = {
+  noHistory: true,
+  parent: false,
+  sibling: false,
+  grandparent: false,
+  remarks: '',
+  showInDischarge: false,
+};
 
 export const FamilySystemicHistoryView: React.FC = () => {
-  const [noHistory, setNoHistory] = useState(true);
-  const [parent, setParent] = useState(false);
-  const [sibling, setSibling] = useState(false);
-  const [grandparent, setGrandparent] = useState(false);
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const setFamilySystemicHistory = useEncounterStore((s) => s.setFamilySystemicHistory);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+
+  const flags = Object.assign({}, DEFAULT_FLAGS, sectionData['family-systemic-history'] ?? {});
+
+  const syncFamily = (f: typeof DEFAULT_FLAGS) => {
+    if (f.noHistory) {
+      setFamilySystemicHistory([]);
+      return;
+    }
+    const build = (relation: FamilyHistoryItem['relation']): FamilyHistoryItem => ({
+      id: crypto.randomUUID(),
+      relation,
+      condition: '',
+      notes: f.remarks,
+      showInDischarge: f.showInDischarge,
+    });
+    const items: FamilyHistoryItem[] = [];
+    if (f.parent) items.push(build('Parent'));
+    if (f.sibling) items.push(build('Sibling'));
+    if (f.grandparent) items.push(build('Grandparent'));
+    setFamilySystemicHistory(items);
+  };
+
+  const setFlag = (patch: Partial<typeof DEFAULT_FLAGS>) => {
+    const next = { ...flags, ...patch };
+    setSectionData('family-systemic-history', next);
+    syncFamily(next);
+  };
 
   const handleNoHistoryChange = (checked: boolean) => {
-    setNoHistory(checked);
-    if (checked) {
-      setParent(false);
-      setSibling(false);
-      setGrandparent(false);
-    }
+    setFlag({
+      noHistory: checked,
+      parent: checked ? false : flags.parent,
+      sibling: checked ? false : flags.sibling,
+      grandparent: checked ? false : flags.grandparent,
+    });
   };
 
   return (
@@ -25,7 +60,7 @@ export const FamilySystemicHistoryView: React.FC = () => {
         <label className="flex items-center gap-3 text-sm font-medium text-slate-800 cursor-pointer">
           <input
             type="checkbox"
-            checked={noHistory}
+            checked={flags.noHistory}
             onChange={(e) => handleNoHistoryChange(e.target.checked)}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
           />
@@ -35,9 +70,9 @@ export const FamilySystemicHistoryView: React.FC = () => {
         <label className="flex items-center gap-3 text-sm font-medium text-slate-800 cursor-pointer">
           <input
             type="checkbox"
-            checked={parent}
-            disabled={noHistory}
-            onChange={(e) => setParent(e.target.checked)}
+            checked={flags.parent}
+            disabled={flags.noHistory}
+            onChange={(e) => setFlag({ parent: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0 disabled:opacity-50"
           />
           <span>Parent</span>
@@ -46,9 +81,9 @@ export const FamilySystemicHistoryView: React.FC = () => {
         <label className="flex items-center gap-3 text-sm font-medium text-slate-800 cursor-pointer">
           <input
             type="checkbox"
-            checked={sibling}
-            disabled={noHistory}
-            onChange={(e) => setSibling(e.target.checked)}
+            checked={flags.sibling}
+            disabled={flags.noHistory}
+            onChange={(e) => setFlag({ sibling: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0 disabled:opacity-50"
           />
           <span>Sibling</span>
@@ -57,9 +92,9 @@ export const FamilySystemicHistoryView: React.FC = () => {
         <label className="flex items-center gap-3 text-sm font-medium text-slate-800 cursor-pointer">
           <input
             type="checkbox"
-            checked={grandparent}
-            disabled={noHistory}
-            onChange={(e) => setGrandparent(e.target.checked)}
+            checked={flags.grandparent}
+            disabled={flags.noHistory}
+            onChange={(e) => setFlag({ grandparent: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0 disabled:opacity-50"
           />
           <span>Grandparent</span>
@@ -70,8 +105,8 @@ export const FamilySystemicHistoryView: React.FC = () => {
         <label className="text-xs font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
         <textarea
           rows={3}
-          value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
+          value={flags.remarks}
+          onChange={(e) => setFlag({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600"
         />
@@ -81,8 +116,8 @@ export const FamilySystemicHistoryView: React.FC = () => {
         <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
           <input
             type="checkbox"
-            checked={showInDischarge}
-            onChange={(e) => setShowInDischarge(e.target.checked)}
+            checked={flags.showInDischarge}
+            onChange={(e) => setFlag({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
           />
           <span>Show in Discharge Summary</span>

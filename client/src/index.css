@@ -5,3 +5,263 @@
     @apply bg-slate-100 text-slate-900 antialiased font-sans;
   }
 }
+
+/* ── Patient registration modal styles ─────────────────────────────── */
+
+.date-input-group {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 0.75rem;
+  padding: 0 0.75rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+
+.date-input-group:hover {
+  border-color: #1e3a8a;
+  background-color: #f8fafc;
+  box-shadow: 0 2px 6px 0 rgba(30, 58, 138, 0.08);
+}
+
+.date-input-group:focus-within {
+  border-color: #1e3a8a;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.18);
+}
+
+.date-input-group.invalid {
+  border-color: #e11d48 !important;
+  background-color: #fff1f2 !important;
+  box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.2) !important;
+}
+@keyframes loginBgDrift {
+  0% {
+    transform: scale(1.04) translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: scale(1.07) translate3d(-0.5%, -0.5%, 0);
+  }
+
+  100% {
+    transform: scale(1.04) translate3d(0.5%, 0.5%, 0);
+  }
+}
+
+@keyframes loginCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.date-seg {
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 0.55rem 0.2rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: inherit;
+  text-align: center;
+  color: #1e293b;
+  width: 2.5em;
+  flex: 0 0 auto;
+  transition: color 0.15s ease;
+}
+
+.date-seg:focus {
+  color: #1e3a8a;
+  font-weight: 700;
+}
+
+.date-seg.date-seg-yyyy {
+  width: 4em;
+}
+
+.date-sep {
+  color: #1e3a8a;
+  font-weight: 800;
+  user-select: none;
+  padding: 0 0.2rem;
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+
+.combo-wrapper {
+  position: relative;
+}
+
+.combo-wrapper:focus-within,
+.combo-wrapper.open-active {
+  z-index: 100;
+}
+
+.combo-arrow {
+  position: absolute;
+  right: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #1e3a8a;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.5rem;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.combo-arrow:hover {
+  background-color: #eef2ff;
+  color: #1e3a8a;
+}
+
+.combo-list {
+  position: absolute;
+  z-index: 100;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1.5px solid #1e3a8a;
+  max-height: 240px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.35rem 0;
+  list-style: none;
+  display: none;
+  box-shadow: 0 12px 28px -4px rgba(30, 58, 138, 0.22), 0 8px 10px -6px rgba(0, 0, 0, 0.12);
+  border-radius: 0.75rem;
+  backdrop-filter: blur(8px);
+}
+
+.combo-list.open {
+  display: block;
+  animation: comboFadeIn 0.15s ease-out forwards;
+}
+
+@keyframes comboFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.combo-list li {
+  padding: 0.6rem 0.85rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
+  transition: all 0.12s ease;
+  border-radius: 0.375rem;
+  margin: 0 0.25rem;
+}
+
+.combo-list li:hover,
+.combo-list li.active {
+  background: #eef2ff;
+  color: #1e3a8a;
+  font-weight: 600;
+  padding-left: 1rem;
+}
+
+.conversion-feedback {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-top: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 0.5rem;
+  display: none;
+}
+
+.conversion-feedback.show {
+  display: block;
+}
+
+.conversion-feedback.ok {
+  color: #047857;
+  background-color: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.conversion-feedback.err {
+  color: #be123c;
+  background-color: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+
+.other-input-wrap {
+  display: none;
+  margin-top: 0.5rem;
+}
+
+.other-input-wrap.show {
+  display: block;
+}
+
+.other-input {
+  border-color: #f43f5e !important;
+  background-color: #fff1f2 !important;
+}
+
+.gc-readout {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1e3a8a;
+  margin-top: 0.5rem;
+}
+
+#patientForm input:not(.date-seg):focus,
+#patientForm select:focus {
+  outline: none;
+  border-color: #1e3a8a;
+  box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.15);
+}
+
+input[type="text"],
+input[type="number"],
+select,
+input[type="date"] {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+input[type="checkbox"] {
+  accent-color: #1e3a8a;
+}
+
+/* ── Login entrance & background ─────────────────────────────────── */
+
+@keyframes loginCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes loginBgDrift {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.06);
+  }
+}

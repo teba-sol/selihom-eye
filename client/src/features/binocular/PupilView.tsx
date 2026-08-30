@@ -1,4 +1,5 @@
-﻿import React, { useState } from 'react';
+﻿import React from 'react';
+import { useEncounterStore } from '../../store/useEncounterStore';
 
 const OPTIONS = [
   'PERRLA and No RAPD',
@@ -13,18 +14,28 @@ const OPTIONS = [
   'Light-Near Dissociation',
 ];
 
+type PupilData = {
+  checked: string[];
+  remarks: string;
+  showInDischarge: boolean;
+};
+
+const DEFAULT: PupilData = {
+  checked: [],
+  remarks: '',
+  showInDischarge: false,
+};
+
 export const PupilView: React.FC = () => {
-  const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const f = Object.assign({}, DEFAULT, sectionData['pupil-evaluation'] ?? {}) as PupilData;
+  const patch = (p: Partial<PupilData>) => setSectionData('pupil-evaluation', { ...f, ...p });
+  const { checked, remarks, showInDischarge } = f;
 
   const toggle = (opt: string) => {
-    setChecked(prev => {
-      const next = new Set(prev);
-      if (next.has(opt)) next.delete(opt);
-      else next.add(opt);
-      return next;
-    });
+    const next = checked.includes(opt) ? checked.filter(o => o !== opt) : [...checked, opt];
+    patch({ checked: next });
   };
 
   return (
@@ -36,7 +47,7 @@ export const PupilView: React.FC = () => {
           <label key={opt} className="flex items-center gap-3 cursor-pointer">
             <input
               type="checkbox"
-              checked={checked.has(opt)}
+              checked={checked.includes(opt)}
               onChange={() => toggle(opt)}
               className="w-4 h-4 rounded border-slate-400 text-blue-600 accent-blue-600 focus:ring-0"
             />
@@ -50,7 +61,7 @@ export const PupilView: React.FC = () => {
         <textarea
           rows={3}
           value={remarks}
-          onChange={e => setRemarks(e.target.value)}
+          onChange={e => patch({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none"
         />
@@ -61,7 +72,7 @@ export const PupilView: React.FC = () => {
           <input
             type="checkbox"
             checked={showInDischarge}
-            onChange={e => setShowInDischarge(e.target.checked)}
+            onChange={e => patch({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0"
           />
           Show in Discharge Summary

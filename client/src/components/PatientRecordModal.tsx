@@ -1,378 +1,435 @@
-import React, { useState } from 'react';
-import { X, FileText, Eye, Activity, Pill, Calendar, ChevronDown, ChevronRight, Printer, Heart, Glasses, Users, Briefcase } from 'lucide-react';
-import type { Patient, Appointment } from '../data/mockData';
+import React, { useEffect, useCallback, useState } from 'react';
+import { X, FileText, Eye, Calendar, ChevronDown, ChevronRight, Printer, Plus, Trash2, Loader2 } from 'lucide-react';
+import type { Patient } from '../store/useAppStore';
 import type { EncounterSnapshot } from '../store/useEncounterStore';
-import { formatDob, calcAge } from '../data/mockData';
+import { ExamDetails, Field, vaVal, vaHasData } from './ExamDetails';
+import { formatDobEthiopian, calcAge } from '../lib/formatters';
+import { usePatientRecordData, type ExamHistoryEntry } from '../hooks/usePatientRecordData';
+import { fmtDate, humanize, StatusBadge, SummaryChips, doctorName } from '../lib/examHistory';
+import { api } from '../lib/api';
 
 interface PatientRecordModalProps {
   patient: Patient;
-  appointments: Appointment[];
-  snapshots: Record<string, EncounterSnapshot>;
   onClose: () => void;
   onOpenExam: () => void;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function SectionHeader({ title, icon, expanded, onToggle, count }: {
-  title: string; icon: React.ReactNode; expanded: boolean; onToggle: () => void; count?: number;
-}) {
-  return (
-    <button onClick={onToggle} className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 border-b border-slate-200 transition-colors">
-      <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
-        {icon}
-        {title}
-        {count !== undefined && <span className="ml-1 text-xs font-normal text-slate-400">({count})</span>}
-      </div>
-      {expanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
-    </button>
-  );
+const DOCUMENT_TYPES = [
+  'Previous eye examination',
+  'Referral letter',
+  'Previous prescription',
+  'Surgical report',
+  'Lab result',
+  'Imaging / scan',
+  'Other',
+];
+
+interface PaperDoc {
+  id: string;
+  patientId: string;
+  encounterId: string | null;
+  documentType: string;
+  title: string;
+  documentDate: string | null;
+  notes: string | null;
+  recordedBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-function Field({ label, value, wide }: { label: string; value?: string | number | null; wide?: boolean }) {
-  if (value === null || value === undefined || value === '') return null;
+// ── Prescription renderers (derived from existing encounter sectionData) ─────
+function RxRows({ rx }: { rx?: Record<string, any> }) {
+  const rows = Object.entries(rx || {}).filter(([, v]) => v && (v.sph || v.cyl || v.axis || v.prism || v.va));
+  if (rows.length === 0) return null;
+  const labelOf = (k: string) =>
+    `${k.replace(/^(od|os)/, (m) => m.toUpperCase())}`
+      .replace(/Dist/, 'Distance')
+      .replace(/Near/, 'Near')
+      .replace(/Inter/, 'Intermediate');
   return (
-    <div className={`bg-slate-50 rounded-lg p-2.5 border border-slate-100 ${wide ? 'col-span-2' : ''}`}>
-      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">{label}</span>
-      <span className="font-semibold text-slate-800 text-sm">{value}</span>
-    </div>
-  );
-}
-
-function RefTable({ label, data }: { label: string; data: any }) {
-  if (!data?.odSph && !data?.osSph && !data?.odVa && !data?.osVa) return null;
-  return (
-    <div>
-      <p className="text-xs font-bold text-slate-500 uppercase mb-1">{label}</p>
-      <table className="w-full text-xs border-collapse mb-1">
-        <thead><tr className="bg-[#1e3a5f] text-white">
-          <th className="px-2 py-1 text-left">Eye</th>
-          <th className="px-2 py-1 text-center">Sph</th>
-          <th className="px-2 py-1 text-center">Cyl</th>
-          <th className="px-2 py-1 text-center">Axis</th>
-          <th className="px-2 py-1 text-center">VA</th>
-          <th className="px-2 py-1 text-center">Add</th>
-        </tr></thead>
-        <tbody>
-          <tr className="border-b border-slate-100">
-            <td className="px-2 py-1.5 font-bold text-slate-700">OD</td>
-            {['odSph','odCyl','odAxis','odVa','odAdd'].map(k => <td key={k} className="px-2 py-1.5 text-center">{data[k]||'—'}</td>)}
+    <table className="w-full text-xs border-collapse mb-2">
+      <thead><tr className="bg-[#1e3a5f] text-white">
+        <th className="px-2 py-1 text-left">Eye</th>
+        <th className="px-2 py-1 text-center">Sph</th>
+        <th className="px-2 py-1 text-center">Cyl</th>
+        <th className="px-2 py-1 text-center">Axis</th>
+        <th className="px-2 py-1 text-center">Prism</th>
+        <th className="px-2 py-1 text-center">Base</th>
+        <th className="px-2 py-1 text-center">VA</th>
+      </tr></thead>
+      <tbody>
+        {rows.map(([k, v]) => (
+          <tr key={k} className="border-b border-slate-100">
+            <td className="px-2 py-1 font-bold text-slate-700">{labelOf(k)}</td>
+            {['sph','cyl','axis','prism','base','va'].map((f) => (
+              <td key={f} className="px-2 py-1 text-center">{v[f] || '—'}</td>
+            ))}
           </tr>
-          <tr>
-            <td className="px-2 py-1.5 font-bold text-slate-700">OS</td>
-            {['osSph','osCyl','osAxis','osVa','osAdd'].map(k => <td key={k} className="px-2 py-1.5 text-center">{data[k]||'—'}</td>)}
-          </tr>
-        </tbody>
-      </table>
-      {data.pdBinocular && <p className="text-[11px] text-slate-500">PD Binocular: <b>{data.pdBinocular} mm</b>{data.bvdMm ? ` · BVD: ${data.bvdMm} mm` : ''}</p>}
-    </div>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
-function Badge({ text, color }: { text: string; color: string }) {
-  return <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${color}`}>{text}</span>;
-}
+function PrescriptionDetails({ snap }: { snap: EncounterSnapshot }) {
+  const fsp: any = snap.sectionData?.['final-spectacle-prescription'] ?? null;
+  const fcl: any = snap.sectionData?.['final-contact-lens-specification'] ?? null;
+  const sd: any = snap.sectionData?.['spectacle-dispensing'] ?? null;
+  const meds = snap.patientMedications;
+  const plan = snap.treatmentPathway;
 
-// ── ExamDetails: full clinical data ──────────────────────────────────────────
-function ExamDetails({ snap }: { snap: EncounterSnapshot }) {
-  type Sec = 'va'|'refraction'|'slitlamp'|'tono'|'symptoms'|'ocularHx'|'systemicHx'|'meds'|'family'|'spectacles'|'cl'|'lifestyle'|'assessment';
-  const init: Record<Sec,boolean> = { va:true, refraction:true, slitlamp:true, tono:true, symptoms:true, ocularHx:false, systemicHx:false, meds:true, family:false, spectacles:false, cl:false, lifestyle:false, assessment:true };
-  const [s, setS] = useState(init);
-  const tog = (k: Sec) => setS(p => ({ ...p, [k]: !p[k] }));
+  const hasAny =
+    (fsp && (fsp.ipd || fsp.bvd || fsp.remarks || Object.values(fsp.rx || {}).some((v: any) => v?.sph))) ||
+    (fcl && (fcl.clType || fcl.brand)) ||
+    (sd && (sd.frameType || sd.lensType || sd.orderRef || sd.dispatchDate)) ||
+    meds.length > 0 ||
+    plan;
 
-  const va = snap.visualAcuity;
-  const ref = snap.refraction;
-  const tono = snap.tonometry;
-  const sl = snap.slitLamp;
-  const spec = snap.spectaclesHistory;
-  const cl = snap.contactLensHistory;
-  const life = snap.lifestyleDemands;
-
-  const hasVa = va && (va.unaidedOd||va.unaidedOs||va.aidedOd||va.aidedOs||va.pinholeOd||va.pinholeOs);
-  const hasRef = ref && (ref.odSph||ref.osSph||ref.odVa||ref.osVa);
-  const hasTono = tono && (tono.odIop||tono.osIop);
-  const hasSlitLamp = sl && (sl.lidsLashes||sl.conjunctiva||sl.cornea||sl.anteriorChamber||sl.irisLens);
-  const hasSymptoms = snap.symptoms?.length > 0;
-  const hasMeds = snap.patientMedications?.length > 0;
-  const hasOcular = snap.ocularHistory && Object.values(snap.ocularHistory.conditions).some(c => c.active);
-  const hasSystemic = snap.systemicHistory && Object.values(snap.systemicHistory.conditions).some(c => (c as any).active);
-  const hasFamilyOcular = snap.familyOcularHistory?.length > 0;
-  const hasFamilySystemic = snap.familySystemicHistory?.length > 0;
-  const hasSpec = spec && spec.currentlyWears;
-  const hasCL = cl && cl.currentWearer;
-  const hasLifestyle = life && (life.occupation||life.screenTimeHoursPerDay||life.outdoorActivities);
-  const hasAssessment = snap.diagnoses?.length > 0 || snap.counselingAdvice || snap.treatmentPathway;
-
-  const nothing = !hasVa && !hasRef && !hasTono && !hasSlitLamp && !hasSymptoms && !hasMeds && !hasOcular && !hasSystemic && !hasAssessment;
-  if (nothing) return <p className="px-4 py-3 text-xs text-slate-400 italic">No clinical data recorded yet.</p>;
+  if (!hasAny) return <p className="px-4 py-3 text-xs text-slate-400 italic">No prescription records for this visit.</p>;
 
   return (
-    <div className="divide-y divide-slate-100">
+    <div className="px-5 py-4 space-y-4 divide-y divide-slate-100">
+      {fsp && (fsp.ipd || fsp.bvd || fsp.remarks || Object.values(fsp.rx || {}).some((v: any) => v?.sph)) && (
+        <div>
+          <p className="text-xs font-bold text-[#2563eb] uppercase tracking-wide mb-2">Final Spectacle Prescription</p>
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            <Field label="VA Type" value={fsp.vaType}/>
+            <Field label="IPD" value={fsp.ipd ? `${fsp.ipd} mm` : null}/>
+            <Field label="BVD" value={fsp.bvd ? `${fsp.bvd} mm` : null}/>
+          </div>
+          <RxRows rx={fsp.rx}/>
+          {fsp.remarks && <p className="text-xs text-slate-500"><b>Remarks:</b> {fsp.remarks}</p>}
+        </div>
+      )}
 
-      {/* Visual Acuity */}
-      {hasVa && <>
-        <SectionHeader title="Visual Acuity" icon={<Eye className="w-4 h-4 text-blue-500"/>} expanded={s.va} onToggle={() => tog('va')}/>
-        {s.va && <div className="px-4 py-3">
-          <table className="w-full text-xs border-collapse">
-            <thead><tr className="bg-[#1e3a5f] text-white">
-              <th className="px-2 py-1.5 text-left">Eye</th>
-              <th className="px-2 py-1.5 text-center">Unaided</th>
-              <th className="px-2 py-1.5 text-center">Aided</th>
-              <th className="px-2 py-1.5 text-center">Pinhole</th>
-            </tr></thead>
-            <tbody>
-              <tr className="border-b border-slate-100">
-                <td className="px-2 py-1.5 font-bold">OD (Right)</td>
-                <td className="px-2 py-1.5 text-center">{va.unaidedOd||'—'}</td>
-                <td className="px-2 py-1.5 text-center">{va.aidedOd||'—'}</td>
-                <td className="px-2 py-1.5 text-center">{va.pinholeOd||'—'}</td>
-              </tr>
-              <tr>
-                <td className="px-2 py-1.5 font-bold">OS (Left)</td>
-                <td className="px-2 py-1.5 text-center">{va.unaidedOs||'—'}</td>
-                <td className="px-2 py-1.5 text-center">{va.aidedOs||'—'}</td>
-                <td className="px-2 py-1.5 text-center">{va.pinholeOs||'—'}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>}
-      </>}
-
-      {/* Refraction */}
-      {hasRef && <>
-        <SectionHeader title="Refraction" icon={<Eye className="w-4 h-4 text-teal-500"/>} expanded={s.refraction} onToggle={() => tog('refraction')}/>
-        {s.refraction && <div className="px-4 py-3 space-y-3">
-          <RefTable label="Refraction Results" data={ref}/>
-        </div>}
-      </>}
-
-      {/* Slit Lamp / Anterior Segment */}
-      {hasSlitLamp && <>
-        <SectionHeader title="Anterior Segment (Slit Lamp)" icon={<Eye className="w-4 h-4 text-violet-500"/>} expanded={s.slitlamp} onToggle={() => tog('slitlamp')}/>
-        {s.slitlamp && <div className="px-4 py-3 grid grid-cols-2 gap-2">
-          {[
-            ['Lids & Lashes', sl.lidsLashes],
-            ['Conjunctiva', sl.conjunctiva],
-            ['Cornea', sl.cornea],
-            ['Anterior Chamber', sl.anteriorChamber],
-            ['Iris & Lens', sl.irisLens],
-          ].filter(([,v]) => v).map(([label, value]) => (
-            <div key={label as string} className="bg-violet-50 border border-violet-100 rounded-lg px-3 py-2">
-              <span className="block text-[10px] font-bold text-violet-400 uppercase mb-0.5">{label}</span>
-              <span className="text-sm font-semibold text-slate-800">{value}</span>
-            </div>
-          ))}
-        </div>}
-      </>}
-
-      {/* Tonometry */}
-      {hasTono && <>
-        <SectionHeader title="Tonometry (IOP)" icon={<Activity className="w-4 h-4 text-orange-500"/>} expanded={s.tono} onToggle={() => tog('tono')}/>
-        {s.tono && <div className="px-4 py-3 grid grid-cols-3 gap-3">
-          <Field label="OD IOP" value={tono.odIop ? `${tono.odIop} mmHg` : null}/>
-          <Field label="OS IOP" value={tono.osIop ? `${tono.osIop} mmHg` : null}/>
-          <Field label="Method" value={tono.method}/>
-        </div>}
-      </>}
-
-      {/* Symptoms */}
-      {hasSymptoms && <>
-        <SectionHeader title="Presenting Symptoms" icon={<Activity className="w-4 h-4 text-rose-500"/>} expanded={s.symptoms} onToggle={() => tog('symptoms')} count={snap.symptoms.length}/>
-        {s.symptoms && <div className="px-4 py-3 space-y-1.5">
-          {snap.symptoms.map(sym => (
-            <div key={sym.id} className="text-xs bg-rose-50 border border-rose-100 rounded-lg px-3 py-2 flex flex-wrap items-center gap-2">
-              <span className="font-bold text-slate-800">{sym.name}</span>
-              <Badge text={sym.eye} color="bg-blue-100 text-blue-700"/>
-              <Badge text={`${sym.durationValue} ${sym.durationUnit}`} color="bg-slate-100 text-slate-600"/>
-              <Badge text={sym.frequency} color="bg-slate-100 text-slate-600"/>
-              <Badge text={sym.severity} color={sym.severity==='Severe' ? 'bg-red-100 text-red-700' : sym.severity==='Moderate' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}/>
-              {sym.remarks && <span className="text-slate-400 italic">"{sym.remarks}"</span>}
-            </div>
-          ))}
-        </div>}
-      </>}
-
-      {/* Ocular History */}
-      {hasOcular && <>
-        <SectionHeader title="Ocular History" icon={<FileText className="w-4 h-4 text-indigo-500"/>} expanded={s.ocularHx} onToggle={() => tog('ocularHx')}/>
-        {s.ocularHx && <div className="px-4 py-3 space-y-1.5">
-          {snap.ocularHistory.generalRemarks && <p className="text-xs text-slate-500 italic mb-2">{snap.ocularHistory.generalRemarks}</p>}
-          {Object.entries(snap.ocularHistory.conditions).filter(([,v]) => v.active).map(([k,v]) => (
-            <div key={k} className="text-xs bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
-              <span className="font-bold text-slate-800 capitalize">{k.replace(/([A-Z])/g,' $1')}</span>
-              <span className="text-slate-500 ml-2">{v.type} · {v.eye}{v.date ? ` · ${v.date}` : ''}</span>
-              {v.remarks && <span className="text-slate-400 ml-2">· {v.remarks}</span>}
-            </div>
-          ))}
-        </div>}
-      </>}
-
-      {/* Systemic History */}
-      {hasSystemic && <>
-        <SectionHeader title="Systemic History" icon={<Heart className="w-4 h-4 text-red-500"/>} expanded={s.systemicHx} onToggle={() => tog('systemicHx')}/>
-        {s.systemicHx && <div className="px-4 py-3 space-y-1.5">
-          {snap.systemicHistory.generalRemarks && <p className="text-xs text-slate-500 italic mb-2">{snap.systemicHistory.generalRemarks}</p>}
-          {Object.entries(snap.systemicHistory.conditions).filter(([,v]) => (v as any).active).map(([k,v]: any) => (
-            <div key={k} className="text-xs bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-              <span className="font-bold text-slate-800 capitalize">{k.replace(/([A-Z])/g,' $1')}</span>
-              <span className="text-slate-500 ml-2">{v.type}</span>
-              <span className="text-slate-500 ml-2">· {v.durationValue} {v.durationUnit}</span>
-              <Badge text={v.controlStatus} color={v.controlStatus==='Well Controlled' ? 'bg-green-100 text-green-700' : v.controlStatus==='Uncontrolled' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}/>
-              {v.remarks && <span className="text-slate-400 ml-2">· {v.remarks}</span>}
-            </div>
-          ))}
-        </div>}
-      </>}
-
-      {/* Medications */}
-      {hasMeds && <>
-        <SectionHeader title="Current Medications" icon={<Pill className="w-4 h-4 text-purple-500"/>} expanded={s.meds} onToggle={() => tog('meds')} count={snap.patientMedications.length}/>
-        {s.meds && <div className="px-4 py-3 space-y-1.5">
-          {snap.patientMedications.map(m => (
-            <div key={m.id} className="text-xs bg-purple-50 border border-purple-100 rounded-lg px-3 py-2 flex flex-wrap items-center gap-2">
-              <span className="font-bold text-slate-800">{m.drugName}</span>
-              {m.dosage && <Badge text={m.dosage} color="bg-slate-100 text-slate-600"/>}
-              <Badge text={m.frequency} color="bg-slate-100 text-slate-600"/>
-              <Badge text={m.route} color="bg-purple-100 text-purple-700"/>
-              {m.targetEye && <Badge text={m.targetEye} color="bg-blue-100 text-blue-700"/>}
-              <Badge text={m.compliance} color={m.compliance==='Compliant' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}/>
-            </div>
-          ))}
-        </div>}
-      </>}
-
-      {/* Family History */}
-      {(hasFamilyOcular || hasFamilySystemic) && <>
-        <SectionHeader title="Family History" icon={<Users className="w-4 h-4 text-cyan-500"/>} expanded={s.family} onToggle={() => tog('family')}/>
-        {s.family && <div className="px-4 py-3 space-y-1.5">
-          {hasFamilyOcular && <p className="text-xs font-bold text-slate-500 uppercase mb-1">Ocular</p>}
-          {snap.familyOcularHistory?.map(f => (
-            <div key={f.id} className="text-xs bg-cyan-50 border border-cyan-100 rounded-lg px-3 py-2">
-              <span className="font-bold text-slate-800">{f.relation}</span>
-              <span className="text-slate-500 ml-2">— {f.condition}</span>
-              {f.notes && <span className="text-slate-400 ml-2">· {f.notes}</span>}
-            </div>
-          ))}
-          {hasFamilySystemic && <p className="text-xs font-bold text-slate-500 uppercase mt-2 mb-1">Systemic</p>}
-          {snap.familySystemicHistory?.map(f => (
-            <div key={f.id} className="text-xs bg-cyan-50 border border-cyan-100 rounded-lg px-3 py-2">
-              <span className="font-bold text-slate-800">{f.relation}</span>
-              <span className="text-slate-500 ml-2">— {f.condition}</span>
-              {f.notes && <span className="text-slate-400 ml-2">· {f.notes}</span>}
-            </div>
-          ))}
-        </div>}
-      </>}
-
-      {/* Spectacles */}
-      {hasSpec && <>
-        <SectionHeader title="Spectacles History" icon={<Glasses className="w-4 h-4 text-blue-400"/>} expanded={s.spectacles} onToggle={() => tog('spectacles')}/>
-        {s.spectacles && <div className="px-4 py-3 grid grid-cols-2 gap-2">
-          <Field label="Type" value={spec.type}/>
-          <Field label="Age of Current Glasses" value={spec.ageOfCurrentGlasses}/>
-          <Field label="Material" value={spec.material}/>
-          <Field label="Coatings" value={spec.coating?.join(', ')}/>
-          <Field label="Satisfaction" value={spec.satisfaction}/>
-          {spec.remarks && <Field label="Remarks" value={spec.remarks} wide/>}
-        </div>}
-      </>}
-
-      {/* Contact Lens */}
-      {hasCL && <>
-        <SectionHeader title="Contact Lens History" icon={<Eye className="w-4 h-4 text-sky-500"/>} expanded={s.cl} onToggle={() => tog('cl')}/>
-        {s.cl && <div className="px-4 py-3 grid grid-cols-2 gap-2">
-          <Field label="Modality" value={cl.modality}/>
-          <Field label="Wearing Hours/Day" value={`${cl.wearingHoursPerDay} hrs`}/>
-          <Field label="Solution Used" value={cl.solutionUsed}/>
-          <Field label="Cleaning Compliance" value={cl.complianceWithCleaning}/>
-          <Field label="Last Eye Check" value={cl.lastEyeCheckDate}/>
-          {cl.remarks && <Field label="Remarks" value={cl.remarks} wide/>}
-        </div>}
-      </>}
-
-      {/* Lifestyle */}
-      {hasLifestyle && <>
-        <SectionHeader title="Lifestyle & Demands" icon={<Briefcase className="w-4 h-4 text-slate-500"/>} expanded={s.lifestyle} onToggle={() => tog('lifestyle')}/>
-        {s.lifestyle && <div className="px-4 py-3 grid grid-cols-2 gap-2">
-          <Field label="Occupation" value={life.occupation}/>
-          <Field label="Screen Time/Day" value={`${life.screenTimeHoursPerDay} hrs`}/>
-          <Field label="Outdoor Activities" value={life.outdoorActivities}/>
-          <Field label="Hobbies" value={life.hobbies}/>
-          <Field label="Workplace Lighting" value={life.lightingConditionWorkplace}/>
-          <Field label="Driving Needs" value={life.drivingRequirements}/>
-        </div>}
-      </>}
-
-      {/* Assessment & Plan */}
-      {hasAssessment && <>
-        <SectionHeader title="Assessment & Plan" icon={<Activity className="w-4 h-4 text-emerald-500"/>} expanded={s.assessment} onToggle={() => tog('assessment')}/>
-        {s.assessment && <div className="px-4 py-3 space-y-2">
-          {snap.diagnoses?.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-[10px] font-bold text-slate-400 uppercase">Diagnoses</p>
-              {snap.diagnoses.map((d, i) => (
-                <div key={i} className="text-xs bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 flex flex-wrap gap-2 items-center">
-                  <span className="font-bold text-slate-800">{d.title}</span>
-                  <Badge text={d.eye} color="bg-emerald-100 text-emerald-700"/>
-                  {d.notes && <span className="text-slate-500">· {d.notes}</span>}
-                </div>
-              ))}
-            </div>
+      {fcl && (fcl.clType || fcl.brand) && (
+        <div>
+          <p className="text-xs font-bold text-[#2563eb] uppercase tracking-wide mb-2">Final Contact Lens Specification</p>
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            <Field label="Type" value={fcl.clType}/>
+            <Field label="Brand" value={fcl.brand}/>
+            <Field label="Modality" value={fcl.modality}/>
+            <Field label="Material" value={fcl.material}/>
+            <Field label="Solution" value={fcl.solution}/>
+            <Field label="Schedule" value={fcl.wearingSchedule}/>
+            <Field label="Review Date" value={fcl.reviewDate ? fmtDate(fcl.reviewDate) : null}/>
+          </div>
+          {(fcl.od && (fcl.od.bc || fcl.od.sph)) && (
+            <table className="w-full text-xs border-collapse mb-2">
+              <thead><tr className="bg-[#1e3a5f] text-white">
+                <th className="px-2 py-1 text-left">Eye</th>
+                <th className="px-2 py-1 text-center">BC</th>
+                <th className="px-2 py-1 text-center">Dia</th>
+                <th className="px-2 py-1 text-center">Sph</th>
+                <th className="px-2 py-1 text-center">Cyl</th>
+                <th className="px-2 py-1 text-center">Axis</th>
+                <th className="px-2 py-1 text-center">Add</th>
+                <th className="px-2 py-1 text-center">VA</th>
+              </tr></thead>
+              <tbody>
+                {(['od','os'] as const).filter((e) => fcl[e]).map((e) => {
+                  const s = fcl[e];
+                  return (
+                    <tr key={e} className="border-b border-slate-100">
+                      <td className="px-2 py-1 font-bold text-slate-700">{e.toUpperCase()}</td>
+                      {['bc','dia','sph','cyl','axis','add','va'].map((f) => (
+                        <td key={f} className="px-2 py-1 text-center">{s[f] || '—'}</td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
-          {snap.counselingAdvice && <div className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2"><b>Counseling:</b> {snap.counselingAdvice}</div>}
-          {snap.treatmentPathway && <div className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2"><b>Treatment Pathway:</b> {snap.treatmentPathway}</div>}
-        </div>}
-      </>}
-    </div>
-  );
-}
+          {fcl.sameForOs && <p className="text-[11px] text-slate-400 italic mb-1">OS mirrors OD.</p>}
+          {fcl.remarks && <p className="text-xs text-slate-500"><b>Remarks:</b> {fcl.remarks}</p>}
+        </div>
+      )}
 
-// ── ExamRecord: collapsible appointment row ───────────────────────────────────
-function ExamRecord({ apt, snap }: { apt: Appointment; snap: EncounterSnapshot | undefined }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="border border-slate-200 rounded-xl overflow-hidden mb-3">
-      <button onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-white hover:bg-slate-50 transition-colors">
-        <div className="flex items-center gap-3">
-          <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${apt.status==='completed' ? 'bg-emerald-500' : apt.status==='in_exam' ? 'bg-purple-500' : 'bg-slate-300'}`}/>
-          <div className="text-left">
-            <p className="text-sm font-bold text-slate-800">{apt.date} · {apt.startTime}–{apt.endTime}</p>
-            <p className="text-xs text-slate-500">{apt.reason}</p>
+      {sd && (sd.frameType || sd.lensType || sd.orderRef || sd.dispatchDate || sd.price) && (
+        <div>
+          <p className="text-xs font-bold text-[#2563eb] uppercase tracking-wide mb-2">Spectacle Dispensing</p>
+          <div className="grid grid-cols-3 gap-2">
+            {sd.frameType && <Field label="Frame Type" value={sd.frameType}/>}
+            {sd.frameBrand && <Field label="Frame Brand" value={sd.frameBrand}/>}
+            {sd.frameRef && <Field label="Frame Ref" value={sd.frameRef}/>}
+            {sd.lensType && <Field label="Lens Type" value={sd.lensType}/>}
+            {sd.lensMaterial && <Field label="Lens Material" value={sd.lensMaterial}/>}
+            {sd.lensBrand && <Field label="Lens Brand" value={sd.lensBrand}/>}
+            {sd.coatings?.length > 0 && <Field label="Coatings" value={sd.coatings.join(', ')}/>}
+            {sd.rightPd && <Field label="Right PD" value={sd.rightPd}/>}
+            {sd.leftPd && <Field label="Left PD" value={sd.leftPd}/>}
+            {sd.heightOd && <Field label="Height OD" value={sd.heightOd}/>}
+            {sd.heightOs && <Field label="Height OS" value={sd.heightOs}/>}
+            {sd.orderRef && <Field label="Order Ref" value={sd.orderRef}/>}
+            {sd.labName && <Field label="Lab" value={sd.labName}/>}
+            {sd.dispatchDate && <Field label="Dispatch Date" value={fmtDate(sd.dispatchDate)}/>}
+            {sd.collectionMethod && <Field label="Collection" value={sd.collectionMethod}/>}
+            {sd.price && <Field label="Price" value={sd.price}/>}
+            {sd.advancePaid && <Field label="Advance Paid" value={sd.advancePaid}/>}
+            {sd.remarks && <Field label="Remarks" value={sd.remarks} wide/>}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-            apt.status==='completed' ? 'bg-emerald-100 text-emerald-700' :
-            apt.status==='in_exam' ? 'bg-purple-100 text-purple-700' :
-            apt.status==='confirmed' ? 'bg-teal-100 text-teal-700' :
-            'bg-slate-100 text-slate-600'
-          }`}>{apt.status.replace('_',' ')}</span>
+      )}
+
+      {meds.length > 0 && (
+        <div>
+          <p className="text-xs font-bold text-[#2563eb] uppercase tracking-wide mb-2">Medications ({meds.length})</p>
+          <div className="space-y-1.5">
+            {meds.map((m) => (
+              <div key={m.id} className="text-xs bg-purple-50 border border-purple-100 rounded-lg px-3 py-2 flex flex-wrap gap-2">
+                <b className="text-slate-800">{m.drugName}</b>
+                {m.dosage && <span className="text-slate-500">{m.dosage}</span>}
+                <span className="text-slate-500">{m.frequency}</span>
+                {m.route && <span className="text-slate-500">{m.route}</span>}
+                {m.targetEye && <span className="text-slate-500">{m.targetEye}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {plan && (
+        <div className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2"><b>Treatment Pathway:</b> {plan}</div>
+      )}
+    </div>
+  );
+}
+
+// ── Record row (DB-backed exam history) ──────────────────────────────────────
+function RecordRow({ entry, snap, loading, getSnapshot, children }: {
+  entry: ExamHistoryEntry;
+  snap: EncounterSnapshot | null | undefined;
+  loading: boolean;
+  getSnapshot: (appointmentId: string) => Promise<EncounterSnapshot | null>;
+  children: (snap: EncounterSnapshot) => React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const [localSnap, setLocalSnap] = useState<EncounterSnapshot | null | undefined>(snap);
+
+  const toggle = async () => {
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+    if (localSnap === undefined) {
+      const s = await getSnapshot(entry.appointmentId);
+      setLocalSnap(s);
+    }
+  };
+
+  const shownSnap = localSnap !== undefined ? localSnap : snap;
+
+  return (
+    <div className="border border-slate-200 rounded-xl overflow-hidden mb-3">
+      <button onClick={toggle}
+        className="w-full flex items-start justify-between px-4 py-3 bg-white hover:bg-slate-50 transition-colors text-left">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-bold text-slate-800">{fmtDate(entry.appointmentDate ?? entry.createdAt)}</span>
+            <span className="text-[10px] font-bold text-[#2563eb] bg-blue-50 rounded-full px-2 py-0.5 uppercase tracking-wide">{entry.appointmentReason || 'Examination'}</span>
+            <StatusBadge entry={entry}/>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {entry.doctor ? doctorName(entry.doctor.firstName, entry.doctor.lastName) : '—'}
+          </p>
+          <SummaryChips entry={entry}/>
+        </div>
+        <div className="ml-3 mt-0.5 flex items-center gap-2 shrink-0">
           {open ? <ChevronDown className="w-4 h-4 text-slate-400"/> : <ChevronRight className="w-4 h-4 text-slate-400"/>}
         </div>
       </button>
       {open && (
         <div className="border-t border-slate-100 bg-white">
-          {snap ? <ExamDetails snap={snap}/> : <p className="px-4 py-3 text-xs text-slate-400 italic">No clinical data recorded yet.</p>}
+          {shownSnap
+            ? children(shownSnap)
+            : loading
+              ? <div className="px-4 py-4 flex items-center gap-2 text-xs text-slate-400"><Loader2 className="w-4 h-4 animate-spin"/> Loading examination…</div>
+              : <p className="px-4 py-3 text-xs text-slate-400 italic">Could not load this examination.</p>}
         </div>
       )}
     </div>
   );
 }
 
-// ── Main Modal ────────────────────────────────────────────────────────────────
-export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient, appointments, snapshots, onClose, onOpenExam }) => {
-  const [tab, setTab] = useState<'info' | 'exams'>('exams');
+// ── Paper records tab (metadata-only registry) ───────────────────────────────
+function PaperRecordsTab({ patientId }: { patientId: string }) {
+  const [docs, setDocs] = useState<PaperDoc[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
-  const handlePrint = () => {
-    // helper to build a two-column info table row
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await api.get<PaperDoc[]>(`/patients/${patientId}/documents`);
+      setDocs(data ?? []);
+    } catch {
+      // ignore — empty state shown
+    } finally {
+      setLoading(false);
+    }
+  }, [patientId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleDelete = async (id: string) => {
+    setDeleting(id);
+    try {
+      await api.delete(`/patients/${patientId}/documents/${id}`);
+      setDocs((prev) => prev.filter((d) => d.id !== id));
+    } catch {
+      // ignore
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  if (loading) {
+    return <div className="p-5 flex items-center gap-2 text-xs text-slate-400"><Loader2 className="w-4 h-4 animate-spin"/> Loading paper records…</div>;
+  }
+
+  return (
+    <div className="p-5">
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-xs text-slate-500 max-w-md">
+          Paper records are a registry of physical or external documents — reports, referrals,
+          previous prescriptions — brought by the patient. No files are stored.
+        </p>
+        <button onClick={() => setShowAdd(true)}
+          className="flex items-center gap-1.5 px-3 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-semibold rounded-md transition-colors shrink-0">
+          <Plus className="w-3.5 h-3.5"/> Add paper record
+        </button>
+      </div>
+
+      {docs.length === 0 ? (
+        <div className="text-center py-10 text-slate-400">
+          <FileText className="w-10 h-10 mx-auto mb-3 opacity-40"/>
+          <p className="text-sm font-semibold text-slate-500">No paper records recorded</p>
+          <p className="text-xs mt-1 max-w-xs mx-auto">Add an external report, referral, previous prescription, or other paper record.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {docs.map((doc) => (
+            <div key={doc.id} className="border border-slate-200 rounded-lg px-4 py-3 flex items-start justify-between bg-white">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-bold text-slate-600 bg-slate-100 rounded-full px-2 py-0.5 uppercase tracking-wide">{doc.documentType}</span>
+                  <span className="text-sm font-bold text-slate-800">{doc.title}</span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  <b>{fmtDate(doc.documentDate) || '-'}</b>
+                  {doc.createdAt ? ` · Logged ${fmtDate(doc.createdAt)}` : ''}
+                </p>
+                {doc.notes && <p className="text-xs text-slate-500 mt-1 italic">"{doc.notes}"</p>}
+              </div>
+              <button
+                onClick={() => handleDelete(doc.id)}
+                disabled={deleting === doc.id}
+                className="text-slate-300 hover:text-red-500 transition-colors shrink-0 ml-3"
+                title="Delete paper record">
+                {deleting === doc.id ? <Loader2 className="w-4 h-4 animate-spin"/> : <Trash2 className="w-4 h-4"/>}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showAdd && (
+        <AddPaperRecordModal
+          patientId={patientId}
+          onClose={() => setShowAdd(false)}
+          onSaved={() => { setShowAdd(false); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddPaperRecordModal({ patientId, onClose, onSaved }: {
+  patientId: string; onClose: () => void; onSaved: () => void;
+}) {
+  const [documentType, setDocumentType] = useState(DOCUMENT_TYPES[0]);
+  const [title, setTitle] = useState('');
+  const [documentDate, setDocumentDate] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    if (!title.trim()) { setError('Please enter a title.'); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      await api.post(`/patients/${patientId}/documents`, {
+        documentType,
+        title: title.trim(),
+        documentDate: documentDate || null,
+        notes: notes.trim() || null,
+      });
+      onSaved();
+    } catch (e: any) {
+      setError(e?.message ?? 'Failed to save paper record.');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-bold text-slate-800">Add paper record</h3>
+          <button onClick={onClose}><X className="w-5 h-5 text-slate-400 hover:text-slate-600"/></button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Document type</label>
+            <select value={documentType} onChange={(e) => setDocumentType(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:border-blue-500">
+              {DOCUMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Title</label>
+            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Previous glaucoma report"
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:border-blue-500"/>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Document date</label>
+            <input type="date" value={documentDate} onChange={(e) => setDocumentDate(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:border-blue-500"/>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Notes</label>
+            <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Patient presented physical copy…"
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:border-blue-500"/>
+          </div>
+
+          {error && <p className="text-xs text-red-600">{error}</p>}
+
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-md transition-colors">Cancel</button>
+            <button onClick={handleSave} disabled={saving}
+              className="flex items-center gap-1.5 px-4 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] disabled:opacity-60 text-white text-sm font-semibold rounded-md transition-colors">
+              {saving && <Loader2 className="w-3.5 h-3.5 animate-spin"/>} Save record
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Modal ────────────────────────────────────────────────────────────────
+export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient, onClose, onOpenExam }) => {
+  const [tab, setTab] = useState<'info' | 'exams' | 'prescriptions' | 'papers'>('exams');
+  const record = usePatientRecordData(patient.id);
+
+  const getSnapshot = record.getSnapshot;
+
+  const handlePrint = async () => {
     const tr = (label: string, value: string | null | undefined) =>
       value ? `<tr><td class="lbl">${label}</td><td class="val">${value}</td></tr>` : '';
-
-    // helper for a section header in print
-    const secH = (title: string) =>
-      `<h3 class="sec-title">${title}</h3>`;
-
-    // helper for a refraction table
+    const secH = (title: string) => `<h3 class="sec-title">${title}</h3>`;
     const refTable = (label: string, r: any) => {
       if (!r || (!r.odSph && !r.osSph && !r.odVa && !r.osVa)) return '';
       return `
@@ -387,9 +444,13 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
         ${r.pdBinocular ? `<p class="note">PD Binocular: ${r.pdBinocular} mm${r.bvdMm ? ` · BVD: ${r.bvdMm} mm` : ''}</p>` : ''}`;
     };
 
-    const examSections = appointments.map(apt => {
-      const snap = snapshots[apt.id];
-      const statusBadge = `<span class="badge badge-${apt.status==='completed'?'green':apt.status==='in_exam'?'purple':'gray'}">${apt.status.replace('_',' ')}</span>`;
+    const examSections: string[] = [];
+    for (const entry of record.history) {
+      const snap = await getSnapshot(entry.appointmentId);
+      const dateStr = fmtDate(entry.appointmentDate ?? entry.createdAt);
+      const statusBadge = entry.isLocked
+        ? '<span class="badge badge-gray">Locked · Finalized</span>'
+        : `<span class="badge badge-${entry.appointmentStatus==='COMPLETED'?'green':'purple'}">${humanize(entry.appointmentStatus)||'In progress'}</span>`;
       let body = '';
 
       if (!snap) {
@@ -403,24 +464,19 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
         const cl = snap.contactLensHistory;
         const life = snap.lifestyleDemands;
 
-        // Visual Acuity
-        if (va && (va.unaidedOd||va.unaidedOs||va.aidedOd||va.aidedOs||va.pinholeOd||va.pinholeOs)) {
+        if (vaHasData(va)) {
           body += secH('Visual Acuity');
           body += `<table class="data-table">
             <thead><tr><th>Eye</th><th>Unaided</th><th>Aided</th><th>Pinhole</th></tr></thead>
             <tbody>
-              <tr><td><b>OD (Right)</b></td><td>${va.unaidedOd||'—'}</td><td>${va.aidedOd||'—'}</td><td>${va.pinholeOd||'—'}</td></tr>
-              <tr><td><b>OS (Left)</b></td><td>${va.unaidedOs||'—'}</td><td>${va.aidedOs||'—'}</td><td>${va.pinholeOs||'—'}</td></tr>
+              <tr><td><b>OD (Right)</b></td><td>${vaVal(va,'od','dist','unaided')||'—'}</td><td>${vaVal(va,'od','dist','aided')||'—'}</td><td>${vaVal(va,'od','dist','pinhole')||'—'}</td></tr>
+              <tr><td><b>OS (Left)</b></td><td>${vaVal(va,'os','dist','unaided')||'—'}</td><td>${vaVal(va,'os','dist','aided')||'—'}</td><td>${vaVal(va,'os','dist','pinhole')||'—'}</td></tr>
             </tbody></table>`;
         }
-
-        // Refraction
         if (ref && (ref.odSph||ref.osSph||ref.odVa||ref.osVa)) {
           body += secH('Refraction');
           body += refTable('Refraction Results', ref);
         }
-
-        // Anterior Segment / Slit Lamp
         if (sl && (sl.lidsLashes||sl.conjunctiva||sl.cornea||sl.anteriorChamber||sl.irisLens)) {
           body += secH('Anterior Segment (Slit Lamp)');
           body += `<table class="info-table">
@@ -431,8 +487,6 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
             ${tr('Iris & Lens', sl.irisLens)}
           </table>`;
         }
-
-        // Tonometry
         if (tono && (tono.odIop||tono.osIop)) {
           body += secH('Tonometry (IOP)');
           body += `<table class="data-table">
@@ -442,27 +496,21 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
               <tr><td><b>OS</b></td><td>${tono.osIop||'—'} mmHg</td></tr>
             </tbody></table>`;
         }
-
-        // Symptoms
         if (snap.symptoms?.length) {
           body += secH(`Presenting Symptoms (${snap.symptoms.length})`);
-          body += snap.symptoms.map(s =>
-            `<div class="row-item"><b>${s.name}</b> · ${s.eye} · ${s.durationValue} ${s.durationUnit} · ${s.frequency} · <span class="sev-${s.severity.toLowerCase()}">${s.severity}</span>${s.remarks ? ` · "${s.remarks}"` : ''}</div>`
+          body += snap.symptoms.map((s) =>
+            `<div class="row-item"><b>${s.name}</b> · ${s.eye} · ${s.durationValue} ${s.durationUnit} · ${s.frequency} · <span class="sev-${String(s.severity).toLowerCase()}">${s.severity}</span>${s.remarks ? ` · "${s.remarks}"` : ''}</div>`
           ).join('');
         }
-
-        // Ocular History
-        const activeOcular = Object.entries(snap.ocularHistory?.conditions||{}).filter(([,v])=>v.active);
+        const activeOcular = Object.entries(snap.ocularHistory?.conditions||{}).filter(([,v]: any)=>v.active);
         if (activeOcular.length) {
           body += secH('Ocular History');
-          body += `<table class="info-table">${activeOcular.map(([k,v]) =>
+          body += `<table class="info-table">${activeOcular.map(([k,v]: any) =>
             tr(k.replace(/([A-Z])/g,' $1'), `${v.type} · ${v.eye}${v.date?` · ${v.date}`:''}${v.remarks?` · ${v.remarks}`:''}`)
           ).join('')}</table>`;
           if (snap.ocularHistory.generalRemarks) body += `<p class="note">${snap.ocularHistory.generalRemarks}</p>`;
         }
-
-        // Systemic History
-        const activeSystemic = Object.entries(snap.systemicHistory?.conditions||{}).filter(([,v])=>(v as any).active);
+        const activeSystemic = Object.entries(snap.systemicHistory?.conditions||{}).filter(([,v]: any)=>(v as any).active);
         if (activeSystemic.length) {
           body += secH('Systemic History');
           body += `<table class="info-table">${activeSystemic.map(([k,v]: any) =>
@@ -470,35 +518,27 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
           ).join('')}</table>`;
           if (snap.systemicHistory.generalRemarks) body += `<p class="note">${snap.systemicHistory.generalRemarks}</p>`;
         }
-
-        // Medications
         if (snap.patientMedications?.length) {
           body += secH(`Medications (${snap.patientMedications.length})`);
-          body += `<table class="data-table">
-            <thead><tr><th>Drug</th><th>Dosage</th><th>Frequency</th><th>Route</th><th>Target Eye</th><th>Compliance</th></tr></thead>
-            <tbody>${snap.patientMedications.map(m =>
-              `<tr><td><b>${m.drugName}</b></td><td>${m.dosage||'—'}</td><td>${m.frequency}</td><td>${m.route}</td><td>${m.targetEye||'Systemic'}</td><td>${m.compliance}</td></tr>`
-            ).join('')}</tbody></table>`;
+          body += snap.patientMedications.map((m) =>
+            `<div class="row-item"><b>${m.drugName}</b>${m.dosage?` · ${m.dosage}`:''} · ${m.frequency}${m.route?` · ${m.route}`:''}${m.targetEye?` · ${m.targetEye}`:''} · ${m.compliance}</div>`
+          ).join('');
         }
-
-        // Family History
         if (snap.familyOcularHistory?.length || snap.familySystemicHistory?.length) {
           body += secH('Family History');
           if (snap.familyOcularHistory?.length) {
             body += '<p class="sub-label">Ocular</p>';
-            body += snap.familyOcularHistory.map(f =>
+            body += snap.familyOcularHistory.map((f) =>
               `<div class="row-item"><b>${f.relation}</b> — ${f.condition}${f.notes?` · ${f.notes}`:''}</div>`
             ).join('');
           }
           if (snap.familySystemicHistory?.length) {
             body += '<p class="sub-label">Systemic</p>';
-            body += snap.familySystemicHistory.map(f =>
+            body += snap.familySystemicHistory.map((f) =>
               `<div class="row-item"><b>${f.relation}</b> — ${f.condition}${f.notes?` · ${f.notes}`:''}</div>`
             ).join('');
           }
         }
-
-        // Spectacles
         if (spec?.currentlyWears) {
           body += secH('Spectacles History');
           body += `<table class="info-table">
@@ -510,8 +550,6 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
             ${tr('Remarks', spec.remarks)}
           </table>`;
         }
-
-        // Contact Lens
         if (cl?.currentWearer) {
           body += secH('Contact Lens History');
           body += `<table class="info-table">
@@ -523,8 +561,6 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
             ${tr('Remarks', cl.remarks)}
           </table>`;
         }
-
-        // Lifestyle
         if (life && (life.occupation||life.screenTimeHoursPerDay||life.outdoorActivities)) {
           body += secH('Lifestyle & Demands');
           body += `<table class="info-table">
@@ -536,13 +572,11 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
             ${tr('Driving Requirements', life.drivingRequirements)}
           </table>`;
         }
-
-        // Assessment & Plan
         if (snap.diagnoses?.length || snap.counselingAdvice || snap.treatmentPathway) {
           body += secH('Assessment & Plan');
           if (snap.diagnoses?.length) {
             body += '<p class="sub-label">Diagnoses</p>';
-            body += snap.diagnoses.map(d =>
+            body += snap.diagnoses.map((d) =>
               `<div class="row-item"><b>${d.title}</b> <span class="eye-tag">(${d.eye})</span>${d.notes?` — ${d.notes}`:''}</div>`
             ).join('');
           }
@@ -551,16 +585,16 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
         }
       }
 
-      return `
+      examSections.push(`
         <div class="visit-card">
           <div class="visit-header">
-            <span class="visit-date">${apt.date} · ${apt.startTime}–${apt.endTime}</span>
-            <span class="visit-reason">${apt.reason}</span>
+            <span class="visit-date">${dateStr}</span>
+            <span class="visit-reason">${entry.appointmentReason || 'Examination'}</span>
             ${statusBadge}
           </div>
           <div class="visit-body">${body}</div>
-        </div>`;
-    }).join('');
+        </div>`);
+    }
 
     const today = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
 
@@ -611,16 +645,17 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
       <div class="patient-meta">
         <div class="meta-field"><label>MRN</label><span>${patient.mrn??`SEL-${patient.id}`}</span></div>
         <div class="meta-field"><label>Full Name</label><span>${patient.firstName} ${patient.lastName}</span></div>
+        <div class="meta-field"><label>Grandfather</label><span>${patient.grandfatherName??'-'}</span></div>
         <div class="meta-field"><label>Gender</label><span>${patient.gender}</span></div>
-        <div class="meta-field"><label>Date of Birth</label><span>${formatDob(patient.dateOfBirth)}</span></div>
+        <div class="meta-field"><label>Date of Birth</label><span>${formatDobEthiopian(patient.dateOfBirth)}</span></div>
         <div class="meta-field"><label>Age</label><span>${calcAge(patient.dateOfBirth)} years</span></div>
         <div class="meta-field"><label>Phone</label><span>${patient.phone}</span></div>
         <div class="meta-field"><label>Status</label><span>${patient.isNew?'New Patient':'Returning Patient'}</span></div>
         <div class="meta-field"><label>Address</label><span>${patient.address??'—'}</span></div>
       </div>
 
-      <h2>Examination History — ${appointments.length} Visit${appointments.length!==1?'s':''}</h2>
-      ${examSections}
+      <h2>Examination History — ${record.history.length} Visit${record.history.length!==1?'s':''}</h2>
+      ${examSections.join('\n')}
 
       <div class="footer">
         <span>SELIHOME Ophthalmic Medium Clinic · Confidential Medical Record</span>
@@ -632,9 +667,16 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
     if (win) { win.document.write(html); win.document.close(); win.print(); }
   };
 
+  const tabs: Array<{ id: 'info'|'exams'|'prescriptions'|'papers'; label: string }> = [
+    { id: 'info', label: 'Patient Info' },
+    { id: 'exams', label: `Exam History (${record.history.length})` },
+    { id: 'prescriptions', label: 'Prescriptions' },
+    { id: 'papers', label: 'Paper Records' },
+  ];
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-3">
@@ -658,11 +700,11 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-slate-200 shrink-0">
-          {(['info','exams'] as const).map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`px-5 py-2.5 text-sm font-semibold transition-colors border-b-2 ${tab===t ? 'border-[#2563eb] text-[#2563eb]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-              {t==='info' ? 'Patient Info' : `Exam History (${appointments.length})`}
+        <div className="flex border-b border-slate-200 shrink-0 overflow-x-auto">
+          {tabs.map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`px-5 py-2.5 text-sm font-semibold transition-colors border-b-2 whitespace-nowrap ${tab===t.id ? 'border-[#2563eb] text-[#2563eb]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+              {t.label}
             </button>
           ))}
         </div>
@@ -673,8 +715,9 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
             <div className="p-5 grid grid-cols-2 gap-3">
               <Field label="MRN" value={patient.mrn??`SEL-${patient.id}`}/>
               <Field label="Full Name" value={`${patient.firstName} ${patient.lastName}`}/>
+              <Field label="Grandfather" value={patient.grandfatherName ?? '-'}/>
               <Field label="Gender" value={patient.gender}/>
-              <Field label="Date of Birth" value={formatDob(patient.dateOfBirth)}/>
+              <Field label="Date of Birth" value={formatDobEthiopian(patient.dateOfBirth)}/>
               <Field label="Age" value={`${calcAge(patient.dateOfBirth)} years`}/>
               <Field label="Phone" value={patient.phone}/>
               <Field label="Address" value={patient.address??'—'} wide/>
@@ -682,13 +725,68 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
               <Field label="Status" value={patient.isNew ? 'New Patient' : 'Returning Patient'}/>
             </div>
           )}
+
           {tab === 'exams' && (
             <div className="p-5">
-              {appointments.length === 0
-                ? <div className="text-center py-10 text-slate-400"><Calendar className="w-10 h-10 mx-auto mb-3 opacity-40"/><p className="text-sm">No appointments found</p></div>
-                : appointments.map(apt => <ExamRecord key={apt.id} apt={apt} snap={snapshots[apt.id]}/>)
-              }
+              {record.loading ? (
+                <div className="flex items-center gap-2 text-xs text-slate-400 py-6 justify-center"><Loader2 className="w-4 h-4 animate-spin"/> Loading examinations…</div>
+              ) : record.history.length === 0 ? (
+                <div className="text-center py-10 text-slate-400">
+                  <Calendar className="w-10 h-10 mx-auto mb-3 opacity-40"/>
+                  <p className="text-sm font-semibold text-slate-500">No previous examinations found.</p>
+                  <p className="text-xs mt-1 mb-4">This patient has no recorded clinical encounters yet.</p>
+                  <button onClick={onOpenExam}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-semibold rounded-md transition-colors">
+                    <Plus className="w-3.5 h-3.5"/> Create examination
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-xs text-slate-400 mb-3">{record.history.length} examination{record.history.length!==1?'s':''} recorded.</p>
+                  {record.history.map((entry) => (
+                    <RecordRow
+                      key={entry.appointmentId}
+                      entry={entry}
+                      snap={record.encounters[entry.appointmentId]}
+                      loading={!!record.encounterLoading[entry.appointmentId]}
+                      getSnapshot={getSnapshot}>
+                      {(snap) => <ExamDetails snap={snap}/>}
+                    </RecordRow>
+                  ))}
+                </div>
+              )}
             </div>
+          )}
+
+          {tab === 'prescriptions' && (
+            <div className="p-5">
+              {record.loading ? (
+                <div className="flex items-center gap-2 text-xs text-slate-400 py-6 justify-center"><Loader2 className="w-4 h-4 animate-spin"/> Loading prescriptions…</div>
+              ) : record.history.length === 0 ? (
+                <div className="text-center py-10 text-slate-400">
+                  <FileText className="w-10 h-10 mx-auto mb-3 opacity-40"/>
+                  <p className="text-sm">No prescription records yet.</p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-xs text-slate-400 mb-3">Prescriptions and dispensing issued per visit.</p>
+                  {record.history.map((entry) => (
+                    <RecordRow
+                      key={entry.appointmentId}
+                      entry={entry}
+                      snap={record.encounters[entry.appointmentId]}
+                      loading={!!record.encounterLoading[entry.appointmentId]}
+                      getSnapshot={getSnapshot}>
+                      {(snap) => <PrescriptionDetails snap={snap}/>}
+                    </RecordRow>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'papers' && (
+            <PaperRecordsTab patientId={patient.id}/>
           )}
         </div>
       </div>

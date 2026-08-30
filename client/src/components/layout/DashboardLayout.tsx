@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Users, Calendar, Sparkles, LogOut } from 'lucide-react';
+import { Users, Calendar, Eye, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
 interface DashboardLayoutProps {
@@ -20,9 +20,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-100">
       <aside className="w-[200px] bg-[#1a2744] flex flex-col shrink-0">
-        <div className="px-5 py-5 flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-white" />
-          <span className="text-white font-bold text-lg tracking-wide">ASIRA</span>
+        <div className="px-5 py-5 flex items-center gap-2.5">
+          <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#34d399] to-[#14b8a6] flex items-center justify-center">
+            <Eye className="w-5 h-5 text-white" />
+          </span>
+          <span className="text-white font-bold text-lg tracking-wide">SELIHOME</span>
         </div>
 
         <nav className="flex-1 px-2 pt-2 space-y-1">

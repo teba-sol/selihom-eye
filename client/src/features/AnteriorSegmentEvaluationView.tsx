@@ -2,6 +2,7 @@
 import * as fabric from 'fabric';
 import { Upload, MousePointer2, Pencil, Eraser, Type, Circle, ArrowUpRight, MoreHorizontal, ChevronDown, X } from 'lucide-react';
 import { MultiSelect } from '../components/MultiSelect';
+import { useEncounterStore } from '../store/useEncounterStore';
 
 // ── Multi-select tag options per structure ────────────────────────────────────
 const STRUCTURE_OPTIONS: Record<string, string[]> = {
@@ -198,18 +199,42 @@ function ToolButton({ tool, active, onClick }: { tool: ToolDef; active: boolean;
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
-export const AnteriorSegmentEvaluationView: React.FC = () => {
-  const [activeSubTab, setActiveSubTab] = useState<'Form' | 'Diagram'>('Form');
-  const [instrument, setInstrument] = useState<'Torch Light' | 'Slit Lamp'>('Slit Lamp');
-  const [multiObs, setMultiObs] = useState<Record<string, { od: string[]; os: string[]; sameForOS: boolean }>>(() => {
-    const init: Record<string, { od: string[]; os: string[]; sameForOS: boolean }> = {};
-    STRUCTURES.forEach(s => { init[s] = { od: [], os: [], sameForOS: false }; });
-    return init;
-  });
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+type StructureObs = { od: string[]; os: string[]; sameForOS: boolean };
 
-  // Diagram state
+type AnteriorSegmentData = {
+  activeSubTab: 'Form' | 'Diagram';
+  instrument: 'Torch Light' | 'Slit Lamp';
+  multiObs: Record<string, StructureObs>;
+  remarks: string;
+  showInDischarge: boolean;
+};
+
+const DEFAULT_MULTI_OBS = (): Record<string, StructureObs> => {
+  const init: Record<string, StructureObs> = {};
+  STRUCTURES.forEach(s => { init[s] = { od: [], os: [], sameForOS: false }; });
+  return init;
+};
+
+const DEFAULT_ANTERIOR_SEGMENT: AnteriorSegmentData = {
+  activeSubTab: 'Form',
+  instrument: 'Slit Lamp',
+  multiObs: DEFAULT_MULTI_OBS(),
+  remarks: '',
+  showInDischarge: false,
+};
+
+export const AnteriorSegmentEvaluationView: React.FC = () => {
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const raw = Object.assign({}, DEFAULT_ANTERIOR_SEGMENT, sectionData['anterior-segment-eval'] ?? {}) as AnteriorSegmentData;
+  const multiObs: Record<string, StructureObs> = Object.fromEntries(
+    STRUCTURES.map((s) => [s, { od: [], os: [], sameForOS: false, ...(raw.multiObs?.[s] ?? {}) }]),
+  );
+  const f: AnteriorSegmentData = { ...raw, multiObs };
+  const patch = (p: Partial<AnteriorSegmentData>) => setSectionData('anterior-segment-eval', { ...f, ...p });
+  const { activeSubTab, instrument, remarks, showInDischarge } = f;
+
+  // Diagram UI state (transient)
   const [activeTool, setActiveTool] = useState('pen');
   const [activeColor, setActiveColor] = useState('#000000');
   const [showMore, setShowMore] = useState(false);
@@ -219,22 +244,18 @@ export const AnteriorSegmentEvaluationView: React.FC = () => {
   const osFabricRef = useRef<fabric.Canvas | null>(null);
 
   const updateOd = (struct: string, v: string[]) => {
-    setMultiObs(p => {
-      const cur = p[struct];
-      const next = { ...cur, od: v };
-      if (cur.sameForOS) next.os = v;
-      return { ...p, [struct]: next };
-    });
+    const cur = multiObs[struct];
+    const next = { ...cur, od: v };
+    if (cur.sameForOS) next.os = v;
+    patch({ multiObs: { ...multiObs, [struct]: next } });
   };
   const updateOs = (struct: string, v: string[]) => {
-    setMultiObs(p => ({ ...p, [struct]: { ...p[struct], os: v } }));
+    patch({ multiObs: { ...multiObs, [struct]: { ...multiObs[struct], os: v } } });
   };
   const toggleSame = (struct: string) => {
-    setMultiObs(p => {
-      const cur = p[struct];
-      const newSame = !cur.sameForOS;
-      return { ...p, [struct]: { ...cur, sameForOS: newSame, os: newSame ? cur.od : cur.os } };
-    });
+    const cur = multiObs[struct];
+    const newSame = !cur.sameForOS;
+    patch({ multiObs: { ...multiObs, [struct]: { ...cur, sameForOS: newSame, os: newSame ? cur.od : cur.os } } });
   };
 
   const handleClearAll = () => {
@@ -262,7 +283,7 @@ export const AnteriorSegmentEvaluationView: React.FC = () => {
       {/* Sub-tabs */}
       <div className="flex gap-6 border-b border-slate-200 mb-6">
         {(['Form', 'Diagram'] as const).map(t => (
-          <button key={t} type="button" onClick={() => setActiveSubTab(t)}
+          <button key={t} type="button" onClick={() => patch({ activeSubTab: t })}
             className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeSubTab === t ? 'text-blue-700 border-blue-700 font-semibold' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
             {t}
           </button>
@@ -277,7 +298,7 @@ export const AnteriorSegmentEvaluationView: React.FC = () => {
             <span className="font-bold text-slate-900">Instrument</span>
             {(['Torch Light', 'Slit Lamp'] as const).map(opt => (
               <label key={opt} className="flex items-center gap-2 cursor-pointer">
-                <input type="radio" name="instrument" checked={instrument === opt} onChange={() => setInstrument(opt)}
+                <input type="radio" name="instrument" checked={instrument === opt} onChange={() => patch({ instrument: opt })}
                   className="w-4 h-4 text-blue-600 accent-blue-600 focus:ring-0"/>
                 <span>{opt}</span>
               </label>
@@ -320,14 +341,14 @@ export const AnteriorSegmentEvaluationView: React.FC = () => {
           {/* Remarks */}
           <div className="mt-6">
             <label className="text-sm font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
-            <textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)}
+            <textarea rows={3} value={remarks} onChange={e => patch({ remarks: e.target.value })}
               placeholder="Add any remarks..."
               className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none"/>
           </div>
 
           <div className="flex justify-end mt-4">
             <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
-              <input type="checkbox" checked={showInDischarge} onChange={e => setShowInDischarge(e.target.checked)}
+              <input type="checkbox" checked={showInDischarge} onChange={e => patch({ showInDischarge: e.target.checked })}
                 className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0"/>
               Show in Discharge Summary
             </label>
@@ -398,14 +419,14 @@ export const AnteriorSegmentEvaluationView: React.FC = () => {
           {/* Remarks */}
           <div className="mt-5">
             <label className="text-sm font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
-            <textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)}
+            <textarea rows={3} value={remarks} onChange={e => patch({ remarks: e.target.value })}
               placeholder="Add any remarks..."
               className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none"/>
           </div>
 
           <div className="flex justify-end mt-4">
             <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
-              <input type="checkbox" checked={showInDischarge} onChange={e => setShowInDischarge(e.target.checked)}
+              <input type="checkbox" checked={showInDischarge} onChange={e => patch({ showInDischarge: e.target.checked })}
                 className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0"/>
               Show in Discharge Summary
             </label>

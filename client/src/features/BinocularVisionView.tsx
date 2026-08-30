@@ -1,33 +1,60 @@
-﻿import React, { useState } from 'react';
+﻿import React from 'react';
+import { useEncounterStore } from '../store/useEncounterStore';
+
+type BinocularVisionData = {
+  w4dDist: string;
+  w4dNear: string;
+  coverTestDistance: string;
+  prismDist: string;
+  coverTestNear: string;
+  prismNear: string;
+  recoveryQuality: string;
+  npcBreak: string;
+  npcRecovery: string;
+  aoaOd: string;
+  aoaOs: string;
+  aoaOu: string;
+  motilityResult: string;
+  motilityNotes: string;
+  directReflex: string;
+  rapdStatus: string;
+  stereopsisTest: string;
+  stereoSeconds: string;
+  remarks: string;
+  showInDischarge: boolean;
+};
+
+const DEFAULT: BinocularVisionData = {
+  w4dDist: '4 Dots (Fusion Present)',
+  w4dNear: '4 Dots (Fusion Present)',
+  coverTestDistance: 'Exophoria',
+  prismDist: '',
+  coverTestNear: 'Orthophoric',
+  prismNear: '',
+  recoveryQuality: 'Good / Rapid',
+  npcBreak: '',
+  npcRecovery: '',
+  aoaOd: '',
+  aoaOs: '',
+  aoaOu: '',
+  motilityResult: 'Full & Smooth in all 9 gazes',
+  motilityNotes: '',
+  directReflex: 'Brisk Direct & Consensual OU',
+  rapdStatus: 'Negative (No RAPD)',
+  stereopsisTest: 'Titmus / Wirt Rings',
+  stereoSeconds: '',
+  remarks: '',
+  showInDischarge: false,
+};
 
 export const BinocularVisionView: React.FC = () => {
-  const [w4dDist, setW4dDist] = useState('4 Dots (Fusion Present)');
-  const [w4dNear, setW4dNear] = useState('4 Dots (Fusion Present)');
-
-  const [coverTestDistance, setCoverTestDistance] = useState('Exophoria');
-  const [prismDist, setPrismDist] = useState('10');
-  const [coverTestNear, setCoverTestNear] = useState('Orthophoric');
-  const [prismNear, setPrismNear] = useState('0');
-  const [recoveryQuality, setRecoveryQuality] = useState('Good / Rapid');
-
-  const [npcBreak, setNpcBreak] = useState('6');
-  const [npcRecovery, setNpcRecovery] = useState('8');
-
-  const [aoaOd, setAoaOd] = useState('8.50');
-  const [aoaOs, setAoaOs] = useState('8.50');
-  const [aoaOu, setAoaOu] = useState('9.50');
-
-  const [motilityResult, setMotilityResult] = useState('Full & Smooth in all 9 gazes');
-  const [motilityNotes, setMotilityNotes] = useState('');
-
-  const [directReflex, setDirectReflex] = useState('Brisk Direct & Consensual OU');
-  const [rapdStatus, setRapdStatus] = useState('Negative (No RAPD)');
-
-  const [stereopsisTest, setStereopsisTest] = useState('Titmus / Wirt Rings');
-  const [stereoSeconds, setStereoSeconds] = useState('40');
-
-  const [remarks, setRemarks] = useState('Mild exophoria distance with good fusion control. No suppression.');
-  const [showInDischarge, setShowInDischarge] = useState(true);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const f = Object.assign({}, DEFAULT, sectionData['binocular-vision-assessment'] ?? {}) as BinocularVisionData;
+  const patch = (p: Partial<BinocularVisionData>) => setSectionData('binocular-vision-assessment', { ...f, ...p });
+  const { w4dDist, w4dNear, coverTestDistance, prismDist, coverTestNear, prismNear, recoveryQuality,
+    npcBreak, npcRecovery, aoaOd, aoaOs, aoaOu, motilityResult, motilityNotes, directReflex, rapdStatus,
+    stereopsisTest, stereoSeconds, remarks, showInDischarge } = f;
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full space-y-8">
@@ -48,7 +75,7 @@ export const BinocularVisionView: React.FC = () => {
             <label className="text-xs font-semibold text-slate-600 block mb-1">Distance (6m)</label>
             <select
               value={w4dDist}
-              onChange={(e) => setW4dDist(e.target.value)}
+              onChange={(e) => patch({ w4dDist: e.target.value })}
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md bg-white font-medium focus:outline-none focus:border-blue-600"
             >
               <option value="4 Dots (Fusion Present)">4 Dots (Fusion Present)</option>
@@ -62,7 +89,7 @@ export const BinocularVisionView: React.FC = () => {
             <label className="text-xs font-semibold text-slate-600 block mb-1">Near (33cm)</label>
             <select
               value={w4dNear}
-              onChange={(e) => setW4dNear(e.target.value)}
+              onChange={(e) => patch({ w4dNear: e.target.value })}
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md bg-white font-medium focus:outline-none focus:border-blue-600"
             >
               <option value="4 Dots (Fusion Present)">4 Dots (Fusion Present)</option>
@@ -87,7 +114,7 @@ export const BinocularVisionView: React.FC = () => {
                 <label className="text-[11px] font-semibold text-slate-500 block mb-1">Phoria / Tropia</label>
                 <select
                   value={coverTestDistance}
-                  onChange={(e) => setCoverTestDistance(e.target.value)}
+                  onChange={(e) => patch({ coverTestDistance: e.target.value })}
                   className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded bg-white font-bold"
                 >
                   <option value="Orthophoric">Orthophoric</option>
@@ -103,7 +130,7 @@ export const BinocularVisionView: React.FC = () => {
                 <input
                   type="number"
                   value={prismDist}
-                  onChange={(e) => setPrismDist(e.target.value)}
+                  onChange={(e) => patch({ prismDist: e.target.value })}
                   className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded text-center font-bold"
                   placeholder="10"
                 />
@@ -117,7 +144,7 @@ export const BinocularVisionView: React.FC = () => {
                 <label className="text-[11px] font-semibold text-slate-500 block mb-1">Phoria / Tropia</label>
                 <select
                   value={coverTestNear}
-                  onChange={(e) => setCoverTestNear(e.target.value)}
+                  onChange={(e) => patch({ coverTestNear: e.target.value })}
                   className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded bg-white font-bold"
                 >
                   <option value="Orthophoric">Orthophoric</option>
@@ -132,7 +159,7 @@ export const BinocularVisionView: React.FC = () => {
                 <input
                   type="number"
                   value={prismNear}
-                  onChange={(e) => setPrismNear(e.target.value)}
+                  onChange={(e) => patch({ prismNear: e.target.value })}
                   className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded text-center font-bold"
                   placeholder="0"
                 />
@@ -144,7 +171,7 @@ export const BinocularVisionView: React.FC = () => {
           <label className="text-xs font-semibold text-slate-600 block mb-1">Recovery Quality</label>
           <select
             value={recoveryQuality}
-            onChange={(e) => setRecoveryQuality(e.target.value)}
+            onChange={(e) => patch({ recoveryQuality: e.target.value })}
             className="w-full max-w-xs px-3 py-1.5 text-xs border border-slate-300 rounded bg-white font-medium"
           >
             <option value="Good / Rapid">Good / Rapid &amp; Smooth</option>
@@ -167,7 +194,7 @@ export const BinocularVisionView: React.FC = () => {
               <input
                 type="number"
                 value={npcBreak}
-                onChange={(e) => setNpcBreak(e.target.value)}
+                onChange={(e) => patch({ npcBreak: e.target.value })}
                 className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded text-center font-bold bg-white"
                 placeholder="6"
               />
@@ -177,7 +204,7 @@ export const BinocularVisionView: React.FC = () => {
               <input
                 type="number"
                 value={npcRecovery}
-                onChange={(e) => setNpcRecovery(e.target.value)}
+                onChange={(e) => patch({ npcRecovery: e.target.value })}
                 className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded text-center font-bold bg-white"
                 placeholder="8"
               />
@@ -194,7 +221,7 @@ export const BinocularVisionView: React.FC = () => {
               <input
                 type="text"
                 value={aoaOd}
-                onChange={(e) => setAoaOd(e.target.value)}
+                onChange={(e) => patch({ aoaOd: e.target.value })}
                 className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded text-center font-bold bg-white"
                 placeholder="8.50"
               />
@@ -204,7 +231,7 @@ export const BinocularVisionView: React.FC = () => {
               <input
                 type="text"
                 value={aoaOs}
-                onChange={(e) => setAoaOs(e.target.value)}
+                onChange={(e) => patch({ aoaOs: e.target.value })}
                 className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded text-center font-bold bg-white"
                 placeholder="8.50"
               />
@@ -214,7 +241,7 @@ export const BinocularVisionView: React.FC = () => {
               <input
                 type="text"
                 value={aoaOu}
-                onChange={(e) => setAoaOu(e.target.value)}
+                onChange={(e) => patch({ aoaOu: e.target.value })}
                 className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded text-center font-bold bg-white"
                 placeholder="9.50"
               />
@@ -232,7 +259,7 @@ export const BinocularVisionView: React.FC = () => {
           <div>
             <select
               value={motilityResult}
-              onChange={(e) => setMotilityResult(e.target.value)}
+              onChange={(e) => patch({ motilityResult: e.target.value })}
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md bg-white font-medium focus:outline-none focus:border-blue-600"
             >
               <option value="Full & Smooth in all 9 gazes">Full &amp; Smooth in all 9 gazes</option>
@@ -246,7 +273,7 @@ export const BinocularVisionView: React.FC = () => {
           <input
             type="text"
             value={motilityNotes}
-            onChange={(e) => setMotilityNotes(e.target.value)}
+            onChange={(e) => patch({ motilityNotes: e.target.value })}
             placeholder="Additional motility notes..."
             className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded bg-white"
           />
@@ -258,7 +285,7 @@ export const BinocularVisionView: React.FC = () => {
           <div className="space-y-2">
             <select
               value={directReflex}
-              onChange={(e) => setDirectReflex(e.target.value)}
+              onChange={(e) => patch({ directReflex: e.target.value })}
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md bg-white font-medium focus:outline-none focus:border-blue-600"
             >
               <option value="Brisk Direct & Consensual OU">Brisk Direct &amp; Consensual OU (PERRL)</option>
@@ -267,7 +294,7 @@ export const BinocularVisionView: React.FC = () => {
             </select>
             <select
               value={rapdStatus}
-              onChange={(e) => setRapdStatus(e.target.value)}
+              onChange={(e) => patch({ rapdStatus: e.target.value })}
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md bg-white font-bold text-slate-800 focus:outline-none focus:border-blue-600"
             >
               <option value="Negative (No RAPD)">Negative (No RAPD)</option>
@@ -287,7 +314,7 @@ export const BinocularVisionView: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
           <select
             value={stereopsisTest}
-            onChange={(e) => setStereopsisTest(e.target.value)}
+            onChange={(e) => patch({ stereopsisTest: e.target.value })}
             className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md bg-white font-medium"
           >
             <option value="Titmus / Wirt Rings">Titmus / Wirt Stereo Rings</option>
@@ -299,7 +326,7 @@ export const BinocularVisionView: React.FC = () => {
             <input
               type="number"
               value={stereoSeconds}
-              onChange={(e) => setStereoSeconds(e.target.value)}
+              onChange={(e) => patch({ stereoSeconds: e.target.value })}
               className="w-24 px-3 py-1.5 text-xs text-center border border-slate-300 rounded font-bold bg-white"
               placeholder="40"
             />
@@ -314,7 +341,7 @@ export const BinocularVisionView: React.FC = () => {
         <textarea
           rows={3}
           value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
+          onChange={(e) => patch({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600"
         />
@@ -325,7 +352,7 @@ export const BinocularVisionView: React.FC = () => {
           <input
             type="checkbox"
             checked={showInDischarge}
-            onChange={(e) => setShowInDischarge(e.target.checked)}
+            onChange={(e) => patch({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
           />
           <span>Show in Discharge Summary</span>

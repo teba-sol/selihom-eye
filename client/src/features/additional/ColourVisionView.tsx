@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useEncounterStore } from '../../store/useEncounterStore';
 
 const TEST_TYPES = [
   'Ishihara (38 Plates)',
@@ -8,13 +9,30 @@ const TEST_TYPES = [
   'HRR Pseudoisochromatic Plates',
 ];
 
+type ColourVisionData = {
+  testType: string;
+  rightEyeScore: string;
+  leftEyeScore: string;
+  interpretation: string;
+  remarks: string;
+  showInDischarge: boolean;
+};
+
+const DEFAULT_COLOUR_VISION: ColourVisionData = {
+  testType: 'Ishihara (38 Plates)',
+  rightEyeScore: '17 / 17',
+  leftEyeScore: '17 / 17',
+  interpretation: 'Normal Trichromatic Vision OU',
+  remarks: '',
+  showInDischarge: false,
+};
+
 export const ColourVisionView: React.FC = () => {
-  const [testType, setTestType] = useState('Ishihara (38 Plates)');
-  const [rightEyeScore, setRightEyeScore] = useState('17 / 17');
-  const [leftEyeScore, setLeftEyeScore] = useState('17 / 17');
-  const [interpretation, setInterpretation] = useState('Normal Trichromatic Vision OU');
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const f = Object.assign({}, DEFAULT_COLOUR_VISION, sectionData['colour-vision'] ?? {}) as ColourVisionData;
+  const patch = (p: Partial<ColourVisionData>) => setSectionData('colour-vision', { ...f, ...p });
+  const { testType, rightEyeScore, leftEyeScore, interpretation, remarks, showInDischarge } = f;
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full">
@@ -26,7 +44,7 @@ export const ColourVisionView: React.FC = () => {
           <div className="md:col-span-2">
             <select
               value={testType}
-              onChange={(e) => setTestType(e.target.value)}
+              onChange={(e) => patch({ testType: e.target.value })}
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
             >
               {TEST_TYPES.map((t) => (
@@ -42,7 +60,7 @@ export const ColourVisionView: React.FC = () => {
             <input
               type="text"
               value={rightEyeScore}
-              onChange={(e) => setRightEyeScore(e.target.value)}
+              onChange={(e) => patch({ rightEyeScore: e.target.value })}
               placeholder="e.g. 17 / 17"
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
             />
@@ -55,7 +73,7 @@ export const ColourVisionView: React.FC = () => {
             <input
               type="text"
               value={leftEyeScore}
-              onChange={(e) => setLeftEyeScore(e.target.value)}
+              onChange={(e) => patch({ leftEyeScore: e.target.value })}
               placeholder="e.g. 17 / 17"
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
             />
@@ -67,7 +85,7 @@ export const ColourVisionView: React.FC = () => {
           <div className="md:col-span-2">
             <select
               value={interpretation}
-              onChange={(e) => setInterpretation(e.target.value)}
+              onChange={(e) => patch({ interpretation: e.target.value })}
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
             >
               <option value="Normal Trichromatic Vision OU">Normal Trichromatic Vision OU</option>
@@ -85,7 +103,7 @@ export const ColourVisionView: React.FC = () => {
         <textarea
           rows={3}
           value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
+          onChange={(e) => patch({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none focus:ring-1 focus:ring-blue-200"
         />
@@ -96,7 +114,7 @@ export const ColourVisionView: React.FC = () => {
           <input
             type="checkbox"
             checked={showInDischarge}
-            onChange={(e) => setShowInDischarge(e.target.checked)}
+            onChange={(e) => patch({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
           />
           <span>Show in Discharge Summary</span>

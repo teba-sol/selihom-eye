@@ -107,6 +107,7 @@ export class ClinicalService {
           diagnoses: dto.diagnoses ?? existing.diagnoses,
           treatmentPlanPathway: dto.treatmentPlanPathway ?? existing.treatmentPlanPathway,
           counselingAdviceGiven: dto.counselingAdviceGiven ?? existing.counselingAdviceGiven,
+          sectionData: dto.sectionData ?? existing.sectionData,
           updatedAt: new Date(),
         })
         .where(eq(clinicalEncounters.id, existing.id))
@@ -144,6 +145,7 @@ export class ClinicalService {
           diagnoses: dto.diagnoses || null,
           treatmentPlanPathway: dto.treatmentPlanPathway || null,
           counselingAdviceGiven: dto.counselingAdviceGiven || null,
+          sectionData: dto.sectionData || null,
         })
         .returning();
 
@@ -217,31 +219,33 @@ export class ClinicalService {
   }
 
   async lockEncounter(id: string) {
-    const [encounter] = await this.db
-      .select()
-      .from(clinicalEncounters)
-      .where(eq(clinicalEncounters.id, id))
-      .limit(1);
+    return this.db.transaction(async (tx) => {
+      const [encounter] = await tx
+        .select()
+        .from(clinicalEncounters)
+        .where(eq(clinicalEncounters.id, id))
+        .limit(1);
 
-    if (!encounter) {
-      throw new NotFoundException(`Encounter with ID ${id} not found`);
-    }
+      if (!encounter) {
+        throw new NotFoundException(`Encounter with ID ${id} not found`);
+      }
 
-    const [locked] = await this.db
-      .update(clinicalEncounters)
-      .set({ isLocked: true, lockedAt: new Date(), updatedAt: new Date() })
-      .where(eq(clinicalEncounters.id, id))
-      .returning();
+      const [locked] = await tx
+        .update(clinicalEncounters)
+        .set({ isLocked: true, lockedAt: new Date(), updatedAt: new Date() })
+        .where(eq(clinicalEncounters.id, id))
+        .returning();
 
-    await this.db
-      .update(appointments)
-      .set({ status: 'COMPLETED', updatedAt: new Date() })
-      .where(eq(appointments.id, encounter.appointmentId));
+      await tx
+        .update(appointments)
+        .set({ status: 'COMPLETED', updatedAt: new Date() })
+        .where(eq(appointments.id, encounter.appointmentId));
 
-    return locked;
+      return locked;
+    });
   }
 
-  async addAddendum(id: string, dto: AddendumDto) {
+  async addAddendum(id: string, dto: AddendumDto, author?: string) {
     const [encounter] = await this.db
       .select()
       .from(clinicalEncounters)
@@ -253,9 +257,11 @@ export class ClinicalService {
     }
 
     const timestamp = new Date().toISOString();
+    const byLine = author ? ` by ${author}` : '';
+    const entry = `[Addendum recorded${byLine} on ${timestamp}]:\n${dto.addendumNotes}`;
     const formattedAddendum = encounter.addendumNotes
-      ? `${encounter.addendumNotes}\n\n[Addendum recorded on ${timestamp}]:\n${dto.addendumNotes}`
-      : `[Addendum recorded on ${timestamp}]:\n${dto.addendumNotes}`;
+      ? `${encounter.addendumNotes}\n\n${entry}`
+      : entry;
 
     const [updated] = await this.db
       .update(clinicalEncounters)
@@ -277,6 +283,10 @@ export class ClinicalService {
         treatmentPlanPathway: clinicalEncounters.treatmentPlanPathway,
         tonometry: clinicalEncounters.tonometry,
         visualAcuity: clinicalEncounters.visualAcuity,
+        addendumNotes: clinicalEncounters.addendumNotes,
+        appointmentDate: appointments.scheduledDate,
+        appointmentReason: appointments.reason,
+        appointmentStatus: appointments.status,
         doctor: {
           firstName: users.firstName,
           lastName: users.lastName,
@@ -284,7 +294,8 @@ export class ClinicalService {
       })
       .from(clinicalEncounters)
       .innerJoin(users, eq(clinicalEncounters.doctorUserId, users.id))
+      .innerJoin(appointments, eq(clinicalEncounters.appointmentId, appointments.id))
       .where(eq(clinicalEncounters.patientId, patientId))
-      .orderBy(desc(clinicalEncounters.createdAt));
+      .orderBy(desc(appointments.scheduledDate));
   }
 }

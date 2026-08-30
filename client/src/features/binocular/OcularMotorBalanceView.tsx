@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useEncounterStore } from '../../store/useEncounterStore';
 
 type VisionTab = 'Distance Vision' | 'Intermediate Vision' | 'Near Vision';
 
@@ -11,13 +12,31 @@ interface TabData {
   recovery: string;
 }
 
-const DEFAULT: TabData = {
+const DEFAULT_TAB: TabData = {
   testType: 'Cover test',
   deviation: '',
   eye: '',
   prismDiopter: '0',
   baseDirection: '',
   recovery: '',
+};
+
+type OcularMotorBalanceData = {
+  activeTab: VisionTab;
+  data: Record<VisionTab, TabData>;
+  remarks: string;
+  showInDischarge: boolean;
+};
+
+const DEFAULT: OcularMotorBalanceData = {
+  activeTab: 'Distance Vision',
+  data: {
+    'Distance Vision': { ...DEFAULT_TAB },
+    'Intermediate Vision': { ...DEFAULT_TAB },
+    'Near Vision': { ...DEFAULT_TAB },
+  },
+  remarks: '',
+  showInDischarge: false,
 };
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -46,18 +65,22 @@ function Select({ value, onChange, options, placeholder = 'Select...' }: {
 }
 
 export const OcularMotorBalanceView: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<VisionTab>('Distance Vision');
-  const [data, setData] = useState<Record<VisionTab, TabData>>({
-    'Distance Vision': { ...DEFAULT },
-    'Intermediate Vision': { ...DEFAULT },
-    'Near Vision': { ...DEFAULT },
-  });
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const raw = Object.assign({}, DEFAULT, sectionData['ocular-motor-balance'] ?? {}) as OcularMotorBalanceData;
+  const data: Record<VisionTab, TabData> = {
+    'Distance Vision': { ...DEFAULT_TAB, ...(raw.data?.['Distance Vision'] ?? {}) },
+    'Intermediate Vision': { ...DEFAULT_TAB, ...(raw.data?.['Intermediate Vision'] ?? {}) },
+    'Near Vision': { ...DEFAULT_TAB, ...(raw.data?.['Near Vision'] ?? {}) },
+  };
+  const f: OcularMotorBalanceData = { ...raw, data };
+  const patch = (p: Partial<OcularMotorBalanceData>) => setSectionData('ocular-motor-balance', { ...f, ...p });
+  const { activeTab, remarks, showInDischarge } = f;
 
+  const setActiveTab = (tab: VisionTab) => patch({ activeTab: tab });
   const cur = data[activeTab];
   const upd = (fields: Partial<TabData>) =>
-    setData(p => ({ ...p, [activeTab]: { ...p[activeTab], ...fields } }));
+    patch({ data: { ...data, [activeTab]: { ...data[activeTab], ...fields } } });
 
   return (
     <div className="p-8 max-w-4xl bg-white min-h-full">
@@ -152,7 +175,7 @@ export const OcularMotorBalanceView: React.FC = () => {
         <textarea
           rows={3}
           value={remarks}
-          onChange={e => setRemarks(e.target.value)}
+          onChange={e => patch({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none"
         />
@@ -163,7 +186,7 @@ export const OcularMotorBalanceView: React.FC = () => {
           <input
             type="checkbox"
             checked={showInDischarge}
-            onChange={e => setShowInDischarge(e.target.checked)}
+            onChange={e => patch({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0"
           />
           Show in Discharge Summary

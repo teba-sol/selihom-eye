@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useEncounterStore } from '../store/useEncounterStore';
 
 function Row({ label, sub, children }: { label: string; sub?: string; children: React.ReactNode }) {
   return (
@@ -44,60 +45,94 @@ const COMFORT = ['Select...','Comfortable','Mild discomfort','Moderate discomfor
 interface EyeRx { bc: string; dia: string; sph: string; cyl: string; axis: string; add: string; }
 const emptyRx = (): EyeRx => ({ bc: '', dia: '', sph: '', cyl: '', axis: '', add: '' });
 
-export const ClFittingView: React.FC = () => {
-  const [clType, setClType] = useState('Select...');
-  const [modality, setModality] = useState('Select...');
-  const [material, setMaterial] = useState('Select...');
-  const [brand, setBrand] = useState('');
-  const [odRx, setOdRx] = useState<EyeRx>(emptyRx());
-  const [osRx, setOsRx] = useState<EyeRx>(emptyRx());
-  const [sameForOs, setSameForOs] = useState(false);
-  const [centrationOd, setCentrationOd] = useState('Select...');
-  const [centrationOs, setCentrationOs] = useState('Select...');
-  const [coverageOd, setCoverageOd] = useState('Select...');
-  const [coverageOs, setCoverageOs] = useState('Select...');
-  const [movementOd, setMovementOd] = useState('Select...');
-  const [movementOs, setMovementOs] = useState('Select...');
-  const [fluoresceinOd, setFluoresceinOd] = useState('Select...');
-  const [fluoresceinOs, setFluoresceinOs] = useState('Select...');
-  const [visionOd, setVisionOd] = useState('Select...');
-  const [visionOs, setVisionOs] = useState('Select...');
-  const [vaOd, setVaOd] = useState('');
-  const [vaOs, setVaOs] = useState('');
-  const [comfort, setComfort] = useState('Select...');
-  const [wearingTime, setWearingTime] = useState('');
-  const [followUp, setFollowUp] = useState('Select...');
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+type FittingKey = 'centration' | 'coverage' | 'movement' | 'fluorescein';
 
-  const updOd = (f: keyof EyeRx, v: string) => {
-    setOdRx(p => ({ ...p, [f]: v }));
-    if (sameForOs) setOsRx(p => ({ ...p, [f]: v }));
+type ClFittingData = {
+  clType: string;
+  modality: string;
+  material: string;
+  brand: string;
+  odRx: EyeRx;
+  osRx: EyeRx;
+  sameForOs: boolean;
+  fitting: Record<FittingKey, { od: string; os: string }>;
+  vision: { od: string; os: string };
+  va: { od: string; os: string };
+  comfort: string;
+  wearingTime: string;
+  followUp: string;
+  remarks: string;
+  showInDischarge: boolean;
+};
+
+const DEFAULT_CL_FITTING: ClFittingData = {
+  clType: 'Select...',
+  modality: 'Select...',
+  material: 'Select...',
+  brand: '',
+  odRx: emptyRx(),
+  osRx: emptyRx(),
+  sameForOs: false,
+  fitting: {
+    centration: { od: 'Select...', os: 'Select...' },
+    coverage: { od: 'Select...', os: 'Select...' },
+    movement: { od: 'Select...', os: 'Select...' },
+    fluorescein: { od: 'Select...', os: 'Select...' },
+  },
+  vision: { od: 'Select...', os: 'Select...' },
+  va: { od: '', os: '' },
+  comfort: 'Select...',
+  wearingTime: '',
+  followUp: 'Select...',
+  remarks: '',
+  showInDischarge: false,
+};
+
+export const ClFittingView: React.FC = () => {
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const f = Object.assign({}, DEFAULT_CL_FITTING, sectionData['cl-fitting'] ?? {}) as ClFittingData;
+  const patch = (p: Partial<ClFittingData>) => setSectionData('cl-fitting', { ...f, ...p });
+  const { clType, modality, material, brand, odRx, osRx, sameForOs, fitting, vision, va, comfort, wearingTime, followUp, remarks, showInDischarge } = f;
+
+  const updOd = (field: keyof EyeRx, v: string) => {
+    patch({ odRx: { ...odRx, [field]: v }, ...(sameForOs ? { osRx: { ...odRx, [field]: v } } : {}) });
+  };
+  const updOs = (field: keyof EyeRx, v: string) => patch({ osRx: { ...osRx, [field]: v } });
+  const handleSameOs = (checked: boolean) => {
+    patch({ sameForOs: checked, ...(checked ? { osRx: { ...odRx } } : {}) });
   };
 
-  const RxFields = ({ rx, upd }: { rx: EyeRx; upd: (f: keyof EyeRx, v: string) => void }) => (
+  const RxFields = ({ rx, upd }: { rx: EyeRx; upd: (field: keyof EyeRx, v: string) => void }) => (
     <div className="grid grid-cols-3 gap-2">
-      {(['bc','dia','sph','cyl','axis','add'] as (keyof EyeRx)[]).map(f => (
-        <div key={f}>
-          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">{f === 'bc' ? 'Base Curve' : f === 'dia' ? 'Diameter' : f === 'sph' ? 'Sphere' : f === 'cyl' ? 'Cylinder' : f === 'axis' ? 'Axis' : 'Add'}</label>
-          <input type="text" value={rx[f]} onChange={e => upd(f, e.target.value)}
-            placeholder={f === 'dia' ? 'e.g. 14.0' : f === 'bc' ? 'e.g. 8.6' : f === 'axis' ? '1–180' : '—'}
+      {(['bc','dia','sph','cyl','axis','add'] as (keyof EyeRx)[]).map(field => (
+        <div key={field}>
+          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">{field === 'bc' ? 'Base Curve' : field === 'dia' ? 'Diameter' : field === 'sph' ? 'Sphere' : field === 'cyl' ? 'Cylinder' : field === 'axis' ? 'Axis' : 'Add'}</label>
+          <input type="text" value={rx[field]} onChange={e => upd(field, e.target.value)}
+            placeholder={field === 'dia' ? 'e.g. 14.0' : field === 'bc' ? 'e.g. 8.6' : field === 'axis' ? '1–180' : '—'}
             className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-md bg-white font-semibold text-center text-slate-800 focus:outline-none focus:border-blue-600" />
         </div>
       ))}
     </div>
   );
 
+  const fitRows: { label: string; key: FittingKey; opts: string[] }[] = [
+    { label: 'Centration', key: 'centration', opts: CENTRATION },
+    { label: 'Coverage', key: 'coverage', opts: COVERAGE },
+    { label: 'Movement / Lag', key: 'movement', opts: MOVEMENT },
+    { label: 'Fluorescein Pattern', key: 'fluorescein', opts: FLUORESCEIN },
+  ];
+
   return (
     <div className="p-8 max-w-4xl bg-white min-h-full">
       <h1 className="text-2xl font-bold text-[#2563eb] mb-7">Lens Fitting Assessment</h1>
 
       <div className="space-y-0 max-w-3xl mb-8">
-        <Row label="CL Type"><Select value={clType} onChange={setClType} options={CL_TYPE}/></Row>
-        <Row label="Modality / Replacement"><Select value={modality} onChange={setModality} options={MODALITY}/></Row>
-        <Row label="Material"><Select value={material} onChange={setMaterial} options={MATERIAL}/></Row>
+        <Row label="CL Type"><Select value={clType} onChange={v => patch({ clType: v })} options={CL_TYPE}/></Row>
+        <Row label="Modality / Replacement"><Select value={modality} onChange={v => patch({ modality: v })} options={MODALITY}/></Row>
+        <Row label="Material"><Select value={material} onChange={v => patch({ material: v })} options={MATERIAL}/></Row>
         <Row label="Brand / Product">
-          <input type="text" value={brand} onChange={e => setBrand(e.target.value)} placeholder="e.g. Acuvue Oasys, Dailies Total1"
+          <input type="text" value={brand} onChange={e => patch({ brand: e.target.value })} placeholder="e.g. Acuvue Oasys, Dailies Total1"
             className="w-full max-w-lg px-3 py-2 text-sm border border-slate-300 rounded-md bg-white text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-200" />
         </Row>
 
@@ -109,14 +144,14 @@ export const ClFittingView: React.FC = () => {
               <p className="text-xs font-bold text-slate-500 uppercase mb-2">OD (Right)</p>
               <RxFields rx={odRx} upd={updOd} />
               <label className="flex items-center gap-2 mt-2 cursor-pointer">
-                <input type="checkbox" checked={sameForOs} onChange={e => { setSameForOs(e.target.checked); if (e.target.checked) setOsRx({ ...odRx }); }}
+                <input type="checkbox" checked={sameForOs} onChange={e => handleSameOs(e.target.checked)}
                   className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 focus:ring-0" />
                 <span className="text-xs text-slate-500">Same for OS</span>
               </label>
             </div>
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase mb-2">OS (Left)</p>
-              <RxFields rx={sameForOs ? odRx : osRx} upd={sameForOs ? () => {} : (f,v) => setOsRx(p => ({ ...p, [f]: v }))} />
+              <RxFields rx={sameForOs ? odRx : osRx} upd={sameForOs ? () => {} : updOs} />
             </div>
           </div>
         </div>
@@ -129,19 +164,14 @@ export const ClFittingView: React.FC = () => {
             <span className="text-xs font-bold text-slate-500 uppercase">OD</span>
             <span className="text-xs font-bold text-slate-500 uppercase">OS</span>
           </div>
-          {[
-            { label: 'Centration', od: centrationOd, setOd: setCentrationOd, os: centrationOs, setOs: setCentrationOs, opts: CENTRATION },
-            { label: 'Coverage', od: coverageOd, setOd: setCoverageOd, os: coverageOs, setOs: setCoverageOs, opts: COVERAGE },
-            { label: 'Movement / Lag', od: movementOd, setOd: setMovementOd, os: movementOs, setOs: setMovementOs, opts: MOVEMENT },
-            { label: 'Fluorescein Pattern', od: fluoresceinOd, setOd: setFluoresceinOd, os: fluoresceinOs, setOs: setFluoresceinOs, opts: FLUORESCEIN },
-          ].map(row => (
-            <div key={row.label} className="grid grid-cols-[180px_1fr_1fr] gap-4 mb-2 items-center">
+          {fitRows.map(row => (
+            <div key={row.key} className="grid grid-cols-[180px_1fr_1fr] gap-4 mb-2 items-center">
               <span className="text-sm font-semibold text-slate-700">{row.label}</span>
-              <select value={row.od} onChange={e => row.setOd(e.target.value)}
+              <select value={fitting[row.key].od} onChange={e => patch({ fitting: { ...fitting, [row.key]: { ...fitting[row.key], od: e.target.value } } })}
                 className="px-2 py-1.5 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:border-blue-600">
                 {row.opts.map(o => <option key={o}>{o}</option>)}
               </select>
-              <select value={row.os} onChange={e => row.setOs(e.target.value)}
+              <select value={fitting[row.key].os} onChange={e => patch({ fitting: { ...fitting, [row.key]: { ...fitting[row.key], os: e.target.value } } })}
                 className="px-2 py-1.5 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:border-blue-600">
                 {row.opts.map(o => <option key={o}>{o}</option>)}
               </select>
@@ -155,18 +185,18 @@ export const ClFittingView: React.FC = () => {
           <div className="grid grid-cols-2 gap-6">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Vision Quality OD</label>
-              <Select value={visionOd} onChange={setVisionOd} options={VISION_QUAL} />
+              <Select value={vision.od} onChange={v => patch({ vision: { ...vision, od: v } })} options={VISION_QUAL} />
               <div className="flex items-center gap-2 mt-2">
-                <input type="text" value={vaOd} onChange={e => setVaOd(e.target.value)} placeholder="VA e.g. 6/6"
+                <input type="text" value={va.od} onChange={e => patch({ va: { ...va, od: e.target.value } })} placeholder="VA e.g. 6/6"
                   className="w-24 px-2 py-1.5 text-sm border border-slate-300 rounded-md bg-white text-center focus:outline-none focus:border-blue-600" />
                 <span className="text-xs text-slate-500">Snellen</span>
               </div>
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Vision Quality OS</label>
-              <Select value={visionOs} onChange={setVisionOs} options={VISION_QUAL} />
+              <Select value={vision.os} onChange={v => patch({ vision: { ...vision, os: v } })} options={VISION_QUAL} />
               <div className="flex items-center gap-2 mt-2">
-                <input type="text" value={vaOs} onChange={e => setVaOs(e.target.value)} placeholder="VA e.g. 6/6"
+                <input type="text" value={va.os} onChange={e => patch({ va: { ...va, os: e.target.value } })} placeholder="VA e.g. 6/6"
                   className="w-24 px-2 py-1.5 text-sm border border-slate-300 rounded-md bg-white text-center focus:outline-none focus:border-blue-600" />
                 <span className="text-xs text-slate-500">Snellen</span>
               </div>
@@ -174,25 +204,25 @@ export const ClFittingView: React.FC = () => {
           </div>
         </div>
 
-        <Row label="Patient Comfort"><Select value={comfort} onChange={setComfort} options={COMFORT}/></Row>
+        <Row label="Patient Comfort"><Select value={comfort} onChange={v => patch({ comfort: v })} options={COMFORT}/></Row>
         <Row label="Wearing Time" sub="(hours/day)">
-          <Num value={wearingTime} onChange={setWearingTime} placeholder="e.g. 8" unit="hrs/day" />
+          <Num value={wearingTime} onChange={v => patch({ wearingTime: v })} placeholder="e.g. 8" unit="hrs/day" />
         </Row>
         <Row label="Follow-up">
-          <Select value={followUp} onChange={setFollowUp} options={['Select...','1 week','2 weeks','1 month','3 months','6 months','As needed']}/>
+          <Select value={followUp} onChange={v => patch({ followUp: v })} options={['Select...','1 week','2 weeks','1 month','3 months','6 months','As needed']}/>
         </Row>
       </div>
 
       <div className="mb-6 max-w-3xl">
         <label className="text-sm font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
-        <textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)}
+        <textarea rows={3} value={remarks} onChange={e => patch({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none" />
       </div>
 
       <div className="flex justify-end max-w-3xl">
         <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
-          <input type="checkbox" checked={showInDischarge} onChange={e => setShowInDischarge(e.target.checked)}
+          <input type="checkbox" checked={showInDischarge} onChange={e => patch({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0" />
           Show in Discharge Summary
         </label>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useEncounterStore } from '../../store/useEncounterStore';
 import { downloadEncounterPdf } from '../../lib/generatePdf';
 
@@ -57,22 +57,40 @@ function EyeRows({ prefix, label, rx, upd }: {
   );
 }
 
+const SECTION_KEY = 'final-spectacle-prescription';
+
+interface FspData {
+  vaType: string;
+  ipd: string;
+  bvd: string;
+  remarks: string;
+  showInDischarge: boolean;
+  rx: Record<string, RxRow>;
+}
+
+const defaultRx = (): Record<string, RxRow> => ({
+  odDist: emptyRow(), odNear: emptyRow(), odInter: emptyRow(),
+  osDist: emptyRow(), osNear: emptyRow(), osInter: emptyRow(),
+});
+
+const DEFAULT_FSP: FspData = {
+  vaType: 'Snellan', ipd: '', bvd: '', remarks: '', showInDischarge: false,
+  rx: defaultRx(),
+};
+
 export const FinalSpectaclePrescriptionView: React.FC = () => {
   const encounterState = useEncounterStore.getState();
   const patient = useEncounterStore(s => s.patient);
-  const [vaType, setVaType] = useState('Snellan');
-  const [ipd, setIpd] = useState('');
-  const [bvd, setBvd] = useState('');
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const sectionData = useEncounterStore(s => s.sectionData);
+  const setSectionData = useEncounterStore(s => s.setSectionData);
+  const f = Object.assign({}, DEFAULT_FSP, sectionData[SECTION_KEY] ?? {}) as FspData;
+  const rx = Object.assign(defaultRx(), f.rx ?? {});
+  const patch = (p: Partial<FspData>) => setSectionData(SECTION_KEY, { ...f, ...p });
 
-  const [rx, setRx] = useState<Record<string, RxRow>>({
-    odDist: emptyRow(), odNear: emptyRow(), odInter: emptyRow(),
-    osDist: emptyRow(), osNear: emptyRow(), osInter: emptyRow(),
-  });
-
-  const upd = (key: string, field: keyof RxRow, v: string) =>
-    setRx(p => ({ ...p, [key]: { ...p[key], [field]: v } }));
+  const upd = (key: string, field: keyof RxRow, v: string) => {
+    rx[key] = { ...(rx[key] ?? emptyRow()), [field]: v };
+    patch({ rx: { ...rx } });
+  };
 
   const handleDownloadPdf = () => downloadEncounterPdf(encounterState);
 
@@ -95,7 +113,7 @@ export const FinalSpectaclePrescriptionView: React.FC = () => {
 
         {/* VA type */}
         <div className="flex justify-end mb-3">
-          <select value={vaType} onChange={e => setVaType(e.target.value)}
+          <select value={f.vaType} onChange={e => patch({ vaType: e.target.value })}
             className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg bg-white focus:outline-none focus:border-blue-600">
             <option>Snellan</option><option>LogMAR</option><option>Decimal</option>
           </select>
@@ -118,12 +136,12 @@ export const FinalSpectaclePrescriptionView: React.FC = () => {
               <tr className="bg-teal-50/40 border-t border-slate-200">
                 <td className="border-r border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 bg-teal-50" colSpan={2}>IPD</td>
                 <td className="border-r border-slate-200 px-1 py-1" colSpan={2}>
-                  <input type="number" value={ipd} onChange={e => setIpd(e.target.value)} placeholder="0-20"
+                  <input type="number" value={f.ipd} onChange={e => patch({ ipd: e.target.value })} placeholder="0-20"
                     className="w-full px-2 py-1 text-sm text-center border border-slate-300 rounded focus:outline-none focus:border-blue-600" />
                 </td>
                 <td className="border-r border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 bg-teal-50 text-center" colSpan={2}>BVD</td>
                 <td className="px-1 py-1" colSpan={2}>
-                  <input type="number" value={bvd} onChange={e => setBvd(e.target.value)} placeholder="0-20"
+                  <input type="number" value={f.bvd} onChange={e => patch({ bvd: e.target.value })} placeholder="0-20"
                     className="w-full px-2 py-1 text-sm text-center border border-slate-300 rounded focus:outline-none focus:border-blue-600" />
                 </td>
               </tr>
@@ -133,14 +151,14 @@ export const FinalSpectaclePrescriptionView: React.FC = () => {
 
         <div className="mb-4">
           <label className="text-sm font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
-          <textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)}
+          <textarea rows={3} value={f.remarks} onChange={e => patch({ remarks: e.target.value })}
             placeholder="Add any remarks..."
             className="w-full p-3 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-blue-600 resize-none" />
         </div>
 
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
-            <input type="checkbox" checked={showInDischarge} onChange={e => setShowInDischarge(e.target.checked)}
+            <input type="checkbox" checked={f.showInDischarge} onChange={e => patch({ showInDischarge: e.target.checked })}
               className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0" />
             Show in Discharge Summary
           </label>

@@ -1,8 +1,27 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useEncounterStore } from '../store/useEncounterStore';
 
 type ObjectiveEye = { sph: string; cyl: string; axis: string; va: string };
 
+type CycloplegicRefractionData = {
+  unit: string;
+  cycloOd: ObjectiveEye;
+  cycloOs: ObjectiveEye;
+  remarks: string;
+  showInDischarge: boolean;
+};
+
 const DIST_VA_OPTIONS = ['-', '6/5', '6/6', '6/9', '6/12', '6/18', '6/24', '6/36', '6/60', '3/60', '2/60', '1/60', 'CF', 'PL', 'NPL'];
+
+const emptyObjEye = (): ObjectiveEye => ({ sph: '', cyl: '', axis: '', va: '-' });
+
+const DEFAULT_CYCLO: CycloplegicRefractionData = {
+  unit: 'Snellan',
+  cycloOd: emptyObjEye(),
+  cycloOs: emptyObjEye(),
+  remarks: '',
+  showInDischarge: false,
+};
 
 const InputCell = ({
   value,
@@ -52,15 +71,18 @@ const SelectCell = ({
 );
 
 export const CycloplegicView: React.FC = () => {
-  const [unit, setUnit] = useState('Snellan');
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const f = Object.assign({}, DEFAULT_CYCLO, sectionData['cycloplegic'] ?? {}) as CycloplegicRefractionData;
 
-  const [cycloOd, setCycloOd] = useState<ObjectiveEye>({ sph: '', cyl: '', axis: '', va: '-' });
-  const [cycloOs, setCycloOs] = useState<ObjectiveEye>({ sph: '', cyl: '', axis: '', va: '-' });
+  const patch = (p: Partial<CycloplegicRefractionData>) => setSectionData('cycloplegic', { ...f, ...p });
+  const setUnit = (unit: string) => patch({ unit });
+  const setRemarks = (remarks: string) => patch({ remarks });
+  const setShowInDischarge = (showInDischarge: boolean) => patch({ showInDischarge });
+  const setEye = (eyeKey: 'cycloOd' | 'cycloOs', p: Partial<ObjectiveEye>) =>
+    patch({ [eyeKey]: { ...f[eyeKey], ...p } } as Partial<CycloplegicRefractionData>);
 
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
-
-
+  const { unit, cycloOd, cycloOs, remarks, showInDischarge } = f;
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full font-sans">
@@ -96,22 +118,22 @@ export const CycloplegicView: React.FC = () => {
                 </td>
                 <InputCell
                   value={cycloOd.sph}
-                  onChange={(v) => setCycloOd({ ...cycloOd, sph: v })}
+                  onChange={(v) => setEye('cycloOd', { sph: v })}
                   className="border-r"
                 />
                 <InputCell
                   value={cycloOd.cyl}
-                  onChange={(v) => setCycloOd({ ...cycloOd, cyl: v })}
+                  onChange={(v) => setEye('cycloOd', { cyl: v })}
                   className="border-r"
                 />
                 <InputCell
                   value={cycloOd.axis}
-                  onChange={(v) => setCycloOd({ ...cycloOd, axis: v })}
+                  onChange={(v) => setEye('cycloOd', { axis: v })}
                   className="border-r"
                 />
                 <SelectCell
                   value={cycloOd.va}
-                  onChange={(v) => setCycloOd({ ...cycloOd, va: v })}
+                  onChange={(v) => setEye('cycloOd', { va: v })}
                   options={DIST_VA_OPTIONS}
                 />
               </tr>
@@ -121,22 +143,22 @@ export const CycloplegicView: React.FC = () => {
                 </td>
                 <InputCell
                   value={cycloOs.sph}
-                  onChange={(v) => setCycloOs({ ...cycloOs, sph: v })}
+                  onChange={(v) => setEye('cycloOs', { sph: v })}
                   className="border-r"
                 />
                 <InputCell
                   value={cycloOs.cyl}
-                  onChange={(v) => setCycloOs({ ...cycloOs, cyl: v })}
+                  onChange={(v) => setEye('cycloOs', { cyl: v })}
                   className="border-r"
                 />
                 <InputCell
                   value={cycloOs.axis}
-                  onChange={(v) => setCycloOs({ ...cycloOs, axis: v })}
+                  onChange={(v) => setEye('cycloOs', { axis: v })}
                   className="border-r"
                 />
                 <SelectCell
                   value={cycloOs.va}
-                  onChange={(v) => setCycloOs({ ...cycloOs, va: v })}
+                  onChange={(v) => setEye('cycloOs', { va: v })}
                   options={DIST_VA_OPTIONS}
                 />
               </tr>

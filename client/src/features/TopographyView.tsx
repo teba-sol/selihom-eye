@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useEncounterStore } from '../store/useEncounterStore';
 
 const DEVICE_OPTIONS = [
   'Orbscan',
@@ -17,17 +18,46 @@ const TOPOGRAPHY_TYPE_OPTIONS = [
   'Corneal Wavefront',
 ];
 
+type Keratometry = { flat: string; steep: string; axis: string };
+
+type TopographyData = {
+  device: string;
+  topoType: string;
+  keratometryOd: Keratometry;
+  keratometryOs: Keratometry;
+  kMaxOd: string;
+  kMaxOs: string;
+  pupilSizeOd: string;
+  pupilSizeOs: string;
+  remarks: string;
+  showInDischarge: boolean;
+};
+
+const DEFAULT_TOPOG: TopographyData = {
+  device: 'Pentacam',
+  topoType: 'Axial / Sagittal',
+  keratometryOd: { flat: '', steep: '', axis: '' },
+  keratometryOs: { flat: '', steep: '', axis: '' },
+  kMaxOd: '',
+  kMaxOs: '',
+  pupilSizeOd: '',
+  pupilSizeOs: '',
+  remarks: '',
+  showInDischarge: false,
+};
+
 export const TopographyView: React.FC = () => {
-  const [device, setDevice] = useState('Pentacam');
-  const [topoType, setTopoType] = useState('Axial / Sagittal');
-  const [keratometryOd, setKeratometryOd] = useState({ flat: '', steep: '', axis: '' });
-  const [keratometryOs, setKeratometryOs] = useState({ flat: '', steep: '', axis: '' });
-  const [kMaxOd, setKMaxOd] = useState('');
-  const [kMaxOs, setKMaxOs] = useState('');
-  const [pupilSizeOd, setPupilSizeOd] = useState('');
-  const [pupilSizeOs, setPupilSizeOs] = useState('');
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const raw = Object.assign({}, DEFAULT_TOPOG, sectionData.topography ?? {}) as TopographyData;
+  const keratometryOd: Keratometry = { flat: '', steep: '', axis: '', ...(raw.keratometryOd ?? {}) };
+  const keratometryOs: Keratometry = { flat: '', steep: '', axis: '', ...(raw.keratometryOs ?? {}) };
+  const f: TopographyData = { ...raw, keratometryOd, keratometryOs };
+  const patch = (p: Partial<TopographyData>) => setSectionData('topography', { ...f, ...p });
+  const { device, topoType, kMaxOd, kMaxOs, pupilSizeOd, pupilSizeOs, remarks, showInDischarge } = f;
+
+  const setKod = (key: keyof Keratometry, v: string) => patch({ keratometryOd: { ...keratometryOd, [key]: v } });
+  const setKos = (key: keyof Keratometry, v: string) => patch({ keratometryOs: { ...keratometryOs, [key]: v } });
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full">
@@ -40,7 +70,7 @@ export const TopographyView: React.FC = () => {
           <div className="md:col-span-2">
             <select
               value={device}
-              onChange={(e) => setDevice(e.target.value)}
+              onChange={(e) => patch({ device: e.target.value })}
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
             >
               {DEVICE_OPTIONS.map((d) => (
@@ -56,7 +86,7 @@ export const TopographyView: React.FC = () => {
           <div className="md:col-span-2">
             <select
               value={topoType}
-              onChange={(e) => setTopoType(e.target.value)}
+              onChange={(e) => patch({ topoType: e.target.value })}
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
             >
               {TOPOGRAPHY_TYPE_OPTIONS.map((t) => (
@@ -75,7 +105,7 @@ export const TopographyView: React.FC = () => {
               <input
                 type="text"
                 value={keratometryOd.flat}
-                onChange={(e) => setKeratometryOd({ ...keratometryOd, flat: e.target.value })}
+                onChange={(e) => setKod('flat', e.target.value)}
                 placeholder="43.50"
                 className="w-full px-3 py-1.5 text-xs text-center border border-slate-300 rounded font-bold"
               />
@@ -85,7 +115,7 @@ export const TopographyView: React.FC = () => {
               <input
                 type="text"
                 value={keratometryOd.steep}
-                onChange={(e) => setKeratometryOd({ ...keratometryOd, steep: e.target.value })}
+                onChange={(e) => setKod('steep', e.target.value)}
                 placeholder="44.75"
                 className="w-full px-3 py-1.5 text-xs text-center border border-slate-300 rounded font-bold"
               />
@@ -95,7 +125,7 @@ export const TopographyView: React.FC = () => {
               <input
                 type="text"
                 value={keratometryOd.axis}
-                onChange={(e) => setKeratometryOd({ ...keratometryOd, axis: e.target.value })}
+                onChange={(e) => setKod('axis', e.target.value)}
                 placeholder="180"
                 className="w-full px-3 py-1.5 text-xs text-center border border-slate-300 rounded font-bold"
               />
@@ -107,7 +137,7 @@ export const TopographyView: React.FC = () => {
               <input
                 type="text"
                 value={kMaxOd}
-                onChange={(e) => setKMaxOd(e.target.value)}
+                onChange={(e) => patch({ kMaxOd: e.target.value })}
                 placeholder="46.00"
                 className="w-full px-3 py-1.5 text-xs text-center border border-slate-300 rounded font-bold"
               />
@@ -117,7 +147,7 @@ export const TopographyView: React.FC = () => {
               <input
                 type="text"
                 value={pupilSizeOd}
-                onChange={(e) => setPupilSizeOd(e.target.value)}
+                onChange={(e) => patch({ pupilSizeOd: e.target.value })}
                 placeholder="3.5"
                 className="w-full px-3 py-1.5 text-xs text-center border border-slate-300 rounded font-bold"
               />
@@ -134,7 +164,7 @@ export const TopographyView: React.FC = () => {
               <input
                 type="text"
                 value={keratometryOs.flat}
-                onChange={(e) => setKeratometryOs({ ...keratometryOs, flat: e.target.value })}
+                onChange={(e) => setKos('flat', e.target.value)}
                 placeholder="43.25"
                 className="w-full px-3 py-1.5 text-xs text-center border border-slate-300 rounded font-bold"
               />
@@ -144,7 +174,7 @@ export const TopographyView: React.FC = () => {
               <input
                 type="text"
                 value={keratometryOs.steep}
-                onChange={(e) => setKeratometryOs({ ...keratometryOs, steep: e.target.value })}
+                onChange={(e) => setKos('steep', e.target.value)}
                 placeholder="44.50"
                 className="w-full px-3 py-1.5 text-xs text-center border border-slate-300 rounded font-bold"
               />
@@ -154,7 +184,7 @@ export const TopographyView: React.FC = () => {
               <input
                 type="text"
                 value={keratometryOs.axis}
-                onChange={(e) => setKeratometryOs({ ...keratometryOs, axis: e.target.value })}
+                onChange={(e) => setKos('axis', e.target.value)}
                 placeholder="175"
                 className="w-full px-3 py-1.5 text-xs text-center border border-slate-300 rounded font-bold"
               />
@@ -166,7 +196,7 @@ export const TopographyView: React.FC = () => {
               <input
                 type="text"
                 value={kMaxOs}
-                onChange={(e) => setKMaxOs(e.target.value)}
+                onChange={(e) => patch({ kMaxOs: e.target.value })}
                 placeholder="45.75"
                 className="w-full px-3 py-1.5 text-xs text-center border border-slate-300 rounded font-bold"
               />
@@ -176,7 +206,7 @@ export const TopographyView: React.FC = () => {
               <input
                 type="text"
                 value={pupilSizeOs}
-                onChange={(e) => setPupilSizeOs(e.target.value)}
+                onChange={(e) => patch({ pupilSizeOs: e.target.value })}
                 placeholder="3.5"
                 className="w-full px-3 py-1.5 text-xs text-center border border-slate-300 rounded font-bold"
               />
@@ -191,7 +221,7 @@ export const TopographyView: React.FC = () => {
         <textarea
           rows={3}
           value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
+          onChange={(e) => patch({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600"
         />
@@ -203,7 +233,7 @@ export const TopographyView: React.FC = () => {
           <input
             type="checkbox"
             checked={showInDischarge}
-            onChange={(e) => setShowInDischarge(e.target.checked)}
+            onChange={(e) => patch({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
           />
           <span>Show in Discharge Summary</span>

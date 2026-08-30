@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useEncounterStore } from '../../store/useEncounterStore';
 
 const SHAW_OPTIONS = [
   'Grade 4 (Wide open - Ciliary Body band visible)',
@@ -8,14 +9,32 @@ const SHAW_OPTIONS = [
   'Grade 0 (Closed angle)',
 ];
 
+type GonioscopyData = {
+  lensType: string;
+  angleOd: string;
+  angleOs: string;
+  pas: string;
+  pigmentation: string;
+  remarks: string;
+  showInDischarge: boolean;
+};
+
+const DEFAULT_GONIOSCOPY: GonioscopyData = {
+  lensType: 'Goldmann 3-Mirror',
+  angleOd: 'Grade 4 (Wide open - Ciliary Body band visible)',
+  angleOs: 'Grade 4 (Wide open - Ciliary Body band visible)',
+  pas: 'No Peripheral Anterior Synechiae (PAS)',
+  pigmentation: 'Grade 1+ Light',
+  remarks: '',
+  showInDischarge: false,
+};
+
 export const GonioscopyView: React.FC = () => {
-  const [lensType, setLensType] = useState('Goldmann 3-Mirror');
-  const [angleOd, setAngleOd] = useState('Grade 4 (Wide open - Ciliary Body band visible)');
-  const [angleOs, setAngleOs] = useState('Grade 4 (Wide open - Ciliary Body band visible)');
-  const [pas, setPas] = useState('No Peripheral Anterior Synechiae (PAS)');
-  const [pigmentation, setPigmentation] = useState('Grade 1+ Light');
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const f = Object.assign({}, DEFAULT_GONIOSCOPY, sectionData.gonioscopy ?? {}) as GonioscopyData;
+  const patch = (p: Partial<GonioscopyData>) => setSectionData('gonioscopy', { ...f, ...p });
+  const { lensType, angleOd, angleOs, pas, pigmentation, remarks, showInDischarge } = f;
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full">
@@ -27,7 +46,7 @@ export const GonioscopyView: React.FC = () => {
           <div className="md:col-span-2">
             <select
               value={lensType}
-              onChange={(e) => setLensType(e.target.value)}
+              onChange={(e) => patch({ lensType: e.target.value })}
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
             >
               <option value="Goldmann 3-Mirror">Goldmann 3-Mirror</option>
@@ -43,7 +62,7 @@ export const GonioscopyView: React.FC = () => {
           <div className="md:col-span-2">
             <select
               value={angleOd}
-              onChange={(e) => setAngleOd(e.target.value)}
+              onChange={(e) => patch({ angleOd: e.target.value })}
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
             >
               {SHAW_OPTIONS.map((opt) => (
@@ -58,7 +77,7 @@ export const GonioscopyView: React.FC = () => {
           <div className="md:col-span-2">
             <select
               value={angleOs}
-              onChange={(e) => setAngleOs(e.target.value)}
+              onChange={(e) => patch({ angleOs: e.target.value })}
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
             >
               {SHAW_OPTIONS.map((opt) => (
@@ -73,7 +92,7 @@ export const GonioscopyView: React.FC = () => {
           <div className="md:col-span-2">
             <select
               value={pas}
-              onChange={(e) => setPas(e.target.value)}
+              onChange={(e) => patch({ pas: e.target.value })}
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
             >
               <option value="No Peripheral Anterior Synechiae (PAS)">No Peripheral Anterior Synechiae (PAS)</option>
@@ -89,7 +108,7 @@ export const GonioscopyView: React.FC = () => {
           <div className="md:col-span-2">
             <select
               value={pigmentation}
-              onChange={(e) => setPigmentation(e.target.value)}
+              onChange={(e) => patch({ pigmentation: e.target.value })}
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
             >
               <option value="Grade 0 None">Grade 0 None</option>
@@ -107,7 +126,7 @@ export const GonioscopyView: React.FC = () => {
         <textarea
           rows={3}
           value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
+          onChange={(e) => patch({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none focus:ring-1 focus:ring-blue-200"
         />
@@ -118,7 +137,7 @@ export const GonioscopyView: React.FC = () => {
           <input
             type="checkbox"
             checked={showInDischarge}
-            onChange={(e) => setShowInDischarge(e.target.checked)}
+            onChange={(e) => patch({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
           />
           <span>Show in Discharge Summary</span>

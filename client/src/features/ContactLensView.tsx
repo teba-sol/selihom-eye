@@ -1,24 +1,58 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useEncounterStore } from '../store/useEncounterStore';
+import type { ContactLensState } from '../store/useEncounterStore';
+
+const DEFAULT_FLAGS = {
+  none: true,
+  softDaily: false,
+  softMonthly: false,
+  extendedWear: false,
+  rgpHard: false,
+  scleral: false,
+  remarks: '',
+  showInDischarge: false,
+};
 
 export const ContactLensView: React.FC = () => {
-  const [none, setNone] = useState(true);
-  const [softDaily, setSoftDaily] = useState(false);
-  const [softMonthly, setSoftMonthly] = useState(false);
-  const [extendedWear, setExtendedWear] = useState(false);
-  const [rgpHard, setRgpHard] = useState(false);
-  const [scleral, setScleral] = useState(false);
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const contactLensHistory = useEncounterStore((s) => s.contactLensHistory);
+  const setContactLensHistory = useEncounterStore((s) => s.setContactLensHistory);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+
+  const flags = Object.assign({}, DEFAULT_FLAGS, sectionData['contact-lens'] ?? {});
+
+  const syncLens = (f: typeof DEFAULT_FLAGS) => {
+    if (f.none) {
+      setContactLensHistory({ ...contactLensHistory, currentWearer: false, remarks: f.remarks });
+      return;
+    }
+    const modality: ContactLensState['modality'] = f.softDaily
+      ? 'Daily Disposable'
+      : f.softMonthly
+        ? 'Monthly Replacement'
+        : f.extendedWear
+          ? 'Extended Wear'
+          : f.rgpHard
+            ? 'RGP / Hard'
+            : 'Scleral';
+    setContactLensHistory({ ...contactLensHistory, currentWearer: true, modality, remarks: f.remarks });
+  };
+
+  const setFlag = (patch: Partial<typeof DEFAULT_FLAGS>) => {
+    const next = { ...flags, ...patch };
+    setSectionData('contact-lens', next);
+    syncLens(next);
+  };
 
   const handleNoneChange = (checked: boolean) => {
-    setNone(checked);
-    if (checked) {
-      setSoftDaily(false);
-      setSoftMonthly(false);
-      setExtendedWear(false);
-      setRgpHard(false);
-      setScleral(false);
-    }
+    setFlag({
+      none: checked,
+      softDaily: checked ? false : flags.softDaily,
+      softMonthly: checked ? false : flags.softMonthly,
+      extendedWear: checked ? false : flags.extendedWear,
+      rgpHard: checked ? false : flags.rgpHard,
+      scleral: checked ? false : flags.scleral,
+    });
   };
 
   return (
@@ -29,7 +63,7 @@ export const ContactLensView: React.FC = () => {
         <label className="flex items-center gap-3 text-sm font-medium text-slate-800 cursor-pointer">
           <input
             type="checkbox"
-            checked={none}
+            checked={flags.none}
             onChange={(e) => handleNoneChange(e.target.checked)}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
           />
@@ -39,9 +73,9 @@ export const ContactLensView: React.FC = () => {
         <label className="flex items-center gap-3 text-sm font-medium text-slate-800 cursor-pointer">
           <input
             type="checkbox"
-            checked={softDaily}
-            disabled={none}
-            onChange={(e) => setSoftDaily(e.target.checked)}
+            checked={flags.softDaily}
+            disabled={flags.none}
+            onChange={(e) => setFlag({ softDaily: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0 disabled:opacity-50"
           />
           <span>Soft Daily Disposable</span>
@@ -50,9 +84,9 @@ export const ContactLensView: React.FC = () => {
         <label className="flex items-center gap-3 text-sm font-medium text-slate-800 cursor-pointer">
           <input
             type="checkbox"
-            checked={softMonthly}
-            disabled={none}
-            onChange={(e) => setSoftMonthly(e.target.checked)}
+            checked={flags.softMonthly}
+            disabled={flags.none}
+            onChange={(e) => setFlag({ softMonthly: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0 disabled:opacity-50"
           />
           <span>Soft Monthly Disposable</span>
@@ -61,9 +95,9 @@ export const ContactLensView: React.FC = () => {
         <label className="flex items-center gap-3 text-sm font-medium text-slate-800 cursor-pointer">
           <input
             type="checkbox"
-            checked={extendedWear}
-            disabled={none}
-            onChange={(e) => setExtendedWear(e.target.checked)}
+            checked={flags.extendedWear}
+            disabled={flags.none}
+            onChange={(e) => setFlag({ extendedWear: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0 disabled:opacity-50"
           />
           <span>Extended Wear</span>
@@ -72,9 +106,9 @@ export const ContactLensView: React.FC = () => {
         <label className="flex items-center gap-3 text-sm font-medium text-slate-800 cursor-pointer">
           <input
             type="checkbox"
-            checked={rgpHard}
-            disabled={none}
-            onChange={(e) => setRgpHard(e.target.checked)}
+            checked={flags.rgpHard}
+            disabled={flags.none}
+            onChange={(e) => setFlag({ rgpHard: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0 disabled:opacity-50"
           />
           <span>RGP / Hard</span>
@@ -83,9 +117,9 @@ export const ContactLensView: React.FC = () => {
         <label className="flex items-center gap-3 text-sm font-medium text-slate-800 cursor-pointer">
           <input
             type="checkbox"
-            checked={scleral}
-            disabled={none}
-            onChange={(e) => setScleral(e.target.checked)}
+            checked={flags.scleral}
+            disabled={flags.none}
+            onChange={(e) => setFlag({ scleral: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0 disabled:opacity-50"
           />
           <span>Scleral</span>
@@ -96,8 +130,8 @@ export const ContactLensView: React.FC = () => {
         <label className="text-xs font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
         <textarea
           rows={3}
-          value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
+          value={flags.remarks}
+          onChange={(e) => setFlag({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600"
         />
@@ -107,8 +141,8 @@ export const ContactLensView: React.FC = () => {
         <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
           <input
             type="checkbox"
-            checked={showInDischarge}
-            onChange={(e) => setShowInDischarge(e.target.checked)}
+            checked={flags.showInDischarge}
+            onChange={(e) => setFlag({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
           />
           <span>Show in Discharge Summary</span>

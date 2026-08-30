@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { MultiSelect } from '../components/MultiSelect';
+import { useEncounterStore } from '../store/useEncounterStore';
 
 function Row({ label, sub, children }: { label: string; sub?: string; children: React.ReactNode }) {
   return (
@@ -41,67 +42,106 @@ const CORNEA_OPTIONS = ['Clear / WNL','SPK','Epithelial defect','Scarring','Edem
 const INDICATION = ['Select...','Refractive (Myopia/Hyperopia/Astigmatism)','Keratoconus','Post-surgical (post-LASIK/RK)','Cosmetic/Tinted','Therapeutic (Bandage CL)','Presbyopia','Anisometropia','Orthokeratology'];
 const MOTIVATION = ['Select...','High','Moderate','Low','Unclear'];
 
+type BiomState = { od: string[]; os: string[] };
+
+type ClPreFitData = {
+  indication: string;
+  motivation: string;
+  previousCL: string;
+  cornealShape: string;
+  tearQuality: string;
+  pupilSize: string;
+  biom: {
+    eyelids: BiomState;
+    conj: BiomState;
+    cornea: BiomState;
+  };
+  k: {
+    od: { k1: string; k2: string; axis: string };
+    os: { k1: string; k2: string; axis: string };
+  };
+  hvd: { od: string; os: string };
+  remarks: string;
+  showInDischarge: boolean;
+};
+
+const DEFAULT_CL_PRE_FIT: ClPreFitData = {
+  indication: 'Select...',
+  motivation: 'Select...',
+  previousCL: '',
+  cornealShape: 'Select...',
+  tearQuality: 'Select...',
+  pupilSize: 'Select...',
+  biom: {
+    eyelids: { od: [], os: [] },
+    conj: { od: [], os: [] },
+    cornea: { od: [], os: [] },
+  },
+  k: {
+    od: { k1: '', k2: '', axis: '' },
+    os: { k1: '', k2: '', axis: '' },
+  },
+  hvd: { od: '', os: '' },
+  remarks: '',
+  showInDischarge: false,
+};
+
 export const ClPreFitView: React.FC = () => {
-  const [indication, setIndication] = useState('Select...');
-  const [motivation, setMotivation] = useState('Select...');
-  const [previousCL, setPreviousCL] = useState('');
-  const [cornealShape, setCornealShape] = useState('Select...');
-  const [tearQuality, setTearQuality] = useState('Select...');
-  const [pupilSize, setPupilSize] = useState('Select...');
-  const [eyelidOd, setEyelidOd] = useState<string[]>([]);
-  const [eyelidOs, setEyelidOs] = useState<string[]>([]);
-  const [conjOd, setConjOd] = useState<string[]>([]);
-  const [conjOs, setConjOs] = useState<string[]>([]);
-  const [corneaOd, setCorneaOd] = useState<string[]>([]);
-  const [corneaOs, setCorneaOs] = useState<string[]>([]);
-  // K-readings
-  const [k1Od, setK1Od] = useState('');
-  const [k2Od, setK2Od] = useState('');
-  const [axisOd, setAxisOd] = useState('');
-  const [k1Os, setK1Os] = useState('');
-  const [k2Os, setK2Os] = useState('');
-  const [axisOs, setAxisOs] = useState('');
-  const [hvdOd, setHvdOd] = useState('');
-  const [hvdOs, setHvdOs] = useState('');
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const raw = Object.assign({}, DEFAULT_CL_PRE_FIT, sectionData['cl-pre-fit'] ?? {}) as ClPreFitData;
+  const biom: ClPreFitData['biom'] = {
+    eyelids: { od: [], os: [], ...(raw.biom?.eyelids ?? {}) },
+    conj: { od: [], os: [], ...(raw.biom?.conj ?? {}) },
+    cornea: { od: [], os: [], ...(raw.biom?.cornea ?? {}) },
+  };
+  const k: ClPreFitData['k'] = {
+    od: { k1: '', k2: '', axis: '', ...(raw.k?.od ?? {}) },
+    os: { k1: '', k2: '', axis: '', ...(raw.k?.os ?? {}) },
+  };
+  const hvd = { od: '', os: '', ...(raw.hvd ?? {}) };
+  const f: ClPreFitData = { ...raw, biom, k, hvd };
+  const patch = (p: Partial<ClPreFitData>) => setSectionData('cl-pre-fit', { ...f, ...p });
+  const { indication, motivation, previousCL, cornealShape, tearQuality, pupilSize, remarks, showInDischarge } = f;
+
+  const setBiom = (key: keyof ClPreFitData['biom'], side: 'od' | 'os', v: string[]) =>
+    patch({ biom: { ...biom, [key]: { ...biom[key], [side]: v } } });
+  const setK = (eye: 'od' | 'os', field: keyof ClPreFitData['k']['od'], v: string) =>
+    patch({ k: { ...k, [eye]: { ...k[eye], [field]: v } } });
 
   return (
     <div className="p-8 max-w-4xl bg-white min-h-full">
       <h1 className="text-2xl font-bold text-[#2563eb] mb-7">Pre-Fitting Evaluation</h1>
 
       <div className="space-y-3 max-w-3xl mb-8 divide-y divide-slate-100">
-        <Row label="Indication for CL"><Select value={indication} onChange={setIndication} options={INDICATION}/></Row>
-        <Row label="Patient Motivation"><Select value={motivation} onChange={setMotivation} options={MOTIVATION}/></Row>
+        <Row label="Indication for CL"><Select value={indication} onChange={v => patch({ indication: v })} options={INDICATION}/></Row>
+        <Row label="Patient Motivation"><Select value={motivation} onChange={v => patch({ motivation: v })} options={MOTIVATION}/></Row>
         <Row label="Previous CL Wear">
-          <input type="text" value={previousCL} onChange={e => setPreviousCL(e.target.value)} placeholder="e.g. Soft daily for 2 years"
+          <input type="text" value={previousCL} onChange={e => patch({ previousCL: e.target.value })} placeholder="e.g. Soft daily for 2 years"
             className="w-full max-w-lg px-3 py-2 text-sm border border-slate-300 rounded-md bg-white text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-200" />
         </Row>
-        <Row label="Corneal Shape (Topography)"><Select value={cornealShape} onChange={setCornealShape} options={CORNEAL_SHAPE}/></Row>
-        <Row label="Tear Film Quality"><Select value={tearQuality} onChange={setTearQuality} options={TEAR_QUALITY}/></Row>
-        <Row label="Pupil Size (Scotopic)"><Select value={pupilSize} onChange={setPupilSize} options={PUPIL_SIZE}/></Row>
+        <Row label="Corneal Shape (Topography)"><Select value={cornealShape} onChange={v => patch({ cornealShape: v })} options={CORNEAL_SHAPE}/></Row>
+        <Row label="Tear Film Quality"><Select value={tearQuality} onChange={v => patch({ tearQuality: v })} options={TEAR_QUALITY}/></Row>
+        <Row label="Pupil Size (Scotopic)"><Select value={pupilSize} onChange={v => patch({ pupilSize: v })} options={PUPIL_SIZE}/></Row>
 
         {/* Keratometry */}
         <div className="py-2">
           <p className="text-sm font-bold text-slate-800 mb-3">Keratometry (K-Readings)</p>
           <div className="grid grid-cols-2 gap-6">
-            {[
-              { label: 'OD (Right)', k1: k1Od, setK1: setK1Od, k2: k2Od, setK2: setK2Od, axis: axisOd, setAxis: setAxisOd },
-              { label: 'OS (Left)', k1: k1Os, setK1: setK1Os, k2: k2Os, setK2: setK2Os, axis: axisOs, setAxis: setAxisOs },
-            ].map(eye => (
-              <div key={eye.label} className="space-y-2">
-                <p className="text-xs font-bold text-slate-500 uppercase">{eye.label}</p>
+            {(['od', 'os'] as const).map(eye => (
+              <div key={eye} className="space-y-2">
+                <p className="text-xs font-bold text-slate-500 uppercase">{eye === 'od' ? 'OD (Right)' : 'OS (Left)'}</p>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-500 w-8">K1</span>
-                  <NumberInput value={eye.k1} onChange={eye.setK1} placeholder="e.g. 7.80" unit="mm" />
+                  <NumberInput value={k[eye].k1} onChange={v => setK(eye, 'k1', v)} placeholder="e.g. 7.80" unit="mm" />
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-500 w-8">K2</span>
-                  <NumberInput value={eye.k2} onChange={eye.setK2} placeholder="e.g. 7.65" unit="mm" />
+                  <NumberInput value={k[eye].k2} onChange={v => setK(eye, 'k2', v)} placeholder="e.g. 7.65" unit="mm" />
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-500 w-8">Axis</span>
-                  <NumberInput value={eye.axis} onChange={eye.setAxis} placeholder="e.g. 180" unit="°" />
+                  <NumberInput value={k[eye].axis} onChange={v => setK(eye, 'axis', v)} placeholder="e.g. 180" unit="°" />
                 </div>
               </div>
             ))}
@@ -112,8 +152,8 @@ export const ClPreFitView: React.FC = () => {
         <div className="py-2">
           <p className="text-sm font-bold text-slate-800 mb-3">Horizontal Visible Iris Diameter (HVID)</p>
           <div className="flex gap-6">
-            <div className="flex items-center gap-2"><span className="text-xs text-slate-500 w-12">OD</span><NumberInput value={hvdOd} onChange={setHvdOd} placeholder="e.g. 11.8" unit="mm" /></div>
-            <div className="flex items-center gap-2"><span className="text-xs text-slate-500 w-12">OS</span><NumberInput value={hvdOs} onChange={setHvdOs} placeholder="e.g. 11.8" unit="mm" /></div>
+            <div className="flex items-center gap-2"><span className="text-xs text-slate-500 w-12">OD</span><NumberInput value={hvd.od} onChange={v => patch({ hvd: { ...hvd, od: v } })} placeholder="e.g. 11.8" unit="mm" /></div>
+            <div className="flex items-center gap-2"><span className="text-xs text-slate-500 w-12">OS</span><NumberInput value={hvd.os} onChange={v => patch({ hvd: { ...hvd, os: v } })} placeholder="e.g. 11.8" unit="mm" /></div>
           </div>
         </div>
 
@@ -126,14 +166,14 @@ export const ClPreFitView: React.FC = () => {
             <span className="text-xs font-bold text-slate-500 uppercase">OS</span>
           </div>
           {[
-            { label: 'Eyelids', od: eyelidOd, setOd: setEyelidOd, os: eyelidOs, setOs: setEyelidOs, opts: EYELID_OPTIONS },
-            { label: 'Conjunctiva', od: conjOd, setOd: setConjOd, os: conjOs, setOs: setConjOs, opts: CONJ_OPTIONS },
-            { label: 'Cornea', od: corneaOd, setOd: setCorneaOd, os: corneaOs, setOs: setCorneaOs, opts: CORNEA_OPTIONS },
+            { label: 'Eyelids', key: 'eyelids' as const, opts: EYELID_OPTIONS },
+            { label: 'Conjunctiva', key: 'conj' as const, opts: CONJ_OPTIONS },
+            { label: 'Cornea', key: 'cornea' as const, opts: CORNEA_OPTIONS },
           ].map(row => (
             <div key={row.label} className="grid grid-cols-[140px_1fr_1fr] gap-4 mb-2 items-start">
               <span className="text-sm font-semibold text-slate-700 pt-2">{row.label}</span>
-              <MultiSelect options={row.opts} value={row.od} onChange={row.setOd} />
-              <MultiSelect options={row.opts} value={row.os} onChange={row.setOs} />
+              <MultiSelect options={row.opts} value={biom[row.key].od} onChange={v => setBiom(row.key, 'od', v)} />
+              <MultiSelect options={row.opts} value={biom[row.key].os} onChange={v => setBiom(row.key, 'os', v)} />
             </div>
           ))}
         </div>
@@ -141,14 +181,14 @@ export const ClPreFitView: React.FC = () => {
 
       <div className="mb-6 max-w-3xl">
         <label className="text-sm font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
-        <textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)}
+        <textarea rows={3} value={remarks} onChange={e => patch({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none" />
       </div>
 
       <div className="flex justify-end max-w-3xl">
         <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
-          <input type="checkbox" checked={showInDischarge} onChange={e => setShowInDischarge(e.target.checked)}
+          <input type="checkbox" checked={showInDischarge} onChange={e => patch({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0" />
           Show in Discharge Summary
         </label>

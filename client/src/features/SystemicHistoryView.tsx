@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Calendar } from 'lucide-react';
+import { useEncounterStore } from '../store/useEncounterStore';
+import type { SystemicConditionDetail } from '../store/useEncounterStore';
 
 interface ConditionState {
   active: boolean;
@@ -31,43 +33,53 @@ const RIGHT_CONDITIONS = [
 ];
 
 export const SystemicHistoryView: React.FC = () => {
-  const [noHistory, setNoHistory] = useState(false);
-  const [conditions, setConditions] = useState<Record<string, ConditionState>>({
-    dm2_non_insulin: { active: true, dateOfDiagnosis: '' },
-  });
+  const systemicHistory = useEncounterStore((s) => s.systemicHistory);
+  const setSystemicConditions = useEncounterStore((s) => s.setSystemicConditions);
+  const setNoSystemicHistory = useEncounterStore((s) => s.setNoSystemicHistory);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
 
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const conditions = systemicHistory.conditions;
+  const noHistory = systemicHistory.noHistoryReported;
+  const extra = (sectionData['systemic-history'] ?? { remarks: '', showInDischarge: false }) as {
+    remarks: string;
+    showInDischarge: boolean;
+  };
+
+  const updateExtra = (patch: Partial<typeof extra>) =>
+    setSectionData('systemic-history', { ...extra, ...patch });
 
   const handleNoHistoryChange = (checked: boolean) => {
-    setNoHistory(checked);
+    setNoSystemicHistory(checked);
     if (checked) {
-      setConditions({});
+      setSystemicConditions({});
     }
   };
 
-  const toggleCondition = (key: string) => {
-    setConditions((prev) => ({
-      ...prev,
+  const toggleCondition = (key: string, label: string) => {
+    const current: SystemicConditionDetail = conditions[key] ?? { active: false as const, dateOfDiagnosis: '' };
+    setSystemicConditions({
+      ...conditions,
       [key]: {
-        active: !prev[key]?.active,
-        dateOfDiagnosis: prev[key]?.dateOfDiagnosis || '',
+        ...current,
+        active: !current.active,
+        type: label,
       },
-    }));
+    });
   };
 
   const updateDate = (key: string, date: string) => {
-    setConditions((prev) => ({
-      ...prev,
+    setSystemicConditions({
+      ...conditions,
       [key]: {
-        ...prev[key],
+        ...(conditions[key] ?? { active: false as const }),
         dateOfDiagnosis: date,
       },
-    }));
+    });
   };
 
   const renderConditionItem = (item: { key: string; label: string }) => {
-    const state = conditions[item.key] || { active: false, dateOfDiagnosis: '' };
+    const state: ConditionState = (conditions[item.key] ?? { active: false, dateOfDiagnosis: '' }) as ConditionState;
 
     return (
       <div key={item.key} className="space-y-1.5">
@@ -76,7 +88,7 @@ export const SystemicHistoryView: React.FC = () => {
             type="checkbox"
             checked={state.active}
             disabled={noHistory}
-            onChange={() => toggleCondition(item.key)}
+            onChange={() => toggleCondition(item.key, item.label)}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0 disabled:opacity-40"
           />
           <span>{item.label}</span>
@@ -133,8 +145,8 @@ export const SystemicHistoryView: React.FC = () => {
         <label className="text-xs font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
         <textarea
           rows={3}
-          value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
+          value={extra.remarks}
+          onChange={(e) => updateExtra({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600"
         />
@@ -145,8 +157,8 @@ export const SystemicHistoryView: React.FC = () => {
         <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
           <input
             type="checkbox"
-            checked={showInDischarge}
-            onChange={(e) => setShowInDischarge(e.target.checked)}
+            checked={extra.showInDischarge}
+            onChange={(e) => updateExtra({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
           />
           <span>Show in Discharge Summary</span>

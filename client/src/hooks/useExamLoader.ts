@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/useAppStore';
 import { useEncounterStore } from '../store/useEncounterStore';
-import { calcAge } from '../data/mockData';
+import { calcAge } from '../lib/formatters';
 import { buildAppointmentTime } from '../lib/encounterDefaults';
 
 export function useExamLoader() {
@@ -68,6 +68,14 @@ export function useExamLoader() {
         const data = await api.get<any>(`/clinical/appointment/${appointmentId}`);
         if (data) {
           loadEncounterFromDb(data);
+        }
+        // Completed appointments are always read-only, even if the lock
+        // flag wasn't written (legacy records). Mirror that in the store.
+        const apt = useAppStore.getState().appointments.find((a) => a.id === appointmentId);
+        if (apt?.status === 'completed') {
+          const st = useEncounterStore.getState();
+          const eid = st.encounterId ?? data?.id ?? null;
+          if (eid && !st.isLocked) useEncounterStore.getState().markExamFinalized(eid);
         }
       } catch {
         // No saved encounter — that's fine

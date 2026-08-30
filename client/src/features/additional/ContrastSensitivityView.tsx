@@ -1,11 +1,28 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useEncounterStore } from '../../store/useEncounterStore';
+
+type ContrastSensitivityData = {
+  chart: string;
+  logCsOd: string;
+  logCsOs: string;
+  remarks: string;
+  showInDischarge: boolean;
+};
+
+const DEFAULT_CONTRAST_SENSITIVITY: ContrastSensitivityData = {
+  chart: 'Pelli-Robson Chart (1m)',
+  logCsOd: '1.95',
+  logCsOs: '1.95',
+  remarks: '',
+  showInDischarge: false,
+};
 
 export const ContrastSensitivityView: React.FC = () => {
-  const [chart, setChart] = useState('Pelli-Robson Chart (1m)');
-  const [logCsOd, setLogCsOd] = useState('1.95');
-  const [logCsOs, setLogCsOs] = useState('1.95');
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const f = Object.assign({}, DEFAULT_CONTRAST_SENSITIVITY, sectionData['contrast-sensitivity'] ?? {}) as ContrastSensitivityData;
+  const patch = (p: Partial<ContrastSensitivityData>) => setSectionData('contrast-sensitivity', { ...f, ...p });
+  const { chart, logCsOd, logCsOs, remarks, showInDischarge } = f;
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full">
@@ -17,7 +34,7 @@ export const ContrastSensitivityView: React.FC = () => {
           <div className="md:col-span-2">
             <select
               value={chart}
-              onChange={(e) => setChart(e.target.value)}
+              onChange={(e) => patch({ chart: e.target.value })}
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
             >
               <option value="Pelli-Robson Chart (1m)">Pelli-Robson Chart (1m)</option>
@@ -37,7 +54,7 @@ export const ContrastSensitivityView: React.FC = () => {
             <input
               type="text"
               value={logCsOd}
-              onChange={(e) => setLogCsOd(e.target.value)}
+              onChange={(e) => patch({ logCsOd: e.target.value })}
               placeholder="e.g. 1.95"
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
             />
@@ -53,7 +70,7 @@ export const ContrastSensitivityView: React.FC = () => {
             <input
               type="text"
               value={logCsOs}
-              onChange={(e) => setLogCsOs(e.target.value)}
+              onChange={(e) => patch({ logCsOs: e.target.value })}
               placeholder="e.g. 1.95"
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
             />
@@ -66,7 +83,7 @@ export const ContrastSensitivityView: React.FC = () => {
         <textarea
           rows={3}
           value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
+          onChange={(e) => patch({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none focus:ring-1 focus:ring-blue-200"
         />
@@ -77,7 +94,7 @@ export const ContrastSensitivityView: React.FC = () => {
           <input
             type="checkbox"
             checked={showInDischarge}
-            onChange={(e) => setShowInDischarge(e.target.checked)}
+            onChange={(e) => patch({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
           />
           <span>Show in Discharge Summary</span>

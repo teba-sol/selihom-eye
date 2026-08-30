@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 import { MultiSelect } from '../components/MultiSelect';
+import { useEncounterStore } from '../store/useEncounterStore';
 import { MousePointer2, Pencil, Eraser, Type, Circle, ArrowUpRight, MoreHorizontal, Upload } from 'lucide-react';
 
 const MYDRIATIC_OPTIONS = [
@@ -145,7 +146,6 @@ function FundusCanvas({ canvasRef, fabricRef, tool, color }: {
 function PosteriorDiagram() {
   const [tool, setTool] = useState('pen');
   const [color, setColor] = useState('#dc2626');
-  const [showMore, setShowMore] = useState(false);
   const odRef = useRef<HTMLCanvasElement>(null);
   const osRef = useRef<HTMLCanvasElement>(null);
   const odFab = useRef<fabric.Canvas | null>(null);
@@ -216,14 +216,6 @@ interface StructureState {
   same: boolean;
 }
 
-function useStructure(initial: Partial<StructureState> = {}): [StructureState, (od: string[]) => void, (os: string[]) => void, (same: boolean) => void] {
-  const [state, setState] = useState<StructureState>({ od: [], os: [], same: false, ...initial });
-  const setOd = (od: string[]) => setState(p => ({ ...p, od, os: p.same ? od : p.os }));
-  const setOs = (os: string[]) => setState(p => ({ ...p, os }));
-  const setSame = (same: boolean) => setState(p => ({ ...p, same, os: same ? p.od : p.os }));
-  return [state, setOd, setOs, setSame];
-}
-
 function StructureRow({ label, options, state, onOd, onOs, onSame, extra }: {
   label: string;
   options: string[];
@@ -253,22 +245,59 @@ function StructureRow({ label, options, state, onOd, onOs, onSame, extra }: {
   );
 }
 
-export const PosteriorSegmentEvaluationView: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'Form' | 'Diagram'>('Form');
-  const [mydriaticDrug, setMydriaticDrug] = useState<string[]>([]);
-  const [instrument, setInstrument] = useState('');
+type StructureKey = 'vitreous' | 'onh' | 'vessels' | 'macula' | 'peripheral';
 
-  const [vitreous, setVitOd, setVitOs, setVitSame] = useStructure();
-  const [onh, setOnhOd, setOnhOs, setOnhSame] = useStructure();
-  const [cdrOd, setCdrOd] = useState('0');
-  const [cdrOs, setCdrOs] = useState('0');
-  const [vessels, setVesOd, setVesOs, setVesSame] = useStructure();
-  const [avOd, setAvOd] = useState('None');
-  const [avOs, setAvOs] = useState('None');
-  const [macula, setMacOd, setMacOs, setMacSame] = useStructure();
-  const [peripheral, setPerOd, setPerOs, setPerSame] = useStructure();
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+type PosteriorSegmentData = {
+  activeTab: 'Form' | 'Diagram';
+  mydriaticDrug: string[];
+  instrument: string;
+  structures: Record<StructureKey, StructureState>;
+  cdr: { od: string; os: string };
+  av: { od: string; os: string };
+  remarks: string;
+  showInDischarge: boolean;
+};
+
+const SEGMENT_STRUCTURES: StructureKey[] = ['vitreous', 'onh', 'vessels', 'macula', 'peripheral'];
+
+const DEFAULT_POSTERIOR_SEGMENT: PosteriorSegmentData = {
+  activeTab: 'Form',
+  mydriaticDrug: [],
+  instrument: '',
+  structures: {
+    vitreous: { od: [], os: [], same: false },
+    onh: { od: [], os: [], same: false },
+    vessels: { od: [], os: [], same: false },
+    macula: { od: [], os: [], same: false },
+    peripheral: { od: [], os: [], same: false },
+  },
+  cdr: { od: '0', os: '0' },
+  av: { od: 'None', os: 'None' },
+  remarks: '',
+  showInDischarge: false,
+};
+
+export const PosteriorSegmentEvaluationView: React.FC = () => {
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const raw = Object.assign({}, DEFAULT_POSTERIOR_SEGMENT, sectionData['posterior-segment'] ?? {}) as PosteriorSegmentData;
+  const structures: Record<StructureKey, StructureState> = Object.fromEntries(
+    SEGMENT_STRUCTURES.map((s) => [s, { od: [], os: [], same: false, ...(raw.structures?.[s] ?? {}) }]),
+  );
+  const f: PosteriorSegmentData = {
+    ...raw,
+    structures,
+    cdr: { od: '0', os: '0', ...(raw.cdr ?? {}) },
+    av: { od: 'None', os: 'None', ...(raw.av ?? {}) },
+  };
+  const patch = (p: Partial<PosteriorSegmentData>) => setSectionData('posterior-segment', { ...f, ...p });
+  const { activeTab, mydriaticDrug, instrument, cdr, av, remarks, showInDischarge } = f;
+
+  const setStructure = (key: StructureKey, updater: (s: StructureState) => StructureState) =>
+    patch({ structures: { ...structures, [key]: updater(structures[key]) } });
+  const setStructOd = (key: StructureKey, od: string[]) => setStructure(key, s => ({ ...s, od, os: s.same ? od : s.os }));
+  const setStructOs = (key: StructureKey, os: string[]) => setStructure(key, s => ({ ...s, os }));
+  const setStructSame = (key: StructureKey, same: boolean) => setStructure(key, s => ({ ...s, same, os: same ? s.od : s.os }));
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full">
@@ -276,7 +305,7 @@ export const PosteriorSegmentEvaluationView: React.FC = () => {
 
       <div className="flex gap-6 border-b border-slate-200 mb-6">
         {(['Form', 'Diagram'] as const).map(tab => (
-          <button key={tab} type="button" onClick={() => setActiveTab(tab)}
+          <button key={tab} type="button" onClick={() => patch({ activeTab: tab })}
             className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab ? 'text-blue-700 border-blue-700 font-semibold' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
             {tab}
           </button>
@@ -292,13 +321,13 @@ export const PosteriorSegmentEvaluationView: React.FC = () => {
           {/* Mydriatic Drug */}
           <div className="grid grid-cols-[180px_1fr] items-start gap-4 mb-4">
             <span className="text-sm font-bold text-slate-800 pt-2">Mydriatic Drug</span>
-            <MultiSelect options={MYDRIATIC_OPTIONS} value={mydriaticDrug} onChange={setMydriaticDrug} placeholder="Select mydriatic drug..." />
+            <MultiSelect options={MYDRIATIC_OPTIONS} value={mydriaticDrug} onChange={v => patch({ mydriaticDrug: v })} placeholder="Select mydriatic drug..." />
           </div>
 
           {/* Instrument */}
           <div className="grid grid-cols-[180px_1fr] items-start gap-4 mb-6">
             <span className="text-sm font-bold text-slate-800 pt-2">Instrument</span>
-            <select value={instrument} onChange={e => setInstrument(e.target.value)}
+            <select value={instrument} onChange={e => patch({ instrument: e.target.value })}
               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md bg-white text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-200">
               <option value=""></option>
               {INSTRUMENT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
@@ -316,31 +345,31 @@ export const PosteriorSegmentEvaluationView: React.FC = () => {
           <div>
             {/* Vitreous */}
             <StructureRow label="Vitreous" options={VITREOUS_OPTIONS}
-              state={vitreous} onOd={setVitOd} onOs={setVitOs} onSame={setVitSame} />
+              state={structures.vitreous} onOd={v => setStructOd('vitreous', v)} onOs={v => setStructOs('vitreous', v)} onSame={v => setStructSame('vitreous', v)} />
 
             {/* Optic Nerve Head with Cup Disc Ratio */}
             <div className="grid grid-cols-[180px_1fr_1fr] gap-4 items-start py-3 border-b border-slate-100">
               <span className="text-sm font-semibold text-slate-800 pt-2">Optic Nerve Head</span>
               <div className="space-y-1.5">
-                <MultiSelect options={ONH_OPTIONS} value={onh.od} onChange={setOnhOd} />
+                <MultiSelect options={ONH_OPTIONS} value={structures.onh.od} onChange={v => setStructOd('onh', v)} />
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={onh.same} onChange={e => setOnhSame(e.target.checked)}
+                  <input type="checkbox" checked={structures.onh.same} onChange={e => setStructSame('onh', e.target.checked)}
                     className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 focus:ring-0" />
                   <span className="text-xs text-slate-500">Same for left eye</span>
                 </label>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-sm font-semibold text-slate-700">Cup Disc Ratio</span>
-                  <input type="number" step="0.1" min="0" max="1" value={cdrOd} onChange={e => setCdrOd(e.target.value)}
+                  <input type="number" step="0.1" min="0" max="1" value={cdr.od} onChange={e => patch({ cdr: { ...cdr, od: e.target.value } })}
                     className="w-20 px-2 py-1.5 text-sm text-center border border-slate-300 rounded-md font-semibold focus:outline-none focus:border-blue-600" />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <MultiSelect options={ONH_OPTIONS} value={onh.same ? onh.od : onh.os}
-                  onChange={v => !onh.same && setOnhOs(v)} disabled={onh.same} />
+                <MultiSelect options={ONH_OPTIONS} value={structures.onh.same ? structures.onh.od : structures.onh.os}
+                  onChange={v => !structures.onh.same && setStructOs('onh', v)} disabled={structures.onh.same} />
                 <div className="flex items-center gap-2 mt-7">
                   <span className="text-sm font-semibold text-slate-700">Cup Disc Ratio</span>
-                  <input type="number" step="0.1" min="0" max="1" value={onh.same ? cdrOd : cdrOs}
-                    onChange={e => setCdrOs(e.target.value)} disabled={onh.same}
+                  <input type="number" step="0.1" min="0" max="1" value={structures.onh.same ? cdr.od : cdr.os}
+                    onChange={e => patch({ cdr: { ...cdr, os: e.target.value } })} disabled={structures.onh.same}
                     className="w-20 px-2 py-1.5 text-sm text-center border border-slate-300 rounded-md font-semibold focus:outline-none focus:border-blue-600 disabled:opacity-60" />
                 </div>
               </div>
@@ -350,26 +379,26 @@ export const PosteriorSegmentEvaluationView: React.FC = () => {
             <div className="grid grid-cols-[180px_1fr_1fr] gap-4 items-start py-3 border-b border-slate-100">
               <span className="text-sm font-semibold text-slate-800 pt-2">Retinal Blood Vessels</span>
               <div className="space-y-1.5">
-                <MultiSelect options={VESSELS_OPTIONS} value={vessels.od} onChange={setVesOd} />
+                <MultiSelect options={VESSELS_OPTIONS} value={structures.vessels.od} onChange={v => setStructOd('vessels', v)} />
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={vessels.same} onChange={e => setVesSame(e.target.checked)}
+                  <input type="checkbox" checked={structures.vessels.same} onChange={e => setStructSame('vessels', e.target.checked)}
                     className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 focus:ring-0" />
                   <span className="text-xs text-slate-500">Same for left eye</span>
                 </label>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-sm font-semibold text-slate-700">Artery / Vein Ratio</span>
-                  <select value={avOd} onChange={e => { setAvOd(e.target.value); if (vessels.same) setAvOs(e.target.value); }}
+                  <select value={av.od} onChange={e => { const v = e.target.value; patch({ av: { ...av, od: v, ...(structures.vessels.same ? { os: v } : {}) } }); }}
                     className="px-2 py-1.5 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:border-blue-600">
                     {AV_RATIO_OPTIONS.map(o => <option key={o}>{o}</option>)}
                   </select>
                 </div>
               </div>
               <div className="space-y-1.5">
-                <MultiSelect options={VESSELS_OPTIONS} value={vessels.same ? vessels.od : vessels.os}
-                  onChange={v => !vessels.same && setVesOs(v)} disabled={vessels.same} />
+                <MultiSelect options={VESSELS_OPTIONS} value={structures.vessels.same ? structures.vessels.od : structures.vessels.os}
+                  onChange={v => !structures.vessels.same && setStructOs('vessels', v)} disabled={structures.vessels.same} />
                 <div className="flex items-center gap-2 mt-8">
                   <span className="text-sm font-semibold text-slate-700">Artery / Vein Ratio</span>
-                  <select value={vessels.same ? avOd : avOs} onChange={e => setAvOs(e.target.value)} disabled={vessels.same}
+                  <select value={structures.vessels.same ? av.od : av.os} onChange={e => patch({ av: { ...av, os: e.target.value } })} disabled={structures.vessels.same}
                     className="px-2 py-1.5 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:border-blue-600 disabled:opacity-60">
                     {AV_RATIO_OPTIONS.map(o => <option key={o}>{o}</option>)}
                   </select>
@@ -379,23 +408,23 @@ export const PosteriorSegmentEvaluationView: React.FC = () => {
 
             {/* Macula/Fovea */}
             <StructureRow label="Macula/Fovea" options={MACULA_OPTIONS}
-              state={macula} onOd={setMacOd} onOs={setMacOs} onSame={setMacSame} />
+              state={structures.macula} onOd={v => setStructOd('macula', v)} onOs={v => setStructOs('macula', v)} onSame={v => setStructSame('macula', v)} />
 
             {/* Peripheral Retina */}
             <StructureRow label="Peripheral Retina" options={PERIPHERAL_OPTIONS}
-              state={peripheral} onOd={setPerOd} onOs={setPerOs} onSame={setPerSame} />
+              state={structures.peripheral} onOd={v => setStructOd('peripheral', v)} onOs={v => setStructOs('peripheral', v)} onSame={v => setStructSame('peripheral', v)} />
           </div>
 
           <div className="mt-6">
             <label className="text-sm font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
-            <textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)}
+            <textarea rows={3} value={remarks} onChange={e => patch({ remarks: e.target.value })}
               placeholder="Add any remarks..."
               className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none" />
           </div>
 
           <div className="flex justify-end mt-4">
             <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
-              <input type="checkbox" checked={showInDischarge} onChange={e => setShowInDischarge(e.target.checked)}
+              <input type="checkbox" checked={showInDischarge} onChange={e => patch({ showInDischarge: e.target.checked })}
                 className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0" />
               Show in Discharge Summary
             </label>

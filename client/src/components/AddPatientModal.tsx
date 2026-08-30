@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { X, Calendar, User, FileText, Phone, Building2, ShieldCheck, ChevronDown, UserCheck } from 'lucide-react';
+import { X, Calendar, User, FileText, Phone, Building2, ShieldCheck, ChevronDown, UserCheck, MapPin } from 'lucide-react';
 import type { Patient } from '../store/useAppStore';
-import { REGION_DATA, SW_REGION_KEY, SW_KEBELE_DATA } from '../receptionist/data';
-import '../receptionist/index.css';
+import { REGION_DATA, SW_REGION_KEY, SW_KEBELE_DATA } from '../data/regionData';
 
 interface AddPatientModalProps {
   open: boolean;
@@ -114,6 +113,31 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
       if (yEl) yEl.value = (year != null) ? String(year) : '';
     }
 
+    const GREGORIAN_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+    function updateGregorianReadout() {
+      const reg = readGroup('regEthD', 'regEthM', 'regEthY');
+      const regEl = document.getElementById('regDateGregorian');
+      if (regEl) {
+        if (reg && isValidEthDate(reg.day, reg.month, reg.year)) {
+          const g = ethiopianToGregorian(reg.year, reg.month, reg.day);
+          regEl.textContent = `Gregorian: ${g.day} ${GREGORIAN_MONTHS[g.month - 1] || ''} ${g.year}`;
+        } else {
+          regEl.textContent = 'Gregorian: —';
+        }
+      }
+      const dob = readGroup('ethDobD', 'ethDobM', 'ethDobY');
+      const dobEl = document.getElementById('dobGregorian');
+      if (dobEl) {
+        if (dob && isValidEthDate(dob.day, dob.month, dob.year)) {
+          const g = ethiopianToGregorian(dob.year, dob.month, dob.day);
+          dobEl.textContent = `Gregorian: ${g.day} ${GREGORIAN_MONTHS[g.month - 1] || ''} ${g.year}`;
+        } else {
+          dobEl.textContent = 'Gregorian: —';
+        }
+      }
+    }
+
 
     function setupDateGroup(groupId: string, dId: string, mId: string, yId: string) {
       const group = document.getElementById(groupId);
@@ -142,8 +166,10 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
               const greg = ethiopianToGregorian(eth.year, eth.month, eth.day);
               calculateAge(greg.year, greg.month, greg.day);
             }
+            updateGregorianReadout();
           } else if (groupId === 'regEthGroup') {
             syncMrnYearWithRegDate();
+            updateGregorianReadout();
           }
         });
 
@@ -257,7 +283,7 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
         const p = getAddisParts(authoritativeToday);
         const dStr = `${String(p.day).padStart(2, '0')}/${String(p.month).padStart(2, '0')}/${p.year}`;
         el.textContent = `Online current date: ${dStr} (Addis Ababa)`;
-        el.style.color = '#0f766e';
+        el.style.color = '#1e3a8a';
       } else {
         el.textContent = 'Checking online date…';
         el.style.color = '#64748b';
@@ -645,6 +671,7 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
     setupDateGroup('ethDobGroup', 'ethDobD', 'ethDobM', 'ethDobY');
 
     setRegistrationDatePlaceholders(new Date());
+    updateGregorianReadout();
     generateMRN();
     (window as any).toggleReferralField();
     initAddressDropdowns();
@@ -686,6 +713,7 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
         authoritativeToday = online;
         setRegistrationDatePlaceholders(online);
         updateAgeDateStatus();
+        updateGregorianReadout();
       }
     });
 
@@ -759,30 +787,29 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
     <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[1000px] my-8">
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+        <div className="px-8 py-6 flex items-center justify-between rounded-t-2xl border-b border-slate-100">
           <div>
-            <h2 className="text-xl font-extrabold tracking-tight">Patient Registration</h2>
-            <p className="text-xs text-blue-200 mt-0.5">የታካሚ ምዝገባ - Complete patient information form</p>
+            <h2 className="text-2xl font-extrabold tracking-tight text-[#1e3a8a]">Patient Registration</h2>
+            <p className="text-xs text-slate-500 mt-1">የታካሚ ምዝገባ · Complete patient information</p>
           </div>
-          <button onClick={onClose} className="text-white/70 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-slate-400 hover:text-[#1e3a8a] transition-colors">
             <X className="w-6 h-6" />
           </button>
         </div>
 
-
-        <form id="patientForm" className="p-5 space-y-5">
-          {/* Registration Date */}
-          <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-200">
-              <div className="p-2 rounded-lg bg-blue-100 text-blue-700"><Calendar className="w-5 h-5" /></div>
+        <form id="patientForm" className="px-8 py-8 space-y-10">
+          {/* Registration date */}
+          <section>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-8 h-8 rounded-lg bg-[#1e3a8a]/5 text-[#1e3a8a] flex items-center justify-center shrink-0"><Calendar className="w-4 h-4" /></div>
               <div>
-                <h3 className="text-base font-extrabold text-slate-800">Registration Date <span className="text-sm font-normal text-blue-700">(የምዝገባ ቀን)</span></h3>
-                <p className="text-xs text-slate-500">Auto-defaults to current date in Ethiopian calendar</p>
+                <h3 className="text-sm font-bold text-slate-800">Registration date</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Auto-defaults to the current date in the Ethiopian calendar</p>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">ETHIOPIAN DATE (የኢትዮጵያ ቀን)</label>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Ethiopian Date (የኢትዮጵያ ቀን)</label>
                 <div className="date-input-group" id="regEthGroup">
                   <input type="text" inputMode="numeric" autoComplete="off" className="date-seg" id="regEthD" placeholder="DD" maxLength={2} />
                   <span className="date-sep">/</span>
@@ -791,79 +818,82 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
                   <input type="text" inputMode="numeric" autoComplete="off" className="date-seg date-seg-yyyy" id="regEthY" placeholder="YYYY" maxLength={4} />
                 </div>
               </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Gregorian Date</label>
+                <div id="regDateGregorian" className="w-full border border-slate-300 bg-slate-50 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#1e3a8a]">Gregorian: —</div>
+              </div>
             </div>
           </section>
 
-          {/* MRN */}
-          <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-200">
-              <div className="p-2 rounded-lg bg-purple-100 text-purple-700"><FileText className="w-5 h-5" /></div>
+          {/* Identification & facility */}
+          <section>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-8 h-8 rounded-lg bg-[#1e3a8a]/5 text-[#1e3a8a] flex items-center justify-center shrink-0"><FileText className="w-4 h-4" /></div>
               <div>
-                <h3 className="text-base font-extrabold text-slate-800">Identification & Medical Facility</h3>
-                <p className="text-xs text-slate-500">Auto-incrementing MRN synced with Ethiopian year</p>
+                <h3 className="text-sm font-bold text-slate-800">Identification &amp; Medical Facility</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Auto-incrementing MRN synced with the Ethiopian year</p>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">MRN (Medical Record Number)</label>
-                <input type="text" id="mrn" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm font-extrabold" placeholder="e.g. 0001/18" />
-                <p className="text-[11px] text-slate-500 mt-1">4-digit sequence / last 2 digits of Ethiopian year</p>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">MRN (Medical Record Number)</label>
+                <input type="text" id="mrn" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-extrabold" placeholder="e.g. 0001/18" />
+                <p className="text-[11px] text-slate-500 mt-1.5">4-digit sequence / last 2 digits of Ethiopian year</p>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Facility Name</label>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Facility Name</label>
                 <div className="relative">
-                  <input type="text" id="facility" defaultValue="Selihome Ophthalmic Medium Clinic" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 pr-10 text-sm font-bold" />
+                  <input type="text" id="facility" defaultValue="Selihome Ophthalmic Medium Clinic" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 pr-10 text-sm font-semibold" />
                   <Building2 className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
               </div>
             </div>
           </section>
 
-          {/* Personal Info */}
-          <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-200">
-              <div className="p-2 rounded-lg bg-emerald-100 text-emerald-700"><User className="w-5 h-5" /></div>
+          {/* Personal information */}
+          <section>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-8 h-8 rounded-lg bg-[#1e3a8a]/5 text-[#1e3a8a] flex items-center justify-center shrink-0"><User className="w-4 h-4" /></div>
               <div>
-                <h3 className="text-base font-extrabold text-slate-800">Personal Information <span className="text-sm font-normal text-emerald-700">(የግል መረጃ)</span></h3>
-                <p className="text-xs text-slate-500">Patient name details and gender</p>
+                <h3 className="text-sm font-bold text-slate-800">Personal information <span className="text-xs font-normal text-slate-400">(የግል መረጃ)</span></h3>
+                <p className="text-xs text-slate-500 mt-0.5">Patient name details and sex</p>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">First Name (ስም) <span className="text-red-500">*</span></label>
-                <input type="text" id="firstName" required placeholder="e.g. Abebe" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">First Name (ስም) <span className="text-red-500">*</span></label>
+                <input type="text" id="firstName" required placeholder="e.g. Abebe" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">ስም አባት / Grandfather Name <span className="text-red-500">*</span></label>
-                <input type="text" id="grandfatherName" required placeholder="e.g. Kebede" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">ስም አባት / Grandfather Name <span className="text-red-500">*</span></label>
+                <input type="text" id="grandfatherName" required placeholder="e.g. Kebede" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Father's Name (የአባት ስም) <span className="text-red-500">*</span></label>
-                <input type="text" id="fatherName" required placeholder="e.g. Bekele" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Father's Name (የአባት ስም) <span className="text-red-500">*</span></label>
+                <input type="text" id="fatherName" required placeholder="e.g. Bekele" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
               </div>
             </div>
-            <div className="mt-4 max-w-[200px]">
-              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Sex (ፆታ)</label>
-              <select id="sex" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm cursor-pointer">
+            <div className="mt-5 max-w-[240px]">
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Sex (ፆታ)</label>
+              <select id="sex" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm cursor-pointer">
                 <option value="M">Male (ወንድ)</option>
                 <option value="F">Female (ሴት)</option>
               </select>
             </div>
           </section>
 
-
-          {/* DOB & Age */}
-          <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-200">
-              <div className="p-2 rounded-lg bg-blue-100 text-blue-700"><Calendar className="w-5 h-5" /></div>
+          {/* Date of birth & age */}
+          <section>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-8 h-8 rounded-lg bg-[#1e3a8a]/5 text-[#1e3a8a] flex items-center justify-center shrink-0"><Calendar className="w-4 h-4" /></div>
               <div>
-                <h3 className="text-base font-extrabold text-slate-800">Date of Birth & Age <span className="text-sm font-normal text-blue-700">(የልደት ቀን እና ዕድሜ)</span></h3>
-                <p className="text-xs text-slate-500">Auto age calculation from Ethiopian DOB</p>
+                <h3 className="text-sm font-bold text-slate-800">Date of birth &amp; age <span className="text-xs font-normal text-slate-400">(የልደት ቀን እና ዕድሜ)</span></h3>
+                <p className="text-xs text-slate-500 mt-0.5">Age auto-calculated from the Ethiopian DOB</p>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">ETHIOPIAN DOB</label>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Ethiopian DOB</label>
                 <div className="date-input-group" id="ethDobGroup">
                   <input type="text" inputMode="numeric" autoComplete="off" className="date-seg" id="ethDobD" placeholder="DD" maxLength={2} />
                   <span className="date-sep">/</span>
@@ -872,13 +902,17 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
                   <input type="text" inputMode="numeric" autoComplete="off" className="date-seg date-seg-yyyy" id="ethDobY" placeholder="YYYY" maxLength={4} />
                 </div>
               </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Gregorian DOB</label>
+                <div id="dobGregorian" className="w-full border border-slate-300 bg-slate-50 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#1e3a8a]">Gregorian: —</div>
+              </div>
             </div>
             <div className="conversion-feedback mt-2" id="dobFeedback"></div>
 
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-5 items-end">
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">CALCULATED AGE (ዕድሜ)</label>
-                <input type="number" id="age" placeholder="0" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-lg font-extrabold text-center text-blue-900 bg-white" />
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Calculated Age (ዕድሜ)</label>
+                <input type="number" id="age" placeholder="0" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-lg font-extrabold text-center text-[#1e3a8a] bg-white" />
               </div>
               <div className="md:col-span-2 text-xs text-slate-500">
                 <span id="ageDateStatus" className="font-semibold text-slate-600">Checking online date…</span>
@@ -887,90 +921,97 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
           </section>
 
           {/* Address */}
-          <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-            <div className="text-center mb-5">
-              <h3 className="text-lg font-extrabold text-blue-700">Address / አድራሻ</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <section>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-8 h-8 rounded-lg bg-[#1e3a8a]/5 text-[#1e3a8a] flex items-center justify-center shrink-0"><MapPin className="w-4 h-4" /></div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Region (ክልል)</label>
+                <h3 className="text-sm font-bold text-slate-800">Address <span className="text-xs font-normal text-slate-400">(አድራሻ)</span></h3>
+                <p className="text-xs text-slate-500 mt-0.5">Patient residence details</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Region (ክልል)</label>
                 <div className="combo-wrapper" id="regionWrapper">
-                  <input type="text" id="region" placeholder="Select region" autoComplete="off" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
+                  <input type="text" id="region" placeholder="Select region" autoComplete="off" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
                   <button type="button" className="combo-arrow" id="regionArrow" tabIndex={-1}><ChevronDown className="w-4 h-4" /></button>
                   <ul className="combo-list" id="regionList"></ul>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Zone (ዞን)</label>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Zone (ዞን)</label>
                 <div className="combo-wrapper" id="zoneWrapper">
-                  <input type="text" id="zone" placeholder="Select zone" autoComplete="off" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
+                  <input type="text" id="zone" placeholder="Select zone" autoComplete="off" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
                   <button type="button" className="combo-arrow" id="zoneArrow" tabIndex={-1}><ChevronDown className="w-4 h-4" /></button>
                   <ul className="combo-list" id="zoneList"></ul>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Woreda (ወረዳ)</label>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Woreda (ወረዳ)</label>
                 <div className="combo-wrapper" id="woredaWrapper">
-                  <input type="text" id="woreda" placeholder="Select woreda" autoComplete="off" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
+                  <input type="text" id="woreda" placeholder="Select woreda" autoComplete="off" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
                   <button type="button" className="combo-arrow" id="woredaArrow" tabIndex={-1}><ChevronDown className="w-4 h-4" /></button>
                   <ul className="combo-list" id="woredaList"></ul>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Kebele (ቀበሌ)</label>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Kebele (ቀበሌ)</label>
                 <div className="combo-wrapper" id="kebeleWrapper">
-                  <input type="text" id="kebele" placeholder="Select kebele" autoComplete="off" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
+                  <input type="text" id="kebele" placeholder="Select kebele" autoComplete="off" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
                   <button type="button" className="combo-arrow" id="kebeleArrow" tabIndex={-1}><ChevronDown className="w-4 h-4" /></button>
                   <ul className="combo-list" id="kebeleList"></ul>
                 </div>
-                <span className="text-[11px] text-blue-700 block pt-1" id="kebeleHint">Select region, zone, woreda first</span>
+                <span className="text-[11px] text-[#1e3a8a] block pt-1.5" id="kebeleHint">Select region, zone, woreda first</span>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Ketena (ቀጠና)</label>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Ketena (ቀጠና)</label>
                 <div className="combo-wrapper" id="ketenaWrapper">
-                  <input type="text" id="ketena" placeholder="e.g. Ketena 01" autoComplete="off" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
+                  <input type="text" id="ketena" placeholder="e.g. Ketena 01" autoComplete="off" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
                   <button type="button" className="combo-arrow" id="ketenaArrow" tabIndex={-1}><ChevronDown className="w-4 h-4" /></button>
                   <ul className="combo-list" id="ketenaList"></ul>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">House Number</label>
-                <input type="text" id="houseNumber" placeholder="e.g. 104" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">House Number</label>
+                <input type="text" id="houseNumber" placeholder="e.g. 104" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
               </div>
             </div>
-            <div className="mt-4 max-w-md">
-              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Phone Number (ስልክ) <span className="text-red-500">*</span></label>
+            <div className="mt-5 max-w-md">
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Phone Number (ስልክ) <span className="text-red-500">*</span></label>
               <div className="relative">
-                <input type="text" id="phoneNumber" required placeholder="09XXXXXXXX" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 pr-10 text-sm" />
+                <input type="text" id="phoneNumber" required placeholder="09XXXXXXXX" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 pr-10 text-sm" />
                 <Phone className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             </div>
           </section>
 
-          {/* Referral */}
-          <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-200">
-              <div className="p-2 rounded-lg bg-orange-100 text-orange-700"><ShieldCheck className="w-5 h-5" /></div>
+          {/* Referral (optional) */}
+          <section>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-8 h-8 rounded-lg bg-[#1e3a8a]/5 text-[#1e3a8a] flex items-center justify-center shrink-0"><ShieldCheck className="w-4 h-4" /></div>
               <div>
-                <h3 className="text-base font-extrabold text-slate-800">Referral Information <span className="text-xs font-normal text-slate-500">(Optional)</span></h3>
-                <p className="text-xs text-slate-500">Track patients referred from other facilities</p>
+                <h3 className="text-sm font-bold text-slate-800">Referral information <span className="text-xs font-normal text-slate-400">(Optional)</span></h3>
+                <p className="text-xs text-slate-500 mt-0.5">Track patients referred from other facilities</p>
               </div>
             </div>
-            <label className="inline-flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 transition-all">
-              <input type="checkbox" id="isReferred" className="w-4 h-4 rounded text-blue-700 cursor-pointer" onChange={() => (window as any).toggleReferralField()} />
+            <label className="inline-flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-slate-50 hover:bg-[#1e3a8a]/5 border border-slate-200 transition-all">
+              <input type="checkbox" id="isReferred" className="w-4 h-4 rounded text-[#1e3a8a] cursor-pointer" onChange={() => (window as any).toggleReferralField()} />
               <span className="text-sm font-semibold text-slate-800">Referred from another Health Center?</span>
             </label>
             <div id="referralSourceContainer" className="hidden mt-4 max-w-md">
-              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Referring Facility Name</label>
-              <input type="text" id="referralSource" placeholder="Enter facility name" className="w-full border-2 border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Referring Facility Name</label>
+              <input type="text" id="referralSource" placeholder="Enter facility name" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
             </div>
           </section>
 
-          {/* Submit */}
-          <div className="pt-4">
-            <button type="submit" className="w-full py-3 bg-gradient-to-r from-teal-600 to-teal-700 text-white rounded-xl text-base font-bold hover:from-teal-700 hover:to-teal-800 transition-all shadow-md flex items-center justify-center gap-2">
+          {/* Action bar */}
+          <div className="sticky bottom-0 -mx-8 -mb-8 mt-10 px-8 py-4 bg-white border-t border-slate-100 rounded-b-2xl flex flex-col-reverse sm:flex-row items-center justify-end gap-3">
+            <button type="button" onClick={onClose} className="w-full sm:w-auto px-6 py-3 border border-slate-300 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors">
+              Cancel
+            </button>
+            <button type="submit" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3 bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-bold rounded-xl shadow-md transition-colors">
               <UserCheck className="w-5 h-5" />
-              Register Patient
+              Register patient
             </button>
           </div>
         </form>

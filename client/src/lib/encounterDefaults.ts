@@ -12,7 +12,24 @@ export function getDefaultClinicalState() {
         amblyopia: { active: false, eye: 'Left Eye' as const, date: '', type: 'Refractive', remarks: '', showInDischarge: false },
       },
     },
-    symptoms: [],
+    symptoms: [
+      {
+        id: 'reduced_near',
+        name: 'Reduced Vision Near',
+        eye: 'Right Eye',
+        since: '1 month',
+        frequency: 'Constant',
+        severity: 'Moderate',
+      },
+      {
+        id: 'headache',
+        name: 'Headache',
+        eye: 'Right Side',
+        since: '1 month',
+        frequency: '',
+        severity: '',
+      },
+    ],
     systemicHistory: {
       noHistoryReported: false,
       generalRemarks: '',
@@ -57,12 +74,20 @@ export function getDefaultClinicalState() {
       drivingRequirements: 'Daytime Only' as const,
     },
     visualAcuity: {
-      unaidedOd: '',
-      unaidedOs: '',
-      aidedOd: '',
-      aidedOs: '',
-      pinholeOd: '',
-      pinholeOs: '',
+      unit: 'Snellan',
+      od: {
+        dist: { unaided: '', aided: '', pinhole: '' },
+        near: { unaided: '', aided: '', pinhole: '' },
+      },
+      os: {
+        dist: { unaided: '', aided: '', pinhole: '' },
+        near: { unaided: '', aided: '', pinhole: '' },
+      },
+      ou: {
+        dist: { unaided: '', aided: '', pinhole: '' },
+        near: { unaided: '', aided: '', pinhole: '' },
+      },
+      remarks: '',
     },
     refraction: {
       odSph: '',
@@ -95,6 +120,7 @@ export function getDefaultClinicalState() {
     diagnoses: [],
     counselingAdvice: '',
     treatmentPathway: '',
+    sectionData: {},
   };
 }
 

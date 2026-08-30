@@ -1,12 +1,6 @@
-import React, { useState } from 'react';
-
-interface SymptomState {
-  active: boolean;
-  eye: 'Left Eye' | 'Right Eye' | 'Both Eyes' | 'Left Side' | 'Right Side' | 'Both Sides';
-  since: string;
-  frequency: string;
-  severity: string;
-}
+import React from 'react';
+import { useEncounterStore } from '../store/useEncounterStore';
+import type { SymptomItem } from '../store/useEncounterStore';
 
 const SYMPTOM_DEFINITIONS: Array<{ id: string; label: string; isHeadache?: boolean }> = [
   { id: 'reduced_distance', label: 'Reduced Vision Distance' },
@@ -52,52 +46,38 @@ const SEVERITY_OPTIONS = [
 ];
 
 export const SymptomaticHistoryView: React.FC = () => {
-  const [symptoms, setSymptoms] = useState<Record<string, SymptomState>>({
-    reduced_near: {
-      active: true,
-      eye: 'Right Eye',
-      since: '1 month',
-      frequency: 'Constant',
-      severity: 'Moderate',
-    },
-    headache: {
-      active: true,
-      eye: 'Right Side',
-      since: '1 month',
-      frequency: '',
-      severity: '',
-    },
-  });
+  const symptoms = useEncounterStore((s) => s.symptoms);
+  const setSymptoms = useEncounterStore((s) => s.setSymptoms);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
 
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
-
-  const toggleSymptom = (id: string, isHeadache?: boolean) => {
-    setSymptoms((prev) => {
-      const current = prev[id];
-      if (current?.active) {
-        const updated = { ...prev };
-        delete updated[id];
-        return updated;
-      }
-      return {
-        ...prev,
-        [id]: {
-          active: true,
-          eye: isHeadache ? 'Both Sides' : 'Both Eyes',
-          since: '',
-          frequency: '',
-          severity: '',
-        },
-      };
-    });
+  const extra = (sectionData['symptomatic-history'] ?? { remarks: '', showInDischarge: false }) as {
+    remarks: string;
+    showInDischarge: boolean;
   };
 
-  const updateSymptom = (id: string, field: keyof SymptomState, val: any) => {
-    setSymptoms((prev) => ({
-      ...prev,
-      [id]: { ...prev[id], [field]: val },
-    }));
+  const updateExtra = (patch: Partial<typeof extra>) =>
+    setSectionData('symptomatic-history', { ...extra, ...patch });
+
+  const toggleSymptom = (id: string, isHeadache?: boolean) => {
+    const current = symptoms.find((s) => s.id === id);
+    if (current) {
+      setSymptoms(symptoms.filter((s) => s.id !== id));
+      return;
+    }
+    const next: SymptomItem = {
+      id,
+      name: SYMPTOM_DEFINITIONS.find((d) => d.id === id)?.label ?? id,
+      eye: isHeadache ? 'Both Sides' : 'Both Eyes',
+      since: '',
+      frequency: '',
+      severity: '',
+    };
+    setSymptoms([...symptoms, next]);
+  };
+
+  const updateSymptom = (id: string, field: keyof SymptomItem, val: any) => {
+    setSymptoms(symptoms.map((s) => (s.id === id ? { ...s, [field]: val } : s)));
   };
 
   return (
@@ -106,8 +86,8 @@ export const SymptomaticHistoryView: React.FC = () => {
 
       <div className="space-y-6 max-w-3xl mb-8">
         {SYMPTOM_DEFINITIONS.map((def) => {
-          const item = symptoms[def.id];
-          const isActive = !!item?.active;
+          const item = symptoms.find((s) => s.id === def.id);
+          const isActive = !!item;
 
           return (
             <div key={def.id} className="space-y-3">
@@ -139,7 +119,7 @@ export const SymptomaticHistoryView: React.FC = () => {
                               type="button"
                               onClick={() => updateSymptom(def.id, 'eye', side)}
                               className={`px-5 py-1.5 text-xs font-semibold transition-colors border-r last:border-r-0 border-slate-200 ${
-                                item.eye === side
+                                item?.eye === side
                                   ? 'bg-[#1E40AF] text-white font-bold'
                                   : 'text-slate-600 hover:bg-slate-50'
                               }`}
@@ -156,7 +136,7 @@ export const SymptomaticHistoryView: React.FC = () => {
                               type="button"
                               onClick={() => updateSymptom(def.id, 'eye', eyeOption)}
                               className={`px-5 py-1.5 text-xs font-semibold transition-colors border-r last:border-r-0 border-slate-200 ${
-                                item.eye === eyeOption
+                                item?.eye === eyeOption
                                   ? 'bg-[#1E40AF] text-white font-bold'
                                   : 'text-slate-600 hover:bg-slate-50'
                               }`}
@@ -175,7 +155,7 @@ export const SymptomaticHistoryView: React.FC = () => {
                     <div>
                       <label className="text-[11px] font-semibold text-slate-400 block mb-1">Since</label>
                       <select
-                        value={item.since}
+                        value={item?.since ?? ''}
                         onChange={(e) => updateSymptom(def.id, 'since', e.target.value)}
                         className={`w-full px-3 py-1.5 text-xs border rounded-md font-medium focus:outline-none focus:border-blue-600 bg-white ${
                           item.since ? 'border-slate-300 text-slate-800' : 'border-slate-200 text-slate-400'
@@ -193,7 +173,7 @@ export const SymptomaticHistoryView: React.FC = () => {
                     <div>
                       <label className="text-[11px] font-semibold text-slate-400 block mb-1">Frequency</label>
                       <select
-                        value={item.frequency}
+                        value={item?.frequency ?? ''}
                         onChange={(e) => updateSymptom(def.id, 'frequency', e.target.value)}
                         className={`w-full px-3 py-1.5 text-xs border rounded-md font-medium focus:outline-none focus:border-blue-600 bg-white ${
                           item.frequency ? 'border-slate-300 text-slate-800' : 'border-slate-200 text-slate-400'
@@ -211,7 +191,7 @@ export const SymptomaticHistoryView: React.FC = () => {
                     <div>
                       <label className="text-[11px] font-semibold text-slate-400 block mb-1">Severity</label>
                       <select
-                        value={item.severity}
+                        value={item?.severity ?? ''}
                         onChange={(e) => updateSymptom(def.id, 'severity', e.target.value)}
                         className={`w-full px-3 py-1.5 text-xs border rounded-md font-medium focus:outline-none focus:border-blue-600 bg-white ${
                           item.severity ? 'border-slate-300 text-slate-800' : 'border-slate-200 text-slate-400'
@@ -237,8 +217,8 @@ export const SymptomaticHistoryView: React.FC = () => {
         <label className="text-xs font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
         <textarea
           rows={3}
-          value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
+          value={extra.remarks}
+          onChange={(e) => updateExtra({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600"
         />
@@ -249,8 +229,8 @@ export const SymptomaticHistoryView: React.FC = () => {
         <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
           <input
             type="checkbox"
-            checked={showInDischarge}
-            onChange={(e) => setShowInDischarge(e.target.checked)}
+            checked={extra.showInDischarge}
+            onChange={(e) => updateExtra({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
           />
           <span>Show in Discharge Summary</span>

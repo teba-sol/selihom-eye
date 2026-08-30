@@ -36,8 +36,13 @@ export class ClinicalController {
 
   @Post('encounter/:id/addendum')
   @Roles('DOCTOR')
-  async addAddendum(@Param('id') id: string, @Body() dto: AddendumDto) {
-    return this.clinicalService.addAddendum(id, dto);
+  async addAddendum(
+    @Param('id') id: string,
+    @Body() dto: AddendumDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    const author = dto.author || (user ? `${user.firstName} ${user.lastName}`.trim() : undefined);
+    return this.clinicalService.addAddendum(id, dto, author);
   }
 
   @Get('patient/:patientId/history')

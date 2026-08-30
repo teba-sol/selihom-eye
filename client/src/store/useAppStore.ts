@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
-import { calcAge } from '../data/mockData';
 
 // ── Backend data shapes ────────────────────────────────────────────────
 
@@ -59,6 +58,7 @@ export interface Patient {
   address?: string;
   isNew?: boolean;
   lastVisit?: string;
+  createdAt?: string;
 }
 
 export interface Appointment {
@@ -66,6 +66,7 @@ export interface Appointment {
   patientId: string;
   date: string;
   startTime: string;
+  endTime?: string;
   reason: string;
   status: 'scheduled' | 'confirmed' | 'in_exam' | 'completed' | 'cancelled';
   consentObtained: boolean;
@@ -86,6 +87,7 @@ function mapPatient(api: ApiPatient): Patient {
     email: api.email || '',
     address: api.address || undefined,
     isNew: true,
+    createdAt: api.createdAt,
   };
 }
 
@@ -96,6 +98,7 @@ function mapAppointment(api: ApiAppointment): Appointment {
     patientId: api.patientId,
     date,
     startTime: api.startTime || '10:00',
+    endTime: api.endTime || undefined,
     reason: api.reason || 'Routine Eye Examination',
     status: mapStatus(api.status),
     consentObtained: api.consentObtained,
@@ -129,12 +132,10 @@ function mapStatusToFrontend(frontend: string): string {
 interface AppState {
   patients: Patient[];
   appointments: Appointment[];
-  selectedDoctorId: string | null;
   loading: boolean;
 
   fetchPatients: (query?: string) => Promise<void>;
   fetchAppointments: (from?: string, to?: string) => Promise<void>;
-  fetchAppointmentsForPatient: (patientId: string) => Promise<void>;
 
   addPatient: (patient: Omit<Patient, 'id'>) => Promise<void>;
   searchPatients: (query: string) => Patient[];
@@ -142,12 +143,9 @@ interface AppState {
   updateAppointment: (id: string, data: Partial<Appointment>) => Promise<void>;
   cancelAppointment: (id: string) => Promise<void>;
   getPatientById: (id: string) => Patient | undefined;
-  getAppointmentById: (id: string) => Appointment | undefined;
   getAppointmentsForPatient: (patientId: string) => Appointment[];
-  createWalkInAppointment: (patientId: string) => Promise<Appointment>;
+  createWalkInAppointment: (patientId: string, reason?: string) => Promise<Appointment>;
   getAppointmentsForRange: (from: Date, to: Date) => Appointment[];
-  markPatientSeen: (patientId: string) => Promise<void>;
-  refreshAppointmentsForWeek: (weekStart: Date) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -184,19 +182,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (to) url += `to=${to}`;
       const data = await api.get<ApiAppointment[]>(url);
       set({ appointments: data.map(mapAppointment) });
-    } catch {
-      // silent
-    }
-  },
-
-  fetchAppointmentsForPatient: async (patientId: string) => {
-    try {
-      const data = await api.get<ApiAppointment[]>(`/appointments/patient/${patientId}`);
-      const mapped = data.map(mapAppointment);
-      set((s) => {
-        const existing = s.appointments.filter((a) => a.patientId !== patientId);
-        return { appointments: [...existing, ...mapped] };
-      });
     } catch {
       // silent
     }
@@ -296,14 +281,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   getPatientById: (id) => get().patients.find((p) => p.id === id),
 
-  getAppointmentById: (id) => get().appointments.find((a) => a.id === id),
-
   getAppointmentsForPatient: (patientId) =>
     get()
       .appointments.filter((a) => a.patientId === patientId && a.status !== 'cancelled')
       .sort((a, b) => `${b.date}${b.startTime}`.localeCompare(`${a.date}${a.startTime}`)),
 
-  createWalkInAppointment: async (patientId) => {
+  createWalkInAppointment: async (patientId, reason) => {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     const hours = String(now.getHours()).padStart(2, '0');
@@ -314,7 +297,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       patientId,
       scheduledDate: today,
       startTime,
-      reason: 'Routine Eye Examination',
+      reason: reason || 'Routine Eye Examination',
       consentObtained: true,
     });
 
@@ -335,22 +318,5 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (a.status === 'cancelled') return false;
       return a.date >= fromStr && a.date <= toStr;
     });
-  },
-
-  markPatientSeen: async (patientId: string) => {
-    try {
-      await api.patch(`/patients/${patientId}`, { isNew: false } as any);
-    } catch {
-      // silent
-    }
-    set((s) => ({
-      patients: s.patients.map((p) =>
-        p.id === patientId ? { ...p, isNew: false } : p,
-      ),
-    }));
-  },
-
-  refreshAppointmentsForWeek: (_weekStart) => {
-    /* handled by fetchAppointments */
   },
 }));

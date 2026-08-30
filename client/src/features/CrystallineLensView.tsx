@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { MultiSelect } from '../components/MultiSelect';
+import { useEncounterStore } from '../store/useEncounterStore';
 
 // ── LOCS III Grading Component ────────────────────────────────────────────────
 type LocsGrade = { od: number; os: number };
+type LocsState = { no: LocsGrade; nc: LocsGrade; c: LocsGrade; p: LocsGrade };
 
 function GradeSlider({ label, description, maxGrade, value, onChange }: {
   label: string; description: string; maxGrade: number;
@@ -51,12 +53,7 @@ function GradeSlider({ label, description, maxGrade, value, onChange }: {
   );
 }
 
-function LocsIIIGrading() {
-  const [no, setNo] = useState<LocsGrade>({ od: 0, os: 0 }); // Nuclear Opalescence 0-6
-  const [nc, setNc] = useState<LocsGrade>({ od: 0, os: 0 }); // Nuclear Color 0-6
-  const [c, setC] = useState<LocsGrade>({ od: 0, os: 0 });   // Cortical 0-5
-  const [p, setP] = useState<LocsGrade>({ od: 0, os: 0 });   // Posterior Subcapsular 0-5
-
+function LocsIIIGrading({ locs, onChange }: { locs: LocsState; onChange: (key: keyof LocsState, v: LocsGrade) => void }) {
   return (
     <div className="space-y-4 max-w-3xl">
       <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
@@ -64,10 +61,10 @@ function LocsIIIGrading() {
         <span className="ml-2 text-blue-500">0 = Clear · 1 = Trace · 2 = Mild · 3 = Moderate · 4 = Dense · 5+ = Mature</span>
       </div>
 
-      <GradeSlider label="Nuclear Opalescence (NO)" description="0 – 6" maxGrade={6} value={no} onChange={setNo} />
-      <GradeSlider label="Nuclear Color (NC)" description="0 – 6" maxGrade={6} value={nc} onChange={setNc} />
-      <GradeSlider label="Cortical Cataract (C)" description="0 – 5" maxGrade={5} value={c} onChange={setC} />
-      <GradeSlider label="Posterior Subcapsular (P)" description="0 – 5" maxGrade={5} value={p} onChange={setP} />
+      <GradeSlider label="Nuclear Opalescence (NO)" description="0 – 6" maxGrade={6} value={locs.no} onChange={v => onChange('no', v)} />
+      <GradeSlider label="Nuclear Color (NC)" description="0 – 6" maxGrade={6} value={locs.nc} onChange={v => onChange('nc', v)} />
+      <GradeSlider label="Cortical Cataract (C)" description="0 – 5" maxGrade={5} value={locs.c} onChange={v => onChange('c', v)} />
+      <GradeSlider label="Posterior Subcapsular (P)" description="0 – 5" maxGrade={5} value={locs.p} onChange={v => onChange('p', v)} />
     </div>
   );
 }
@@ -109,25 +106,61 @@ const MYDRIATIC_OPTIONS = [
   'Atropine 1%',
 ];
 
+type CrystallineLensData = {
+  activeTab: 'Form' | 'LOCS III Grading scale';
+  mydriaticDrug: string[];
+  instrument: 'Torch Light' | 'Slit Lamp';
+  odObs: string[];
+  osObs: string[];
+  sameForOS: boolean;
+  locs: LocsState;
+  remarks: string;
+  showInDischarge: boolean;
+};
+
+const DEFAULT_LOCS: LocsState = {
+  no: { od: 0, os: 0 },
+  nc: { od: 0, os: 0 },
+  c: { od: 0, os: 0 },
+  p: { od: 0, os: 0 },
+};
+
+const DEFAULT_CRYSTALLINE: CrystallineLensData = {
+  activeTab: 'Form',
+  mydriaticDrug: [],
+  instrument: 'Slit Lamp',
+  odObs: [],
+  osObs: [],
+  sameForOS: false,
+  locs: DEFAULT_LOCS,
+  remarks: '',
+  showInDischarge: false,
+};
+
 export const CrystallineLensView: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'Form' | 'LOCS III Grading scale'>('Form');
-  const [mydriaticDrug, setMydriaticDrug] = useState<string[]>([]);
-  const [instrument, setInstrument] = useState<'Torch Light' | 'Slit Lamp'>('Slit Lamp');
-  const [odObs, setOdObs] = useState<string[]>([]);
-  const [osObs, setOsObs] = useState<string[]>([]);
-  const [sameForOS, setSameForOS] = useState(false);
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const raw = Object.assign({}, DEFAULT_CRYSTALLINE, sectionData['crystalline-lens'] ?? {}) as CrystallineLensData;
+  const locs: LocsState = {
+    no: { od: 0, os: 0, ...(raw.locs?.no ?? {}) },
+    nc: { od: 0, os: 0, ...(raw.locs?.nc ?? {}) },
+    c: { od: 0, os: 0, ...(raw.locs?.c ?? {}) },
+    p: { od: 0, os: 0, ...(raw.locs?.p ?? {}) },
+  };
+  const f: CrystallineLensData = { ...raw, locs };
+  const patch = (p: Partial<CrystallineLensData>) => setSectionData('crystalline-lens', { ...f, ...p });
+  const { activeTab, mydriaticDrug, instrument, odObs, osObs, sameForOS, remarks, showInDischarge } = f;
 
   const handleOdChange = (v: string[]) => {
-    setOdObs(v);
-    if (sameForOS) setOsObs(v);
+    patch({ odObs: v, ...(sameForOS ? { osObs: v } : {}) });
   };
 
   const handleSame = (checked: boolean) => {
-    setSameForOS(checked);
-    if (checked) setOsObs(odObs);
+    patch({ sameForOS: checked, ...(checked ? { osObs: odObs } : {}) });
   };
+
+  const updateLocs = (key: keyof LocsState, v: LocsGrade) =>
+    patch({ locs: { ...locs, [key]: v } });
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full">
@@ -136,7 +169,7 @@ export const CrystallineLensView: React.FC = () => {
       {/* Sub-tabs */}
       <div className="flex gap-6 border-b border-slate-200 mb-6">
         {(['Form', 'LOCS III Grading scale'] as const).map(tab => (
-          <button key={tab} type="button" onClick={() => setActiveTab(tab)}
+          <button key={tab} type="button" onClick={() => patch({ activeTab: tab })}
             className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab ? 'text-blue-700 border-blue-700 font-semibold' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
             {tab}
           </button>
@@ -144,13 +177,13 @@ export const CrystallineLensView: React.FC = () => {
       </div>
 
       {activeTab === 'LOCS III Grading scale' ? (
-        <LocsIIIGrading />
+        <LocsIIIGrading locs={locs} onChange={updateLocs} />
       ) : (
         <div className="space-y-5 max-w-4xl mb-8">
           {/* Mydriatic Drug */}
           <div className="grid grid-cols-[200px_1fr] items-start gap-4">
             <span className="text-sm font-bold text-slate-800 pt-2">Mydriatic Drug</span>
-            <MultiSelect options={MYDRIATIC_OPTIONS} value={mydriaticDrug} onChange={setMydriaticDrug} placeholder="Select mydriatic drug..." />
+            <MultiSelect options={MYDRIATIC_OPTIONS} value={mydriaticDrug} onChange={v => patch({ mydriaticDrug: v })} placeholder="Select mydriatic drug..." />
           </div>
 
           {/* Instrument */}
@@ -159,7 +192,7 @@ export const CrystallineLensView: React.FC = () => {
             <div className="flex items-center gap-6 text-sm text-slate-700">
               {(['Torch Light', 'Slit Lamp'] as const).map(opt => (
                 <label key={opt} className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="lensInstrument" checked={instrument === opt} onChange={() => setInstrument(opt)}
+                  <input type="radio" name="lensInstrument" checked={instrument === opt} onChange={() => patch({ instrument: opt })}
                     className="w-4 h-4 text-blue-600 accent-blue-600 focus:ring-0" />
                   <span>{opt}</span>
                 </label>
@@ -186,21 +219,21 @@ export const CrystallineLensView: React.FC = () => {
               </label>
             </div>
             <MultiSelect options={LENS_OPTIONS} value={sameForOS ? odObs : osObs}
-              onChange={v => !sameForOS && setOsObs(v)} disabled={sameForOS} />
+              onChange={v => !sameForOS && patch({ osObs: v })} disabled={sameForOS} />
           </div>
         </div>
       )}
 
       <div className="mb-6 max-w-4xl">
         <label className="text-sm font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
-        <textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)}
+        <textarea rows={3} value={remarks} onChange={e => patch({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none" />
       </div>
 
       <div className="flex justify-end max-w-4xl">
         <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
-          <input type="checkbox" checked={showInDischarge} onChange={e => setShowInDischarge(e.target.checked)}
+          <input type="checkbox" checked={showInDischarge} onChange={e => patch({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0" />
           Show in Discharge Summary
         </label>

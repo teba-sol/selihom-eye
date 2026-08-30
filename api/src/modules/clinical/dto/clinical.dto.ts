@@ -53,10 +53,10 @@ export class UpsertClinicalEncounterDto {
   @IsObject() @IsOptional() symptomaticHistory?: SymptomaticHistoryData;
   @IsObject() @IsOptional() ocularHistory?: OcularHistoryData;
   @IsObject() @IsOptional() systemicHistory?: SystemicHistoryData;
-  @IsObject() @IsOptional() medicationHistory?: MedicationHistoryData;
+  @IsArray() @IsOptional() medicationHistory?: MedicationHistoryData;
   @IsString() @IsOptional() medicationsAndCompliance?: string;
-  @IsObject() @IsOptional() familyOcularHistory?: FamilyHistoryData;
-  @IsObject() @IsOptional() familySystemicHistory?: FamilyHistoryData;
+  @IsArray() @IsOptional() familyOcularHistory?: FamilyHistoryData;
+  @IsArray() @IsOptional() familySystemicHistory?: FamilyHistoryData;
   @IsObject() @IsOptional() spectaclesHistory?: SpectaclesHistoryData;
   @IsObject() @IsOptional() contactLensHistory?: ContactLensHistoryData;
   @IsObject() @IsOptional() lifestyleDemands?: LifestyleDemandsData;
@@ -97,6 +97,10 @@ export class UpsertClinicalEncounterDto {
   @IsArray() @IsOptional() diagnoses?: Array<{ icd10Code?: string; title: string; eye: string; notes?: string }>;
   @IsString() @IsOptional() treatmentPlanPathway?: string;
   @IsString() @IsOptional() counselingAdviceGiven?: string;
+
+  // ── Section data (keyed by ASIRA exam section id) ──────────────────
+
+  @IsObject() @IsOptional() sectionData?: Record<string, any>;
 }
 
 export class LockEncounterDto {
@@ -105,4 +109,5 @@ export class LockEncounterDto {
 
 export class AddendumDto {
   @IsString() @IsNotEmpty() addendumNotes!: string;
+  @IsString() @IsOptional() author?: string;
 }

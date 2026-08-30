@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useEncounterStore } from '../../store/useEncounterStore';
 import { useAppStore } from '../../store/useAppStore';
 import { downloadEncounterPdf } from '../../lib/generatePdf';
+import { formatDobEthiopian } from '../../lib/formatters';
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
@@ -20,11 +21,20 @@ function Row({ label, value }: { label?: string; value: React.ReactNode }) {
   );
 }
 
+function vaValDisp(va: any, eye: 'od' | 'os'): string[] {
+  if (!va) return [];
+  const e = va[eye];
+  if (e && e.dist) {
+    return [e.dist.unaided ?? '', e.dist.aided ?? '', e.dist.pinhole ?? ''];
+  }
+  if (eye === 'od') return [va.unaidedOd ?? '', va.aidedOd ?? '', va.pinholeOd ?? ''];
+  return [va.unaidedOs ?? '', va.aidedOs ?? '', va.pinholeOs ?? ''];
+}
+
 export const DischargeSummaryView: React.FC = () => {
   const s = useEncounterStore();
   const patient = s.patient;
   const appPatient = useAppStore(st => st.getPatientById(patient.id));
-  const [extraRemarks, setExtraRemarks] = useState('');
 
   const handleDownloadPdf = () => downloadEncounterPdf(useEncounterStore.getState());
 
@@ -56,7 +66,7 @@ export const DischargeSummaryView: React.FC = () => {
             <h2 className="text-xl font-bold mb-3">{patient.name}</h2>
             <div className="grid grid-cols-4 gap-4 text-xs">
               <div><span className="text-blue-200 uppercase tracking-wide block mb-0.5">Gender</span>{patient.gender}</div>
-              <div><span className="text-blue-200 uppercase tracking-wide block mb-0.5">DOB</span>{appPatient ? new Date(appPatient.dateOfBirth).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}) : '—'}</div>
+              <div><span className="text-blue-200 uppercase tracking-wide block mb-0.5">DOB</span>{appPatient ? formatDobEthiopian(appPatient.dateOfBirth) : '—'}</div>
               <div><span className="text-blue-200 uppercase tracking-wide block mb-0.5">Phone</span>{appPatient?.phone ?? '—'}</div>
               <div><span className="text-blue-200 uppercase tracking-wide block mb-0.5">MRN</span>{patient.mrn}</div>
             </div>
@@ -90,7 +100,7 @@ export const DischargeSummaryView: React.FC = () => {
                                     <tr key={sym.id}>
                                       <td className="pr-4 py-1.5">{sym.name}</td>
                                       <td className="pr-4 py-1.5">{sym.eye}</td>
-                                      <td className="pr-4 py-1.5">{sym.durationValue} {sym.durationUnit}</td>
+                                      <td className="pr-4 py-1.5">{sym.since || (sym.durationValue ? `${sym.durationValue} ${sym.durationUnit}` : '—')}</td>
                                       <td className="pr-4 py-1.5">{sym.frequency}</td>
                                       <td className="py-1.5">{sym.severity}</td>
                                     </tr>
@@ -110,7 +120,7 @@ export const DischargeSummaryView: React.FC = () => {
                           </tr>
                         )}
                         {activeSystemic.length > 0 && (
-                          <Row label="Systemic History" value={activeSystemic.map(([k,v]: any) => `${v.type} ${v.durationValue} ${v.durationUnit}`).join(', ')} />
+                          <Row label="Systemic History" value={activeSystemic.map(([k,v]: any) => `${v.type || k.replace(/([A-Z])/g,' $1').replace(/_/g,' ').trim()}${v.dateOfDiagnosis ? ` (dx: ${v.dateOfDiagnosis})` : ''}`).join(', ')} />
                         )}
                         {s.patientMedications?.length > 0 && (
                           <Row label="Medication" value={s.patientMedications.map(m => `${m.drugName} ${m.dosage}`).join(', ') || '—'} />
@@ -127,7 +137,15 @@ export const DischargeSummaryView: React.FC = () => {
                 </tr>
 
                 {/* Vision & VA */}
-                {s.visualAcuity && (s.visualAcuity.unaidedOd || s.visualAcuity.unaidedOs) && (
+                {(() => {
+                  const va = s.visualAcuity as any;
+                  const hasVa = !!va && (
+                    (va.unaidedOd || va.unaidedOs) ||
+                    (va.od?.dist?.unaided || va.od?.dist?.aided || va.od?.dist?.pinhole) ||
+                    (va.os?.dist?.unaided || va.os?.dist?.aided || va.os?.dist?.pinhole)
+                  );
+                  if (!hasVa) return null;
+                  return (
                   <tr className="border-b border-slate-200">
                     <SectionHeader>Vision And<br/>Visual Acuity</SectionHeader>
                     <td className="p-0">
@@ -140,19 +158,20 @@ export const DischargeSummaryView: React.FC = () => {
                         </tr></thead>
                         <tbody className="divide-y divide-slate-50">
                           {[
-                            ['RIGHT EYE (O.D)', s.visualAcuity.unaidedOd, s.visualAcuity.aidedOd, s.visualAcuity.pinholeOd],
-                            ['LEFT EYE (O.S)', s.visualAcuity.unaidedOs, s.visualAcuity.aidedOs, s.visualAcuity.pinholeOs],
-                          ].map(([label,...vals]) => (
+                            ['RIGHT EYE (O.D)', vaValDisp(va, 'od')],
+                            ['LEFT EYE (O.S)', vaValDisp(va, 'os')],
+                          ].map(([label, vals]) => (
                             <tr key={label as string}>
                               <td className="px-3 py-2 text-xs font-semibold text-slate-500">{label}</td>
-                              {vals.map((v,i) => <td key={i} className="px-3 py-2 text-center text-slate-700">{v||'—'}</td>)}
+                              {(vals as string[]).map((v, i) => <td key={i} className="px-3 py-2 text-center text-slate-700">{v || '—'}</td>)}
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </td>
                   </tr>
-                )}
+                  );
+                })()}
 
                 {/* Refraction */}
                 {s.refraction && (s.refraction.odSph || s.refraction.osSph) && (
@@ -189,6 +208,150 @@ export const DischargeSummaryView: React.FC = () => {
                   </tr>
                 )}
 
+                {/* Final Spectacle Prescription */}
+                {(() => {
+                  const fsp = (s.sectionData['final-spectacle-prescription'] as any) ?? null;
+                  if (!fsp || !fsp.showInDischarge) return null;
+                  const rx = fsp.rx ?? {};
+                  const hasVal = (r?: any) => !!r && [r.sph, r.cyl, r.axis, r.prism, r.va, r.base].some((v: any) => v && String(v).trim() !== '' && String(v) !== '-');
+                  const rows = [
+                    ['RIGHT EYE (O.D)', 'DISTANCE', rx.odDist],
+                    ['', 'NEAR', rx.odNear],
+                    ['', 'INTERMEDIATE', rx.odInter],
+                    ['LEFT EYE (O.S)', 'DISTANCE', rx.osDist],
+                    ['', 'NEAR', rx.osNear],
+                    ['', 'INTERMEDIATE', rx.osInter],
+                  ];
+                  const show = rows.some(([, , r]) => hasVal(r)) || !!(fsp.ipd || fsp.bvd || fsp.remarks);
+                  if (!show) return null;
+                  return (
+                    <tr className="border-b border-slate-200">
+                      <SectionHeader>Final Spectacle<br/>Prescription</SectionHeader>
+                      <td className="p-0">
+                        <table className="w-full border-collapse text-xs">
+                          <thead><tr className="bg-slate-50/60 text-[10px] font-bold uppercase text-slate-400 border-b border-slate-100">
+                            <th className="px-3 py-2 text-left w-28"></th>
+                            <th className="px-3 py-2 text-left w-24"></th>
+                            {['Sphere','Cyl','Axis','Prism','Base','VA'].map(h => <th key={h} className="px-3 py-2 text-center">{h}</th>)}
+                          </tr></thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {rows.map(([eye, dist, r], i) => (
+                              <tr key={i}>
+                                <td className="px-3 py-2 text-xs font-bold text-slate-500 whitespace-pre-line align-middle w-28">{eye}</td>
+                                <td className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase bg-slate-50/50 w-24">{dist}</td>
+                                {['sph','cyl','axis','prism','base','va'].map(k => (
+                                  <td key={k} className="px-3 py-2 text-center text-slate-700">{(r?.[k] && String(r[k]) !== '-' && String(r[k]).trim() !== '') ? r[k] : '—'}</td>
+                                ))}
+                              </tr>
+                            ))}
+                            <tr className="bg-slate-50/40">
+                              <td colSpan={2} className="px-3 py-1.5 text-xs font-bold text-slate-500">IPD</td>
+                              <td colSpan={2} className="px-3 py-1.5 text-sm text-center">{fsp.ipd ? `${fsp.ipd} mm` : '—'}</td>
+                              <td colSpan={2} className="px-3 py-1.5 text-xs font-bold text-slate-500 text-center">BVD</td>
+                              <td className="px-3 py-1.5 text-sm text-center">{fsp.bvd ? `${fsp.bvd} mm` : '—'}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                        {fsp.remarks && <div className="px-3 py-2 text-sm text-slate-600 italic">Remarks: {fsp.remarks}</div>}
+                      </td>
+                    </tr>
+                  );
+                })()}
+
+                {/* Final Contact Lens Specification */}
+                {(() => {
+                  const fcl = (s.sectionData['final-contact-lens-specification'] as any) ?? null;
+                  if (!fcl || !fcl.showInDischarge) return null;
+                  const od = fcl.od ?? {};
+                  const os = fcl.os ?? {};
+                  const hasVal = (v?: any) => !!v && String(v).trim() !== '';
+                  const cells = [
+                    ['Base Curve (mm)', od.bc, os.bc],
+                    ['Diameter (mm)', od.dia, os.dia],
+                    ['Sphere (D)', od.sph, os.sph],
+                    ['Cylinder (D)', od.cyl, os.cyl],
+                    ['Axis (°)', od.axis, os.axis],
+                    ['Addition (D)', od.add, os.add],
+                    ['Visual Acuity', od.va, os.va],
+                  ];
+                  const show = [fcl.clType, fcl.brand, fcl.modality, fcl.material, fcl.solution, fcl.wearingSchedule, fcl.reviewDate, fcl.remarks]
+                    .some(hasVal) || cells.some(([, o, l]) => hasVal(o) || hasVal(l));
+                  if (!show) return null;
+                  return (
+                    <tr className="border-b border-slate-200">
+                      <SectionHeader>Final Contact Lens<br/>Specification</SectionHeader>
+                      <td className="p-0">
+                        <table className="w-full border-collapse text-xs">
+                          <thead><tr className="bg-slate-50/60 text-[10px] font-bold uppercase text-slate-400 border-b border-slate-100">
+                            <th className="px-3 py-2 text-left w-44">Parameter</th>
+                            <th className="px-3 py-2 text-center">Right Eye (OD)</th>
+                            <th className="px-3 py-2 text-center">Left Eye (OS)</th>
+                          </tr></thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {cells.map(([label, o, l], i) => (
+                              <tr key={i}>
+                                <td className="px-3 py-2 text-xs font-semibold text-slate-500">{label}</td>
+                                <td className="px-3 py-2 text-center text-slate-700">{hasVal(o) ? o : '—'}</td>
+                                <td className="px-3 py-2 text-center text-slate-700">{hasVal(l) ? l : '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <table className="w-full border-collapse text-xs">
+                          <tbody>{[
+                            ['CL Type', fcl.clType], ['Brand / Product', fcl.brand], ['Modality', fcl.modality], ['Material', fcl.material],
+                            ['Solution', fcl.solution], ['Wearing Schedule', fcl.wearingSchedule], ['Review Date', fcl.reviewDate],
+                          ].map(([label, val]) => (
+                            <Row key={label as string} label={label as string} value={hasVal(val) ? val : '—'} />
+                          ))}</tbody>
+                        </table>
+                        {fcl.remarks && <div className="px-3 py-2 text-sm text-slate-600 italic">Remarks: {fcl.remarks}</div>}
+                      </td>
+                    </tr>
+                  );
+                })()}
+
+                {/* Spectacle Dispensing */}
+                {(() => {
+                  const sd = (s.sectionData['spectacle-dispensing'] as any) ?? null;
+                  if (!sd || !sd.showInDischarge) return null;
+                  const hasVal = (v?: any) => !!v && String(v).trim() !== '';
+                  const show = [
+                    sd.frameType, sd.frameBrand, sd.frameRef, sd.lensType, sd.lensMaterial, sd.lensBrand,
+                    ...(sd.coatings ?? []), sd.rightPd, sd.leftPd, sd.heightOd, sd.heightOs,
+                    sd.orderRef, sd.labName, sd.dispatchDate, sd.collectionMethod, sd.price, sd.advancePaid, sd.remarks,
+                  ].some(hasVal);
+                  if (!show) return null;
+                  const m = (v: any) => hasVal(v) ? v : '—';
+                  return (
+                    <tr className="border-b border-slate-200">
+                      <SectionHeader>Spectacle<br/>Dispensing</SectionHeader>
+                      <td className="p-0">
+                        <table className="w-full border-collapse text-xs">
+                          <tbody>
+                            <Row label="Frame Type" value={m(sd.frameType)} />
+                            <Row label="Frame Brand / Model" value={m(sd.frameBrand)} />
+                            <Row label="Frame Reference / Code" value={m(sd.frameRef)} />
+                            <Row label="Lens Type" value={m(sd.lensType)} />
+                            <Row label="Lens Material" value={m(sd.lensMaterial)} />
+                            <Row label="Lens Brand / Lab" value={m(sd.lensBrand)} />
+                            <Row label="Coatings" value={(sd.coatings ?? []).filter(hasVal).join(', ') || '—'} />
+                            {(hasVal(sd.rightPd) || hasVal(sd.leftPd)) && <Row label="PD (OD / OS)" value={`${m(sd.rightPd)} / ${m(sd.leftPd)} mm`} />}
+                            {(hasVal(sd.heightOd) || hasVal(sd.heightOs)) && <Row label="Seg Height" value={`${m(sd.heightOd)} / ${m(sd.heightOs)} mm`} />}
+                            <Row label="Order Reference" value={m(sd.orderRef)} />
+                            <Row label="Lab / Supplier" value={m(sd.labName)} />
+                            <Row label="Expected Dispatch" value={m(sd.dispatchDate)} />
+                            <Row label="Collection Method" value={m(sd.collectionMethod)} />
+                            <Row label="Total Price" value={m(sd.price)} />
+                            <Row label="Advance Paid" value={m(sd.advancePaid)} />
+                          </tbody>
+                        </table>
+                        {sd.remarks && <div className="px-3 py-2 text-sm text-slate-600 italic">Remarks: {sd.remarks}</div>}
+                      </td>
+                    </tr>
+                  );
+                })()}
+
                 {/* Tonometry */}
                 {s.tonometry && (s.tonometry.odIop || s.tonometry.osIop) && (
                   <tr className="border-b border-slate-200">
@@ -221,7 +384,8 @@ export const DischargeSummaryView: React.FC = () => {
           {/* Extra remarks */}
           <div className="mt-6">
             <h3 className="text-lg font-bold text-[#2563eb] mb-3">Remarks</h3>
-            <textarea rows={4} value={extraRemarks} onChange={e => setExtraRemarks(e.target.value)}
+            <textarea rows={4} value={(s.sectionData['discharge-summary'] as any)?.extraRemarks ?? ''}
+              onChange={e => s.setSectionData('discharge-summary', { ...(s.sectionData['discharge-summary'] ?? {}), extraRemarks: e.target.value })}
               placeholder="Add any additional remarks..."
               className="w-full p-3 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-blue-600 resize-none" />
           </div>
@@ -231,7 +395,7 @@ export const DischargeSummaryView: React.FC = () => {
             <div />
             <div className="text-right text-sm">
               <p className="font-bold text-slate-800">Senior Optometrist, PECC</p>
-              <p className="text-slate-600">Dr. Eyasu</p>
+              <p className="text-slate-600">Dr. Tarekegn</p>
               <p className="text-slate-500 text-xs">Selihome Ophthalmic Medium Clinic</p>
             </div>
           </div>

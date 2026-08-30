@@ -104,6 +104,7 @@ export const ASIRA_EXAM_TREE: SidebarSection[] = [
       { id: 'gonioscopy', label: 'Gonioscopy', isCompleted: false },
       { id: 'amsler', label: 'Amsler', isCompleted: false },
       { id: 'contrast-sensitivity', label: 'Contrast Sensitivity', isCompleted: false },
+      { id: 'topography', label: 'Corneal Topography', isCompleted: false },
     ],
   },
   {
@@ -167,8 +168,79 @@ export const AsiraSidebar: React.FC = () => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // Deep "has meaningful data" check for module blobs managed via sectionData.
+  const nonEmpty = (v: any): boolean => {
+    if (v == null) return false;
+    if (typeof v === 'string') return v.trim() !== '';
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'number') return v !== 0;
+    if (Array.isArray(v)) return v.some(nonEmpty);
+    if (typeof v === 'object') return Object.values(v).some(nonEmpty);
+    return false;
+  };
+  const sectionHasData = (sectionId: string) => nonEmpty(encounterState.sectionData[sectionId]);
+  const sectionTouched = (sectionId: string) => encounterState.sectionData[sectionId] !== undefined;
+
   const isSectionCompleted = (sectionId: string): boolean => {
     switch (sectionId) {
+      case 'history-and-symptoms':
+        return [
+          'reason-for-visit',
+          'symptomatic-history',
+          'ocular-history',
+          'systemic-history',
+          'medication',
+          'family-ocular-history',
+          'family-systemic-history',
+          'spectacles',
+          'contact-lens',
+          'lifestyle',
+        ].some((id) => isSectionCompleted(id));
+      case 'binocular-vision-assessment':
+        return [
+          'worth-4-dot',
+          'ocular-motor-balance',
+          'near-point-of-convergence',
+          'amplitude-of-accommodation',
+          'ocular-motility',
+          'pupil-evaluation',
+          'stereopsis',
+          'accommodative-lag',
+          'accommodative-facility',
+          'relative-accommodation',
+          'fusional-vergences',
+          'diplopia-charting',
+          'hess-screen',
+          'aca-ratio',
+        ].some((id) => isSectionCompleted(id));
+      case 'worth-4-dot':
+      case 'ocular-motor-balance':
+      case 'near-point-of-convergence':
+      case 'amplitude-of-accommodation':
+      case 'ocular-motility':
+      case 'pupil-evaluation':
+      case 'stereopsis':
+      case 'accommodative-lag':
+      case 'accommodative-facility':
+      case 'relative-accommodation':
+      case 'fusional-vergences':
+      case 'diplopia-charting':
+      case 'hess-screen':
+      case 'aca-ratio':
+        return sectionHasData(sectionId);
+      case 'additional-tests':
+        return [
+          'tear-film',
+          'colour-vision',
+          'pachymetry',
+          'tonometry',
+          'gonioscopy',
+          'amsler',
+          'contrast-sensitivity',
+          'topography',
+        ].some((id) => isSectionCompleted(id));
+      case 'contact-lens-evaluation':
+        return ['cl-pre-fit', 'cl-fitting'].some((id) => isSectionCompleted(id));
       case 'reason-for-visit':
         return encounterState.patient.reasonForVisit.trim() !== '';
       case 'symptomatic-history':
@@ -178,27 +250,87 @@ export const AsiraSidebar: React.FC = () => {
       case 'systemic-history':
         return Object.values(encounterState.systemicHistory.conditions).some((c: any) => c.active);
       case 'medication':
-        return encounterState.patientMedications.length > 0;
+        return encounterState.patientMedications.length > 0 || sectionTouched('medication');
       case 'family-ocular-history':
-        return encounterState.familyOcularHistory.length > 0;
+        return encounterState.familyOcularHistory.length > 0 || sectionTouched('family-ocular-history');
       case 'family-systemic-history':
-        return encounterState.familySystemicHistory.length > 0;
+        return encounterState.familySystemicHistory.length > 0 || sectionTouched('family-systemic-history');
       case 'spectacles':
-        return encounterState.spectaclesHistory.currentlyWears === true;
+        return encounterState.spectaclesHistory.currentlyWears === true || sectionTouched('spectacles');
       case 'contact-lens':
-        return encounterState.contactLensHistory.currentWearer === true;
-      case 'lifestyle':
-        return encounterState.lifestyleDemands.occupation.trim() !== '';
+        return encounterState.contactLensHistory.currentWearer === true || sectionTouched('contact-lens');
+      case 'lifestyle': {
+        const l = encounterState.lifestyleDemands;
+        return l.occupation.trim() !== '' || l.hobbies.trim() !== '' || l.outdoorActivities.trim() !== '' || sectionTouched('lifestyle');
+      }
       case 'vision-and-visual-acuity':
-      case 'visual-acuity':
-        return Object.values(encounterState.visualAcuity).some(v => v.trim() !== '');
+      case 'visual-acuity': {
+        const va = encounterState.visualAcuity;
+        return [va.od, va.os, va.ou].some((eye) =>
+          Object.values(eye).some((scope) => Object.values(scope).some((v) => v.trim() !== '')),
+        );
+      }
       case 'refraction':
-      case 'objective-subjective':
-        return encounterState.refraction.odSph.trim() !== '' || encounterState.refraction.osSph.trim() !== '';
+      case 'objective-subjective': {
+        const rf = encounterState.refraction;
+        if (rf.odSph.trim() !== '' || rf.osSph.trim() !== '') return true;
+        const f = encounterState.sectionData['objective-subjective'] as any;
+        if (!f) return sectionId === 'objective-subjective' ? false : isSectionCompleted('objective-subjective');
+        const has = (o: any) =>
+          !!o &&
+          (String(o.sph ?? '').trim() !== '' ||
+            String(o.cyl ?? '').trim() !== '' ||
+            String(o.axis ?? '').trim() !== '' ||
+            String(o.va ?? '').trim() !== '');
+        return (
+          has(f.subjOd?.dist) ||
+          has(f.subjOs?.dist) ||
+          has(f.objOd) ||
+          has(f.objOs) ||
+          String(f.subjOd?.near?.add ?? '').trim() !== '' ||
+          String(f.subjOs?.near?.add ?? '').trim() !== '' ||
+          String(f.subjOd?.inter?.add ?? '').trim() !== '' ||
+          String(f.subjOs?.inter?.add ?? '').trim() !== ''
+        );
+      }
+      case 'cycloplegic': {
+        const f = encounterState.sectionData['cycloplegic'] as any;
+        if (!f) return false;
+        const has = (o: any) =>
+          !!o &&
+          (String(o.sph ?? '').trim() !== '' ||
+            String(o.cyl ?? '').trim() !== '' ||
+            String(o.axis ?? '').trim() !== '');
+        return has(f.cycloOd) || has(f.cycloOs);
+      }
       case 'tonometry':
-        return encounterState.tonometry.odIop.trim() !== '' || encounterState.tonometry.osIop.trim() !== '';
+        return (
+          encounterState.tonometry.odIop.trim() !== '' ||
+          encounterState.tonometry.osIop.trim() !== '' ||
+          sectionHasData('tonometry')
+        );
       case 'anterior-segment-eval':
-        return encounterState.slitLamp.cornea.trim() !== '' || encounterState.odCanvasVectors !== '';
+        return (
+          encounterState.slitLamp.cornea.trim() !== '' ||
+          encounterState.odCanvasVectors !== '' ||
+          sectionHasData('anterior-segment-eval')
+        );
+      case 'crystalline-lens':
+        return sectionHasData('crystalline-lens');
+      case 'posterior-segment':
+        return sectionHasData('posterior-segment');
+      case 'tear-film':
+      case 'colour-vision':
+      case 'pachymetry':
+      case 'gonioscopy':
+      case 'amsler':
+      case 'contrast-sensitivity':
+      case 'topography':
+      case 'cl-pre-fit':
+      case 'cl-fitting':
+        return sectionHasData(sectionId);
+      case 'action-and-advice':
+        return sectionHasData('action-and-advice');
       default:
         return false;
     }

@@ -1,12 +1,42 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useEncounterStore } from '../store/useEncounterStore';
 
 type DistanceData = { sph: string; cyl: string; axis: string; va: string };
 type NearInterData = { add: string; va: string };
 type SubjectiveEye = { dist: DistanceData; near: NearInterData; inter: NearInterData };
 type ObjectiveEye = { sph: string; cyl: string; axis: string; va: string };
 
+type SubjectiveRefractionData = {
+  tab: 'objective' | 'subjective';
+  unit: string;
+  subjOd: SubjectiveEye;
+  subjOs: SubjectiveEye;
+  objOd: ObjectiveEye;
+  objOs: ObjectiveEye;
+  remarks: string;
+  showInDischarge: boolean;
+};
+
 const DIST_VA_OPTIONS = ['-', '6/5', '6/6', '6/9', '6/12', '6/18', '6/24', '6/36', '6/60', '3/60', '2/60', '1/60', 'CF', 'PL', 'NPL'];
 const NEAR_VA_OPTIONS = ['-', 'N5', 'N6', 'N8', 'N10', 'N12', 'N14', 'N18', 'N24', 'N36', 'N48'];
+
+const emptySubjEye = (): SubjectiveEye => ({
+  dist: { sph: '', cyl: '', axis: '', va: '-' },
+  near: { add: '', va: '-' },
+  inter: { add: '', va: '-' },
+});
+const emptyObjEye = (): ObjectiveEye => ({ sph: '', cyl: '', axis: '', va: '-' });
+
+const DEFAULT_OBJ_SUB: SubjectiveRefractionData = {
+  tab: 'subjective',
+  unit: 'Snellan',
+  subjOd: emptySubjEye(),
+  subjOs: emptySubjEye(),
+  objOd: emptyObjEye(),
+  objOs: emptyObjEye(),
+  remarks: '',
+  showInDischarge: false,
+};
 
 const InputCell = ({
   value,
@@ -56,27 +86,21 @@ const SelectCell = ({
 );
 
 export const SubjectiveRefractionView: React.FC = () => {
-  const [tab, setTab] = useState<'objective' | 'subjective'>('subjective');
-  const [unit, setUnit] = useState('Snellan');
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const f = Object.assign({}, DEFAULT_OBJ_SUB, sectionData['objective-subjective'] ?? {}) as SubjectiveRefractionData;
 
-  const [subjOd, setSubjOd] = useState<SubjectiveEye>({
-    dist: { sph: '', cyl: '', axis: '', va: '-' },
-    near: { add: '', va: '-' },
-    inter: { add: '', va: '-' }
-  });
-  const [subjOs, setSubjOs] = useState<SubjectiveEye>({
-    dist: { sph: '', cyl: '', axis: '', va: '-' },
-    near: { add: '', va: '-' },
-    inter: { add: '', va: '-' }
-  });
+  const patch = (p: Partial<SubjectiveRefractionData>) => setSectionData('objective-subjective', { ...f, ...p });
+  const setTab = (tab: 'objective' | 'subjective') => patch({ tab });
+  const setUnit = (unit: string) => patch({ unit });
+  const setRemarks = (remarks: string) => patch({ remarks });
+  const setShowInDischarge = (showInDischarge: boolean) => patch({ showInDischarge });
+  const setSubjEye = (eyeKey: 'subjOd' | 'subjOs', p: Partial<SubjectiveEye>) =>
+    patch({ [eyeKey]: { ...f[eyeKey], ...p } } as Partial<SubjectiveRefractionData>);
+  const setObjEye = (eyeKey: 'objOd' | 'objOs', p: Partial<ObjectiveEye>) =>
+    patch({ [eyeKey]: { ...f[eyeKey], ...p } } as Partial<SubjectiveRefractionData>);
 
-  const [objOd, setObjOd] = useState<ObjectiveEye>({ sph: '', cyl: '', axis: '', va: '-' });
-  const [objOs, setObjOs] = useState<ObjectiveEye>({ sph: '', cyl: '', axis: '', va: '-' });
-
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
-
-
+  const { tab, unit, subjOd, subjOs, objOd, objOs, remarks, showInDischarge } = f;
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full font-sans">
@@ -143,22 +167,22 @@ export const SubjectiveRefractionView: React.FC = () => {
                   </td>
                   <InputCell
                     value={subjOd.dist.sph}
-                    onChange={(v) => setSubjOd({ ...subjOd, dist: { ...subjOd.dist, sph: v } })}
+                    onChange={(v) => setSubjEye('subjOd', { dist: { ...subjOd.dist, sph: v } })}
                     className="border-r"
                   />
                   <InputCell
                     value={subjOd.dist.cyl}
-                    onChange={(v) => setSubjOd({ ...subjOd, dist: { ...subjOd.dist, cyl: v } })}
+                    onChange={(v) => setSubjEye('subjOd', { dist: { ...subjOd.dist, cyl: v } })}
                     className="border-r"
                   />
                   <InputCell
                     value={subjOd.dist.axis}
-                    onChange={(v) => setSubjOd({ ...subjOd, dist: { ...subjOd.dist, axis: v } })}
+                    onChange={(v) => setSubjEye('subjOd', { dist: { ...subjOd.dist, axis: v } })}
                     className="border-r"
                   />
                   <SelectCell
                     value={subjOd.dist.va}
-                    onChange={(v) => setSubjOd({ ...subjOd, dist: { ...subjOd.dist, va: v } })}
+                    onChange={(v) => setSubjEye('subjOd', { dist: { ...subjOd.dist, va: v } })}
                     options={DIST_VA_OPTIONS}
                   />
                 </tr>
@@ -169,12 +193,12 @@ export const SubjectiveRefractionView: React.FC = () => {
                   <td colSpan={2} className="p-0 border-b border-slate-200 bg-white"></td>
                   <InputCell
                     value={subjOd.near.add}
-                    onChange={(v) => setSubjOd({ ...subjOd, near: { ...subjOd.near, add: v } })}
+                    onChange={(v) => setSubjEye('subjOd', { near: { ...subjOd.near, add: v } })}
                     className="border-r"
                   />
                   <SelectCell
                     value={subjOd.near.va}
-                    onChange={(v) => setSubjOd({ ...subjOd, near: { ...subjOd.near, va: v } })}
+                    onChange={(v) => setSubjEye('subjOd', { near: { ...subjOd.near, va: v } })}
                     options={NEAR_VA_OPTIONS}
                   />
                 </tr>
@@ -185,12 +209,12 @@ export const SubjectiveRefractionView: React.FC = () => {
                   <td colSpan={2} className="p-0 border-b border-slate-200 bg-white"></td>
                   <InputCell
                     value={subjOd.inter.add}
-                    onChange={(v) => setSubjOd({ ...subjOd, inter: { ...subjOd.inter, add: v } })}
+                    onChange={(v) => setSubjEye('subjOd', { inter: { ...subjOd.inter, add: v } })}
                     className="border-r"
                   />
                   <SelectCell
                     value={subjOd.inter.va}
-                    onChange={(v) => setSubjOd({ ...subjOd, inter: { ...subjOd.inter, va: v } })}
+                    onChange={(v) => setSubjEye('subjOd', { inter: { ...subjOd.inter, va: v } })}
                     options={NEAR_VA_OPTIONS}
                   />
                 </tr>
@@ -208,22 +232,22 @@ export const SubjectiveRefractionView: React.FC = () => {
                   </td>
                   <InputCell
                     value={subjOs.dist.sph}
-                    onChange={(v) => setSubjOs({ ...subjOs, dist: { ...subjOs.dist, sph: v } })}
+                    onChange={(v) => setSubjEye('subjOs', { dist: { ...subjOs.dist, sph: v } })}
                     className="border-r"
                   />
                   <InputCell
                     value={subjOs.dist.cyl}
-                    onChange={(v) => setSubjOs({ ...subjOs, dist: { ...subjOs.dist, cyl: v } })}
+                    onChange={(v) => setSubjEye('subjOs', { dist: { ...subjOs.dist, cyl: v } })}
                     className="border-r"
                   />
                   <InputCell
                     value={subjOs.dist.axis}
-                    onChange={(v) => setSubjOs({ ...subjOs, dist: { ...subjOs.dist, axis: v } })}
+                    onChange={(v) => setSubjEye('subjOs', { dist: { ...subjOs.dist, axis: v } })}
                     className="border-r"
                   />
                   <SelectCell
                     value={subjOs.dist.va}
-                    onChange={(v) => setSubjOs({ ...subjOs, dist: { ...subjOs.dist, va: v } })}
+                    onChange={(v) => setSubjEye('subjOs', { dist: { ...subjOs.dist, va: v } })}
                     options={DIST_VA_OPTIONS}
                   />
                 </tr>
@@ -234,12 +258,12 @@ export const SubjectiveRefractionView: React.FC = () => {
                   <td colSpan={2} className="p-0 border-b border-slate-200 bg-white"></td>
                   <InputCell
                     value={subjOs.near.add}
-                    onChange={(v) => setSubjOs({ ...subjOs, near: { ...subjOs.near, add: v } })}
+                    onChange={(v) => setSubjEye('subjOs', { near: { ...subjOs.near, add: v } })}
                     className="border-r"
                   />
                   <SelectCell
                     value={subjOs.near.va}
-                    onChange={(v) => setSubjOs({ ...subjOs, near: { ...subjOs.near, va: v } })}
+                    onChange={(v) => setSubjEye('subjOs', { near: { ...subjOs.near, va: v } })}
                     options={NEAR_VA_OPTIONS}
                   />
                 </tr>
@@ -250,12 +274,12 @@ export const SubjectiveRefractionView: React.FC = () => {
                   <td colSpan={2} className="p-0 border-b border-slate-200 bg-white"></td>
                   <InputCell
                     value={subjOs.inter.add}
-                    onChange={(v) => setSubjOs({ ...subjOs, inter: { ...subjOs.inter, add: v } })}
+                    onChange={(v) => setSubjEye('subjOs', { inter: { ...subjOs.inter, add: v } })}
                     className="border-r"
                   />
                   <SelectCell
                     value={subjOs.inter.va}
-                    onChange={(v) => setSubjOs({ ...subjOs, inter: { ...subjOs.inter, va: v } })}
+                    onChange={(v) => setSubjEye('subjOs', { inter: { ...subjOs.inter, va: v } })}
                     options={NEAR_VA_OPTIONS}
                   />
                 </tr>
@@ -279,22 +303,22 @@ export const SubjectiveRefractionView: React.FC = () => {
                   </td>
                   <InputCell
                     value={objOd.sph}
-                    onChange={(v) => setObjOd({ ...objOd, sph: v })}
+                    onChange={(v) => setObjEye('objOd', { sph: v })}
                     className="border-r"
                   />
                   <InputCell
                     value={objOd.cyl}
-                    onChange={(v) => setObjOd({ ...objOd, cyl: v })}
+                    onChange={(v) => setObjEye('objOd', { cyl: v })}
                     className="border-r"
                   />
                   <InputCell
                     value={objOd.axis}
-                    onChange={(v) => setObjOd({ ...objOd, axis: v })}
+                    onChange={(v) => setObjEye('objOd', { axis: v })}
                     className="border-r"
                   />
                   <SelectCell
                     value={objOd.va}
-                    onChange={(v) => setObjOd({ ...objOd, va: v })}
+                    onChange={(v) => setObjEye('objOd', { va: v })}
                     options={DIST_VA_OPTIONS}
                   />
                 </tr>
@@ -304,22 +328,22 @@ export const SubjectiveRefractionView: React.FC = () => {
                   </td>
                   <InputCell
                     value={objOs.sph}
-                    onChange={(v) => setObjOs({ ...objOs, sph: v })}
+                    onChange={(v) => setObjEye('objOs', { sph: v })}
                     className="border-r"
                   />
                   <InputCell
                     value={objOs.cyl}
-                    onChange={(v) => setObjOs({ ...objOs, cyl: v })}
+                    onChange={(v) => setObjEye('objOs', { cyl: v })}
                     className="border-r"
                   />
                   <InputCell
                     value={objOs.axis}
-                    onChange={(v) => setObjOs({ ...objOs, axis: v })}
+                    onChange={(v) => setObjEye('objOs', { axis: v })}
                     className="border-r"
                   />
                   <SelectCell
                     value={objOs.va}
-                    onChange={(v) => setObjOs({ ...objOs, va: v })}
+                    onChange={(v) => setObjEye('objOs', { va: v })}
                     options={DIST_VA_OPTIONS}
                   />
                 </tr>

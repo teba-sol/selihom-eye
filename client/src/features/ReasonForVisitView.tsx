@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useEncounterStore } from '../store/useEncounterStore';
 
 const REASONS_LEFT = [
   'Routine eye examination',
@@ -17,9 +18,20 @@ const REASONS_RIGHT = [
 ];
 
 export const ReasonForVisitView: React.FC = () => {
-  const [selectedReason, setSelectedReason] = useState<string>('');
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const patient = useEncounterStore((s) => s.patient);
+  const setPatient = useEncounterStore((s) => s.setPatient);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+
+  const selectedReason = patient.reasonForVisit;
+  const extra = (sectionData['reason-for-visit'] ?? { remarks: '', showInDischarge: false }) as {
+    remarks: string;
+    showInDischarge: boolean;
+  };
+
+  const selectReason = (reason: string) => setPatient({ ...patient, reasonForVisit: reason });
+  const updateExtra = (patch: Partial<typeof extra>) =>
+    setSectionData('reason-for-visit', { ...extra, ...patch });
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full font-sans">
@@ -34,7 +46,7 @@ export const ReasonForVisitView: React.FC = () => {
                 name="reason"
                 value={reason}
                 checked={selectedReason === reason}
-                onChange={(e) => setSelectedReason(e.target.value)}
+                onChange={(e) => selectReason(e.target.value)}
                 className="w-4 h-4 text-[#2957a4] bg-white border-slate-300 focus:ring-1 focus:ring-[#2957a4]"
               />
               <span className="text-[15px] font-medium text-slate-600 group-hover:text-slate-800">{reason}</span>
@@ -49,7 +61,7 @@ export const ReasonForVisitView: React.FC = () => {
                 name="reason"
                 value={reason}
                 checked={selectedReason === reason}
-                onChange={(e) => setSelectedReason(e.target.value)}
+                onChange={(e) => selectReason(e.target.value)}
                 className="w-4 h-4 text-[#2957a4] bg-white border-slate-300 focus:ring-1 focus:ring-[#2957a4]"
               />
               <span className="text-[15px] font-medium text-slate-600 group-hover:text-slate-800">{reason}</span>
@@ -62,8 +74,8 @@ export const ReasonForVisitView: React.FC = () => {
         <label className="text-sm font-semibold text-[#4a5f73] block mb-2">Any remarks?</label>
         <textarea
           rows={3}
-          value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
+          value={extra.remarks}
+          onChange={(e) => updateExtra({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-4 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-[#2957a4] focus:ring-1 focus:ring-[#2957a4] resize-none"
         />
@@ -73,8 +85,8 @@ export const ReasonForVisitView: React.FC = () => {
         <label className="flex items-center gap-2 text-sm font-medium text-slate-500 cursor-pointer">
           <input
             type="checkbox"
-            checked={showInDischarge}
-            onChange={(e) => setShowInDischarge(e.target.checked)}
+            checked={extra.showInDischarge}
+            onChange={(e) => updateExtra({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded text-[#2957a4] border-slate-300 focus:ring-0"
           />
           <span>Show in Discharge Summary</span>

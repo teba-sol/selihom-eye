@@ -4,7 +4,7 @@ import { Calendar, CheckCircle2, X } from 'lucide-react';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { useAppStore } from '../store/useAppStore';
 import { useEncounterStore } from '../store/useEncounterStore';
-import { calcAge, formatDisplayDate } from '../data/mockData';
+import { calcAge, formatDisplayDate } from '../lib/formatters';
 import { buildAppointmentTime } from '../lib/encounterDefaults';
 import type { Appointment, Patient } from '../store/useAppStore';
 
@@ -249,15 +249,18 @@ export const AppointmentsPage: React.FC = () => {
                   const patient = getPatientById(apt.patientId);
                   const name = patient ? `${patient.firstName} ${patient.lastName}`.toUpperCase() : 'Unknown';
                   const isFollowUp = apt.reason.toLowerCase().includes('follow');
+                  const colorClass = isFollowUp
+                    ? 'bg-[#2563eb] text-white'
+                    : apt.status === 'completed'
+                      ? 'bg-slate-100 border border-slate-300 text-slate-500'
+                      : apt.status === 'cancelled'
+                        ? 'bg-slate-50 border border-slate-200 text-slate-400 line-through'
+                        : 'bg-emerald-100 border border-emerald-300 text-emerald-900';
                   return (
                     <button
                       key={apt.id}
                       onClick={(e) => handleAptClick(apt, e)}
-                      className={`absolute left-1 right-1 rounded px-2 py-1 text-left text-xs overflow-hidden cursor-pointer transition-opacity hover:opacity-90 z-20 ${
-                        isFollowUp
-                          ? 'bg-[#2563eb] text-white'
-                          : 'bg-emerald-100 border border-emerald-300 text-emerald-900'
-                      }`}
+                      className={`absolute left-1 right-1 rounded px-2 py-1 text-left text-xs overflow-hidden cursor-pointer transition-opacity hover:opacity-90 z-20 ${colorClass}`}
                       style={{ top, height }}
                     >
                       <div className="flex items-center gap-1 font-semibold truncate">
@@ -331,8 +334,9 @@ export const AppointmentsPage: React.FC = () => {
             <div className="mt-4 space-y-2">
               {visibleAppointments.filter((a) => a.date === weekStart.toISOString().split('T')[0]).map((apt) => {
                 const p = getPatientById(apt.patientId);
+                const isDone = apt.status === 'completed' || apt.status === 'cancelled';
                 return (
-                  <button key={apt.id} onClick={(e) => handleAptClick(apt, e)} className="block w-full max-w-md mx-auto p-3 bg-emerald-50 border border-emerald-200 rounded-md text-left hover:bg-emerald-100">
+                  <button key={apt.id} onClick={(e) => handleAptClick(apt, e)} className={`block w-full max-w-md mx-auto p-3 rounded-md text-left hover:bg-slate-50 transition-colors ${isDone ? 'bg-slate-100 border border-slate-200 text-slate-500' : 'bg-emerald-50 border border-emerald-200'}`}>
                     <span className="font-medium">{p?.firstName} {p?.lastName}</span> — {apt.startTime} — {apt.reason}
                   </button>
                 );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { downloadEncounterPdf } from '../../lib/generatePdf';
 import { useEncounterStore } from '../../store/useEncounterStore';
 
@@ -25,24 +25,43 @@ const MATERIAL_OPTIONS = ['','Silicone Hydrogel','Hydrogel (HEMA)','Fluorosilico
 interface EyeSpec { bc: string; dia: string; sph: string; cyl: string; axis: string; add: string; va: string; }
 const emptySpec = (): EyeSpec => ({ bc: '', dia: '', sph: '', cyl: '', axis: '', add: '', va: '' });
 
+const SECTION_KEY = 'final-contact-lens-specification';
+
+interface FclData {
+  clType: string;
+  brand: string;
+  modality: string;
+  material: string;
+  od: EyeSpec;
+  os: EyeSpec;
+  sameForOs: boolean;
+  solution: string;
+  wearingSchedule: string;
+  reviewDate: string;
+  remarks: string;
+  showInDischarge: boolean;
+}
+
+const DEFAULT_FCL: FclData = {
+  clType: '', brand: '', modality: '', material: '',
+  od: emptySpec(), os: emptySpec(), sameForOs: false,
+  solution: '', wearingSchedule: '', reviewDate: '', remarks: '', showInDischarge: false,
+};
+
 export const FinalContactLensSpecificationView: React.FC = () => {
   const encounterState = useEncounterStore.getState();
-  const [clType, setClType] = useState('');
-  const [brand, setBrand] = useState('');
-  const [modality, setModality] = useState('');
-  const [material, setMaterial] = useState('');
-  const [od, setOd] = useState<EyeSpec>(emptySpec());
-  const [os, setOs] = useState<EyeSpec>(emptySpec());
-  const [sameForOs, setSameForOs] = useState(false);
-  const [solution, setSolution] = useState('');
-  const [wearingSchedule, setWearingSchedule] = useState('');
-  const [reviewDate, setReviewDate] = useState('');
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const sectionData = useEncounterStore(s => s.sectionData);
+  const setSectionData = useEncounterStore(s => s.setSectionData);
+  const d = Object.assign({}, DEFAULT_FCL, sectionData[SECTION_KEY] ?? {}) as FclData;
+  const od = d.od ?? emptySpec();
+  const os = d.os ?? emptySpec();
+  const patch = (p: Partial<FclData>) => setSectionData(SECTION_KEY, { ...d, ...p });
 
-  const updOd = (f: keyof EyeSpec, v: string) => {
-    setOd(p => ({ ...p, [f]: v }));
-    if (sameForOs) setOs(p => ({ ...p, [f]: v }));
+  const updOd = (field: keyof EyeSpec, v: string) => {
+    const nextOd = { ...od, [field]: v };
+    const next: FclData = { ...d, od: nextOd };
+    if (d.sameForOs) next.os = { ...os, [field]: v };
+    setSectionData(SECTION_KEY, next);
   };
 
   const fields: { key: keyof EyeSpec; label: string }[] = [
@@ -74,10 +93,10 @@ export const FinalContactLensSpecificationView: React.FC = () => {
         {/* Lens details */}
         <div className="space-y-3 mb-6">
           {[
-            { label: 'CL Type', value: clType, onChange: setClType, type: 'select', options: CL_TYPE_OPTIONS },
-            { label: 'Brand / Product', value: brand, onChange: setBrand, type: 'text', placeholder: 'e.g. Acuvue Oasys, Dailies Total1' },
-            { label: 'Modality', value: modality, onChange: setModality, type: 'select', options: MODALITY_OPTIONS },
-            { label: 'Material', value: material, onChange: setMaterial, type: 'select', options: MATERIAL_OPTIONS },
+            { label: 'CL Type', value: d.clType, onChange: (v: string) => patch({ clType: v }), type: 'select', options: CL_TYPE_OPTIONS },
+            { label: 'Brand / Product', value: d.brand, onChange: (v: string) => patch({ brand: v }), type: 'text', placeholder: 'e.g. Acuvue Oasys, Dailies Total1' },
+            { label: 'Modality', value: d.modality, onChange: (v: string) => patch({ modality: v }), type: 'select', options: MODALITY_OPTIONS },
+            { label: 'Material', value: d.material, onChange: (v: string) => patch({ material: v }), type: 'select', options: MATERIAL_OPTIONS },
           ].map(f => (
             <div key={f.label} className="grid grid-cols-[200px_1fr] items-center gap-4">
               <span className="text-sm font-bold text-slate-800">{f.label}</span>
@@ -104,12 +123,12 @@ export const FinalContactLensSpecificationView: React.FC = () => {
             {fields.map(f => (
               <Row key={f.key} label={f.label}>
                 <RxCell value={od[f.key]} onChange={v => updOd(f.key, v)} />
-                <RxCell value={sameForOs ? od[f.key] : os[f.key]} onChange={v => !sameForOs && setOs(p => ({ ...p, [f.key]: v }))} placeholder={sameForOs ? od[f.key] || '—' : '—'} />
+                <RxCell value={d.sameForOs ? od[f.key] : os[f.key]} onChange={v => !d.sameForOs && patch({ os: { ...os, [f.key]: v } })} placeholder={d.sameForOs ? od[f.key] || '—' : '—'} />
               </Row>
             ))}
           </div>
           <label className="flex items-center gap-2 mt-2 cursor-pointer">
-            <input type="checkbox" checked={sameForOs} onChange={e => { setSameForOs(e.target.checked); if (e.target.checked) setOs({ ...od }); }}
+            <input type="checkbox" checked={d.sameForOs} onChange={e => { const v = e.target.checked; setSectionData(SECTION_KEY, { ...d, sameForOs: v, os: v ? { ...od } : os }); }}
               className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600" />
             <span className="text-xs text-slate-500">Same for Left Eye</span>
           </label>
@@ -118,9 +137,9 @@ export const FinalContactLensSpecificationView: React.FC = () => {
         {/* Additional info */}
         <div className="space-y-3 mb-6">
           {[
-            { label: 'Lens Solution', value: solution, onChange: setSolution, placeholder: 'e.g. Clear Care, Biotrue, No solution (Daily)' },
-            { label: 'Wearing Schedule', value: wearingSchedule, onChange: setWearingSchedule, placeholder: 'e.g. 8 hrs/day, daily wear' },
-            { label: 'Review Date', value: reviewDate, onChange: setReviewDate, placeholder: 'e.g. 2 weeks, 1 month' },
+            { label: 'Lens Solution', value: d.solution, onChange: (v: string) => patch({ solution: v }), placeholder: 'e.g. Clear Care, Biotrue, No solution (Daily)' },
+            { label: 'Wearing Schedule', value: d.wearingSchedule, onChange: (v: string) => patch({ wearingSchedule: v }), placeholder: 'e.g. 8 hrs/day, daily wear' },
+            { label: 'Review Date', value: d.reviewDate, onChange: (v: string) => patch({ reviewDate: v }), placeholder: 'e.g. 2 weeks, 1 month' },
           ].map(f => (
             <div key={f.label} className="grid grid-cols-[200px_1fr] items-center gap-4">
               <span className="text-sm font-bold text-slate-800">{f.label}</span>
@@ -132,13 +151,13 @@ export const FinalContactLensSpecificationView: React.FC = () => {
 
         <div className="mb-4">
           <label className="text-sm font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
-          <textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Add any remarks..."
+          <textarea rows={3} value={d.remarks} onChange={e => patch({ remarks: e.target.value })} placeholder="Add any remarks..."
             className="w-full p-3 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-blue-600 resize-none" />
         </div>
 
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
-            <input type="checkbox" checked={showInDischarge} onChange={e => setShowInDischarge(e.target.checked)}
+            <input type="checkbox" checked={d.showInDischarge} onChange={e => patch({ showInDischarge: e.target.checked })}
               className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0" />
             Show in Discharge Summary
           </label>

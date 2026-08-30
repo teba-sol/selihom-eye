@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useEncounterStore } from '../../store/useEncounterStore';
 
 type VisionTab = 'Distance Vision' | 'Intermediate Vision' | 'Near Vision';
 type VergenceType = 'BI' | 'BO';
@@ -16,6 +17,24 @@ interface TabData {
 
 const EMPTY: VergenceData = { blur: '', break: '', recovery: '' };
 const DEFAULT_TAB: TabData = { bi: { ...EMPTY }, bo: { ...EMPTY } };
+
+type FusionalVergencesData = {
+  activeTab: VisionTab;
+  data: Record<VisionTab, TabData>;
+  remarks: string;
+  showInDischarge: boolean;
+};
+
+const DEFAULT: FusionalVergencesData = {
+  activeTab: 'Distance Vision',
+  data: {
+    'Distance Vision': { ...DEFAULT_TAB, bi: { ...EMPTY }, bo: { ...EMPTY } },
+    'Intermediate Vision': { ...DEFAULT_TAB, bi: { ...EMPTY }, bo: { ...EMPTY } },
+    'Near Vision': { ...DEFAULT_TAB, bi: { ...EMPTY }, bo: { ...EMPTY } },
+  },
+  remarks: '',
+  showInDischarge: false,
+};
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -49,17 +68,21 @@ function VergenceSection({ title, data, onChange }: { title: string; data: Verge
 }
 
 export const FusionalVergencesView: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<VisionTab>('Distance Vision');
-  const [data, setData] = useState<Record<VisionTab, TabData>>({
-    'Distance Vision': { ...DEFAULT_TAB, bi: { ...EMPTY }, bo: { ...EMPTY } },
-    'Intermediate Vision': { ...DEFAULT_TAB, bi: { ...EMPTY }, bo: { ...EMPTY } },
-    'Near Vision': { ...DEFAULT_TAB, bi: { ...EMPTY }, bo: { ...EMPTY } },
-  });
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const raw = Object.assign({}, DEFAULT, sectionData['fusional-vergences'] ?? {}) as FusionalVergencesData;
+  const data: Record<VisionTab, TabData> = {
+    'Distance Vision': { bi: { ...EMPTY }, bo: { ...EMPTY }, ...(raw.data?.['Distance Vision'] ?? {}) },
+    'Intermediate Vision': { bi: { ...EMPTY }, bo: { ...EMPTY }, ...(raw.data?.['Intermediate Vision'] ?? {}) },
+    'Near Vision': { bi: { ...EMPTY }, bo: { ...EMPTY }, ...(raw.data?.['Near Vision'] ?? {}) },
+  };
+  const f: FusionalVergencesData = { ...raw, data };
+  const patch = (p: Partial<FusionalVergencesData>) => setSectionData('fusional-vergences', { ...f, ...p });
+  const { activeTab, remarks, showInDischarge } = f;
 
+  const setActiveTab = (tab: VisionTab) => patch({ activeTab: tab });
   const upd = (type: 'bi' | 'bo', fields: Partial<VergenceData>) =>
-    setData(p => ({ ...p, [activeTab]: { ...p[activeTab], [type]: { ...p[activeTab][type], ...fields } } }));
+    patch({ data: { ...data, [activeTab]: { ...data[activeTab], [type]: { ...data[activeTab][type], ...fields } } } });
 
   return (
     <div className="p-8 max-w-4xl bg-white min-h-full">
@@ -75,19 +98,19 @@ export const FusionalVergencesView: React.FC = () => {
         ))}
       </div>
 
-      <VergenceSection title="Base-In (BI) — Divergence" data={data[activeTab].bi} onChange={f => upd('bi', f)} />
-      <VergenceSection title="Base-Out (BO) — Convergence" data={data[activeTab].bo} onChange={f => upd('bo', f)} />
+      <VergenceSection title="Base-In (BI) — Divergence" data={data[activeTab].bi} onChange={fields => upd('bi', fields)} />
+      <VergenceSection title="Base-Out (BO) — Convergence" data={data[activeTab].bo} onChange={fields => upd('bo', fields)} />
 
       <div className="mb-6 max-w-2xl">
         <label className="text-sm font-semibold text-slate-700 block mb-1.5">Any remarks?</label>
-        <textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)}
+        <textarea rows={3} value={remarks} onChange={e => patch({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none" />
       </div>
 
       <div className="flex justify-end max-w-2xl">
         <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
-          <input type="checkbox" checked={showInDischarge} onChange={e => setShowInDischarge(e.target.checked)}
+          <input type="checkbox" checked={showInDischarge} onChange={e => patch({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0" />
           Show in Discharge Summary
         </label>

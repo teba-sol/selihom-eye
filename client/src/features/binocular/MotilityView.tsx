@@ -1,4 +1,5 @@
-﻿import React, { useState } from 'react';
+﻿import React from 'react';
+import { useEncounterStore } from '../../store/useEncounterStore';
 
 const OPTIONS = [
   'Smooth, Accurate, Full and Extensive',
@@ -9,10 +10,24 @@ const OPTIONS = [
   'EOM Palsy',
 ];
 
+type MotilityData = {
+  selected: string;
+  remarks: string;
+  showInDischarge: boolean;
+};
+
+const DEFAULT: MotilityData = {
+  selected: 'Smooth, Accurate, Full and Extensive',
+  remarks: '',
+  showInDischarge: false,
+};
+
 export const MotilityView: React.FC = () => {
-  const [selected, setSelected] = useState('Smooth, Accurate, Full and Extensive');
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+  const f = Object.assign({}, DEFAULT, sectionData['ocular-motility'] ?? {}) as MotilityData;
+  const patch = (p: Partial<MotilityData>) => setSectionData('ocular-motility', { ...f, ...p });
+  const { selected, remarks, showInDischarge } = f;
 
   return (
     <div className="p-8 max-w-4xl bg-white min-h-full">
@@ -26,7 +41,7 @@ export const MotilityView: React.FC = () => {
               name="motility"
               value={opt}
               checked={selected === opt}
-              onChange={() => setSelected(opt)}
+              onChange={() => patch({ selected: opt })}
               className="w-4 h-4 text-blue-600 accent-blue-600 focus:ring-0"
             />
             <span className="text-sm font-medium text-slate-800">{opt}</span>
@@ -39,7 +54,7 @@ export const MotilityView: React.FC = () => {
         <textarea
           rows={3}
           value={remarks}
-          onChange={e => setRemarks(e.target.value)}
+          onChange={e => patch({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 resize-none"
         />
@@ -50,7 +65,7 @@ export const MotilityView: React.FC = () => {
           <input
             type="checkbox"
             checked={showInDischarge}
-            onChange={e => setShowInDischarge(e.target.checked)}
+            onChange={e => patch({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0"
           />
           Show in Discharge Summary
