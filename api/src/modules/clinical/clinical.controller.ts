@@ -1,5 +1,5 @@
 import {
-  Controller, Post, Get, Patch, Body, Param, UseGuards,
+  Controller, Post, Get, Patch, Delete, Body, Param, Query, UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ClinicalService } from './clinical.service';
@@ -28,10 +28,32 @@ export class ClinicalController {
     return this.clinicalService.getEncounterByAppointmentId(appointmentId);
   }
 
+  @Get('encounter/:id')
+  @Roles('DOCTOR', 'RECEPTIONIST')
+  async getById(@Param('id') id: string) {
+    return this.clinicalService.getEncounterById(id);
+  }
+
+  @Get('encounters/completed-counts')
+  @Roles('DOCTOR', 'RECEPTIONIST')
+  async getCompletedCounts(@Query('patientIds') patientIds: string) {
+    const ids = (patientIds ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return this.clinicalService.getCompletedCountsByPatient(ids);
+  }
+
   @Patch('encounter/:id/lock')
   @Roles('DOCTOR')
   async lockEncounter(@Param('id') id: string) {
     return this.clinicalService.lockEncounter(id);
+  }
+
+  @Delete('encounter/:id')
+  @Roles('DOCTOR')
+  async deleteEncounter(@Param('id') id: string) {
+    return this.clinicalService.deleteEncounter(id);
   }
 
   @Post('encounter/:id/addendum')

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useEncounterStore } from '../store/useEncounterStore';
 import type { SpectaclesState } from '../store/useEncounterStore';
+import { StepperInput } from '../components/StepperInput';
 
 const DEFAULT_SPECTACLES = {
   none: false,
@@ -172,19 +173,21 @@ export const SpectaclesView: React.FC = () => {
                   Distance
                 </td>
                 <td className="py-1.5 px-2 text-center">
-                  <input
-                    type="text"
+                  <StepperInput
                     value={f.odDist.sph}
-                    onChange={(e) => setFlag({ odDist: { ...f.odDist, sph: e.target.value } })}
-                    className="w-full text-center py-1 border border-slate-200 rounded"
+                    onChange={(v) => setFlag({ odDist: { ...f.odDist, sph: v } })}
+                    step={0.25}
+                    className="w-20"
+                    ariaLabel="Right Eye Sphere"
                   />
                 </td>
                 <td className="py-1.5 px-2 text-center">
-                  <input
-                    type="text"
+                  <StepperInput
                     value={f.odDist.cyl}
-                    onChange={(e) => setFlag({ odDist: { ...f.odDist, cyl: e.target.value } })}
-                    className="w-full text-center py-1 border border-slate-200 rounded"
+                    onChange={(v) => setFlag({ odDist: { ...f.odDist, cyl: v } })}
+                    step={0.25}
+                    className="w-20"
+                    ariaLabel="Right Eye Cylinder"
                   />
                 </td>
                 <td className="py-1.5 px-2 text-center">
@@ -212,11 +215,12 @@ export const SpectaclesView: React.FC = () => {
                   Near addition
                 </td>
                 <td colSpan={3} className="py-1.5 px-2 text-center">
-                  <input
-                    type="text"
+                  <StepperInput
                     value={f.odNear.add}
-                    onChange={(e) => setFlag({ odNear: { ...f.odNear, add: e.target.value } })}
-                    className="w-full text-center py-1 border border-slate-200 rounded"
+                    onChange={(v) => setFlag({ odNear: { ...f.odNear, add: v } })}
+                    step={0.25}
+                    className="w-32"
+                    ariaLabel="Right Eye Near Addition"
                   />
                 </td>
                 <td className="py-1.5 px-2 text-center">
@@ -240,19 +244,21 @@ export const SpectaclesView: React.FC = () => {
                   Distance
                 </td>
                 <td className="py-1.5 px-2 text-center">
-                  <input
-                    type="text"
+                  <StepperInput
                     value={f.osDist.sph}
-                    onChange={(e) => setFlag({ osDist: { ...f.osDist, sph: e.target.value } })}
-                    className="w-full text-center py-1 border border-slate-200 rounded"
+                    onChange={(v) => setFlag({ osDist: { ...f.osDist, sph: v } })}
+                    step={0.25}
+                    className="w-20"
+                    ariaLabel="Left Eye Sphere"
                   />
                 </td>
                 <td className="py-1.5 px-2 text-center">
-                  <input
-                    type="text"
+                  <StepperInput
                     value={f.osDist.cyl}
-                    onChange={(e) => setFlag({ osDist: { ...f.osDist, cyl: e.target.value } })}
-                    className="w-full text-center py-1 border border-slate-200 rounded"
+                    onChange={(v) => setFlag({ osDist: { ...f.osDist, cyl: v } })}
+                    step={0.25}
+                    className="w-20"
+                    ariaLabel="Left Eye Cylinder"
                   />
                 </td>
                 <td className="py-1.5 px-2 text-center">
@@ -280,11 +286,12 @@ export const SpectaclesView: React.FC = () => {
                   Near addition
                 </td>
                 <td colSpan={3} className="py-1.5 px-2 text-center">
-                  <input
-                    type="text"
+                  <StepperInput
                     value={f.osNear.add}
-                    onChange={(e) => setFlag({ osNear: { ...f.osNear, add: e.target.value } })}
-                    className="w-full text-center py-1 border border-slate-200 rounded"
+                    onChange={(v) => setFlag({ osNear: { ...f.osNear, add: v } })}
+                    step={0.25}
+                    className="w-32"
+                    ariaLabel="Left Eye Near Addition"
                   />
                 </td>
                 <td className="py-1.5 px-2 text-center">

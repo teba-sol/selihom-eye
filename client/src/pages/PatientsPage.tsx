@@ -7,9 +7,8 @@ import { PatientRecordModal } from '../components/PatientRecordModal';
 import { ExamHistoryModal } from '../components/ExamHistoryModal';
 import { useAppStore } from '../store/useAppStore';
 import { useEncounterStore } from '../store/useEncounterStore';
-import { formatDobEthiopian, calcAge } from '../lib/formatters';
-import { buildAppointmentTime } from '../lib/encounterDefaults';
-import type { Patient, Appointment } from '../store/useAppStore';
+import { formatDobEthiopian, calcAge, patientFullName, formatDisplayDate } from '../lib/formatters';
+import type { Patient } from '../store/useAppStore';
 
 import type { NavigateFunction } from 'react-router-dom';
 
@@ -17,26 +16,28 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 function openExamForPatient(
   patient: Patient,
-  appointmentId: string,
-  apt: Omit<Appointment, 'id' | 'patientId'>,
-  loadFromAppointment: ReturnType<typeof useEncounterStore.getState>['loadFromAppointment'],
+  encounter: { id: string },
+  reason: string,
+  startExam: ReturnType<typeof useEncounterStore.getState>['startExam'],
   navigate: NavigateFunction,
 ) {
-  loadFromAppointment({
-    appointmentId,
-    consentObtained: apt.consentObtained,
-    reasonForVisit: apt.reason,
+  const encounterId = encounter.id;
+  startExam({
+    encounterId,
+    appointmentId: null,
+    consentObtained: false,
+    reasonForVisit: reason,
     patient: {
       id: patient.id,
       mrn: patient.mrn ?? patient.id,
-      name: [patient.firstName, patient.lastName, patient.grandfatherName].filter(Boolean).join(' '),
+      name: patientFullName(patient),
       age: calcAge(patient.dateOfBirth),
       gender: patient.gender,
-      appointmentTime: buildAppointmentTime(apt.date, apt.startTime),
-      reasonForVisit: apt.reason,
+      appointmentTime: '',
+      reasonForVisit: reason,
     },
   });
-  navigate(`/exam/${appointmentId}`);
+  navigate(`/exam/${encounterId}`);
 }
 
 export const PatientsPage: React.FC = () => {
@@ -45,15 +46,11 @@ export const PatientsPage: React.FC = () => {
   const fetchPatients = useAppStore((s) => s.fetchPatients);
   const searchPatients = useAppStore((s) => s.searchPatients);
   const addPatient = useAppStore((s) => s.addPatient);
-  const appointments = useAppStore((s) => s.appointments);
-  const createWalkInAppointment = useAppStore((s) => s.createWalkInAppointment);
-  const loadFromAppointment = useEncounterStore((s) => s.loadFromAppointment);
-  const fetchAppointments = useAppStore((s) => s.fetchAppointments);
+  const startExam = useEncounterStore((s) => s.startExam);
 
   useEffect(() => {
     fetchPatients();
-    fetchAppointments();
-  }, [fetchPatients, fetchAppointments]);
+  }, [fetchPatients]);
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -86,25 +83,41 @@ export const PatientsPage: React.FC = () => {
     showToast('Import feature will connect to your file system.');
   };
 
-  const completedExamCountByPatient = useMemo(() => {
-    const counts = new Map<string, number>();
-    appointments.forEach((appointment) => {
-      if (appointment.status === 'completed') {
-        counts.set(
-          appointment.patientId,
-          (counts.get(appointment.patientId) ?? 0) + 1,
+  const [completedExamCounts, setCompletedExamCounts] = useState<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    if (!patients.length) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { api } = await import('../lib/api');
+        const ids = patients.map((p) => p.id).join(',');
+        const rows = await api.get<Array<{ patientId: string; count: number }>>(
+          `/clinical/encounters/completed-counts?patientIds=${encodeURIComponent(ids)}`,
         );
+        if (cancelled) return;
+        const counts = new Map<string, number>();
+        (rows ?? []).forEach((r) => counts.set(r.patientId, r.count));
+        setCompletedExamCounts(counts);
+      } catch {
+        if (!cancelled) setCompletedExamCounts(new Map());
       }
-    });
-    return counts;
-  }, [appointments]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [patients]);
 
   const handleOpenExam = async (patient: Patient) => {
-    const completedCount = completedExamCountByPatient.get(patient.id) ?? 0;
+    const completedCount = completedExamCounts.get(patient.id) ?? 0;
     const reason = completedCount === 0 ? 'First examination' : 'Follow-up examination';
     try {
-      const apt = await createWalkInAppointment(patient.id, reason);
-      openExamForPatient(patient, apt.id, apt, loadFromAppointment, navigate);
+      const { api } = await import('../lib/api');
+      const encounter = await api.post<any>('/clinical/encounter', {
+        patientId: patient.id,
+        reasonForVisit: { selectedReason: reason, remarks: '', showInDischarge: false },
+      });
+      openExamForPatient(patient, encounter, reason, startExam, navigate);
     } catch {
       showToast('Failed to start examination.');
     }
@@ -126,7 +139,7 @@ export const PatientsPage: React.FC = () => {
           <div className="flex items-center gap-3">
             <input
               type="text"
-              placeholder="Search by phone, name or email"
+              placeholder="Search by MRN, name, or phone"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               className="w-72 px-4 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-500 bg-white"
@@ -156,8 +169,8 @@ export const PatientsPage: React.FC = () => {
               <thead>
                 <tr className="bg-[#1e3a5f] text-white text-xs uppercase tracking-wide">
                   <th className="px-4 py-3 text-left font-semibold">MRN</th>
-                  <th className="px-4 py-3 text-left font-semibold">First Name</th>
-                  <th className="px-4 py-3 text-left font-semibold">Last Name</th>
+                  <th className="px-4 py-3 text-left font-semibold">Given Name</th>
+                  <th className="px-4 py-3 text-left font-semibold">Father's Name</th>
                   <th className="px-4 py-3 text-left font-semibold">Registered On</th>
                   <th className="px-4 py-3 text-left font-semibold">Gender</th>
                   <th className="px-4 py-3 text-left font-semibold">Date of Birth</th>
@@ -167,7 +180,7 @@ export const PatientsPage: React.FC = () => {
               </thead>
               <tbody>
                 {paginated.map((p, idx) => {
-                    const completedExamCount = completedExamCountByPatient.get(p.id) ?? 0;
+                    const completedExamCount = completedExamCounts.get(p.id) ?? 0;
                     const isNewPatient = completedExamCount === 0;
                     return (
                   <tr
@@ -180,7 +193,7 @@ export const PatientsPage: React.FC = () => {
                     <td className="px-4 py-3 text-slate-800">{p.firstName}</td>
                     <td className="px-4 py-3 text-slate-800">{p.lastName}</td>
                     <td className="px-4 py-3 text-slate-600">
-                      {p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                      {p.createdAt ? formatDisplayDate(p.createdAt) : '-'}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{p.gender}</td>
                     <td className="px-4 py-3 text-slate-600">

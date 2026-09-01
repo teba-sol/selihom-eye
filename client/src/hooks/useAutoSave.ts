@@ -7,20 +7,20 @@ export function useAutosave(
   delayMs = 2000,
   onStatus?: (status: AutosaveStatus) => void,
 ) {
-  const appointmentId = useEncounterStore((s) => s.appointmentId);
+  const encounterId = useEncounterStore((s) => s.encounterId);
   const patientId = useEncounterStore((s) => s.patient.id);
   const isLocked = useEncounterStore((s) => s.isLocked);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!appointmentId || !patientId || isLocked) return;
+    if (!encounterId || !patientId || isLocked) return;
 
     const unsub = useEncounterStore.subscribe(() => {
       if (useEncounterStore.getState().isLocked) return;
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
         const store = useEncounterStore.getState();
-        if (store.isLocked || !store.appointmentId || !store.patient.id) return;
+        if (store.isLocked || !store.encounterId || !store.patient.id) return;
         onStatus?.('saving');
         store
           .saveEncounter()
@@ -33,7 +33,7 @@ export function useAutosave(
       if (timerRef.current) clearTimeout(timerRef.current);
       unsub();
     };
-  }, [appointmentId, patientId, isLocked, delayMs]);
+  }, [encounterId, patientId, isLocked, delayMs]);
 
   // Flush pending save on unmount.
   useEffect(() => () => {
@@ -41,7 +41,7 @@ export function useAutosave(
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
-      if (store.appointmentId && store.patient.id && !store.isLocked) {
+      if (store.encounterId && store.patient.id && !store.isLocked) {
         store.saveEncounter().catch(() => {});
       }
     }

@@ -6,7 +6,7 @@ import { apiEncounterToSnapshot, buildSnapshotBase } from '../lib/encounterMappe
 // Summary row returned by GET /clinical/patient/:patientId/history
 export interface ExamHistoryEntry {
   id: string;
-  appointmentId: string;
+  appointmentId: string | null;
   createdAt: string;
   isLocked: boolean;
   diagnoses: any;
@@ -33,7 +33,7 @@ const EMPTY_PATIENT = {
 // DB-backed patient record data:
 // - history: exam summaries for the patient (true patient.id relationship)
 // - getEncounter: lazily fetches + caches the full encounter for a visit
-//   (GET /clinical/appointment/:appointmentId) mapped to an EncounterSnapshot
+//   (GET /clinical/encounter/:encounterId) mapped to an EncounterSnapshot
 //   via the shared pure mapper, without touching the live exam store.
 export function usePatientRecordData(patientId: string | null) {
   const [history, setHistory] = useState<ExamHistoryEntry[]>([]);
@@ -62,21 +62,21 @@ export function usePatientRecordData(patientId: string | null) {
   }, [refresh]);
 
   const getEncounter = useCallback(
-    async (appointmentId: string): Promise<EncounterSnapshot | null> => {
-      if (encounters[appointmentId]) return encounters[appointmentId];
-      setEncounterLoading((prev) => ({ ...prev, [appointmentId]: true }));
+    async (encounterId: string): Promise<EncounterSnapshot | null> => {
+      if (encounters[encounterId]) return encounters[encounterId];
+      setEncounterLoading((prev) => ({ ...prev, [encounterId]: true }));
       try {
         const { api } = await import('../lib/api');
-        const data = await api.get<any>(`/clinical/appointment/${appointmentId}`);
+        const data = await api.get<any>(`/clinical/encounter/${encounterId}`);
         if (!data) return null;
         const base = buildSnapshotBase(EMPTY_PATIENT);
         const snapshot: EncounterSnapshot = { ...base, ...apiEncounterToSnapshot(data, base) };
-        setEncounters((prev) => ({ ...prev, [appointmentId]: snapshot }));
+        setEncounters((prev) => ({ ...prev, [encounterId]: snapshot }));
         return snapshot;
       } catch {
         return null;
       } finally {
-        setEncounterLoading((prev) => ({ ...prev, [appointmentId]: false }));
+        setEncounterLoading((prev) => ({ ...prev, [encounterId]: false }));
       }
     },
     [encounters],
@@ -85,10 +85,10 @@ export function usePatientRecordData(patientId: string | null) {
   // Prefers the live in-memory snapshot (current session, possibly unsaved
   // edits) and falls back to the DB-backed lazy fetch.
   const getSnapshot = useCallback(
-    async (appointmentId: string): Promise<EncounterSnapshot | null> => {
-      const memSnap = useEncounterStore.getState().encounterSnapshots[appointmentId];
+    async (encounterId: string): Promise<EncounterSnapshot | null> => {
+      const memSnap = useEncounterStore.getState().encounterSnapshots[encounterId];
       if (memSnap) return memSnap;
-      return getEncounter(appointmentId);
+      return getEncounter(encounterId);
     },
     [getEncounter],
   );

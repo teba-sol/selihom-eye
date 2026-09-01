@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useMemo } from 'react';
 import { X, FileText, Eye, Calendar, ChevronDown, ChevronRight, Printer, Plus, Trash2, Loader2 } from 'lucide-react';
 import type { Patient } from '../store/useAppStore';
 import type { EncounterSnapshot } from '../store/useEncounterStore';
@@ -201,7 +201,7 @@ function RecordRow({ entry, snap, loading, getSnapshot, children }: {
   entry: ExamHistoryEntry;
   snap: EncounterSnapshot | null | undefined;
   loading: boolean;
-  getSnapshot: (appointmentId: string) => Promise<EncounterSnapshot | null>;
+  getSnapshot: (encounterId: string) => Promise<EncounterSnapshot | null>;
   children: (snap: EncounterSnapshot) => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -211,7 +211,7 @@ function RecordRow({ entry, snap, loading, getSnapshot, children }: {
     if (open) { setOpen(false); return; }
     setOpen(true);
     if (localSnap === undefined) {
-      const s = await getSnapshot(entry.appointmentId);
+      const s = await getSnapshot(entry.id);
       setLocalSnap(s);
     }
   };
@@ -426,6 +426,17 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
 
   const getSnapshot = record.getSnapshot;
 
+  // Most recent PRIOR finalized (locked) visit date, else "First Visit".
+  const lastVisit = useMemo(() => {
+    const finalized = record.history
+      .filter((h) => h.isLocked)
+      .map((h) => ({ raw: h.appointmentDate ?? h.createdAt, t: new Date(h.appointmentDate ?? h.createdAt).getTime() }))
+      .filter((x) => !Number.isNaN(x.t));
+    if (finalized.length === 0) return 'First Visit';
+    const latest = finalized.reduce((a, b) => (b.t > a.t ? b : a));
+    return fmtDate(latest.raw);
+  }, [record.history]);
+
   const handlePrint = async () => {
     const tr = (label: string, value: string | null | undefined) =>
       value ? `<tr><td class="lbl">${label}</td><td class="val">${value}</td></tr>` : '';
@@ -446,7 +457,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
 
     const examSections: string[] = [];
     for (const entry of record.history) {
-      const snap = await getSnapshot(entry.appointmentId);
+      const snap = await getSnapshot(entry.id);
       const dateStr = fmtDate(entry.appointmentDate ?? entry.createdAt);
       const statusBadge = entry.isLocked
         ? '<span class="badge badge-gray">Locked · Finalized</span>'
@@ -721,7 +732,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
               <Field label="Age" value={`${calcAge(patient.dateOfBirth)} years`}/>
               <Field label="Phone" value={patient.phone}/>
               <Field label="Address" value={patient.address??'—'} wide/>
-              <Field label="Last Visit" value={patient.lastVisit??'—'}/>
+              <Field label="Last Visit" value={lastVisit}/>
               <Field label="Status" value={patient.isNew ? 'New Patient' : 'Returning Patient'}/>
             </div>
           )}
@@ -745,10 +756,10 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
                   <p className="text-xs text-slate-400 mb-3">{record.history.length} examination{record.history.length!==1?'s':''} recorded.</p>
                   {record.history.map((entry) => (
                     <RecordRow
-                      key={entry.appointmentId}
+                      key={entry.id}
                       entry={entry}
-                      snap={record.encounters[entry.appointmentId]}
-                      loading={!!record.encounterLoading[entry.appointmentId]}
+                      snap={record.encounters[entry.id]}
+                      loading={!!record.encounterLoading[entry.id]}
                       getSnapshot={getSnapshot}>
                       {(snap) => <ExamDetails snap={snap}/>}
                     </RecordRow>
@@ -772,10 +783,10 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
                   <p className="text-xs text-slate-400 mb-3">Prescriptions and dispensing issued per visit.</p>
                   {record.history.map((entry) => (
                     <RecordRow
-                      key={entry.appointmentId}
+                      key={entry.id}
                       entry={entry}
-                      snap={record.encounters[entry.appointmentId]}
-                      loading={!!record.encounterLoading[entry.appointmentId]}
+                      snap={record.encounters[entry.id]}
+                      loading={!!record.encounterLoading[entry.id]}
                       getSnapshot={getSnapshot}>
                       {(snap) => <PrescriptionDetails snap={snap}/>}
                     </RecordRow>

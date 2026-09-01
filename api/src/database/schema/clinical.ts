@@ -279,7 +279,7 @@ export interface BiometryCalculationPayload {
 
 export const clinicalEncounters = pgTable('clinical_encounters', {
   id: uuid('id').defaultRandom().primaryKey(),
-  appointmentId: uuid('appointment_id').references(() => appointments.id, { onDelete: 'cascade' }).notNull().unique(),
+  appointmentId: uuid('appointment_id').references(() => appointments.id, { onDelete: 'cascade' }).unique(),
   patientId: uuid('patient_id').references(() => patients.id, { onDelete: 'cascade' }).notNull(),
   doctorUserId: uuid('doctor_user_id').references(() => users.id).notNull(),
 

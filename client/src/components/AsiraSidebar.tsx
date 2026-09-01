@@ -179,7 +179,6 @@ export const AsiraSidebar: React.FC = () => {
     return false;
   };
   const sectionHasData = (sectionId: string) => nonEmpty(encounterState.sectionData[sectionId]);
-  const sectionTouched = (sectionId: string) => encounterState.sectionData[sectionId] !== undefined;
 
   const isSectionCompleted = (sectionId: string): boolean => {
     switch (sectionId) {
@@ -250,18 +249,18 @@ export const AsiraSidebar: React.FC = () => {
       case 'systemic-history':
         return Object.values(encounterState.systemicHistory.conditions).some((c: any) => c.active);
       case 'medication':
-        return encounterState.patientMedications.length > 0 || sectionTouched('medication');
+        return encounterState.patientMedications.length > 0;
       case 'family-ocular-history':
-        return encounterState.familyOcularHistory.length > 0 || sectionTouched('family-ocular-history');
+        return encounterState.familyOcularHistory.length > 0;
       case 'family-systemic-history':
-        return encounterState.familySystemicHistory.length > 0 || sectionTouched('family-systemic-history');
+        return encounterState.familySystemicHistory.length > 0;
       case 'spectacles':
-        return encounterState.spectaclesHistory.currentlyWears === true || sectionTouched('spectacles');
+        return encounterState.spectaclesHistory.currentlyWears === true;
       case 'contact-lens':
-        return encounterState.contactLensHistory.currentWearer === true || sectionTouched('contact-lens');
+        return encounterState.contactLensHistory.currentWearer === true;
       case 'lifestyle': {
         const l = encounterState.lifestyleDemands;
-        return l.occupation.trim() !== '' || l.hobbies.trim() !== '' || l.outdoorActivities.trim() !== '' || sectionTouched('lifestyle');
+        return l.occupation.trim() !== '' || l.hobbies.trim() !== '' || l.outdoorActivities.trim() !== '';
       }
       case 'vision-and-visual-acuity':
       case 'visual-acuity': {

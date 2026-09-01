@@ -203,8 +203,9 @@ interface EncounterState {
   setConsent: (val: boolean) => void;
   setPatient: (patient: EncounterState['patient']) => void;
   setSectionData: (section: string, data: any) => void;
-  loadFromAppointment: (params: {
-    appointmentId: string;
+  startExam: (params: {
+    encounterId: string;
+    appointmentId?: string | null;
     patient: EncounterState['patient'];
     consentObtained: boolean;
     reasonForVisit: string;
@@ -335,12 +336,12 @@ export const useEncounterStore = create<EncounterState>((rawSet, get) => {
   setSectionData: (section, data) =>
     set((state) => ({ sectionData: { ...state.sectionData, [section]: data } })),
 
-  loadFromAppointment: ({ appointmentId, patient, consentObtained, reasonForVisit }) =>
+  startExam: ({ encounterId, appointmentId, patient, consentObtained, reasonForVisit }) =>
     set((state) => {
       const snapshots = { ...state.encounterSnapshots };
-      if (state.appointmentId && state.appointmentId !== appointmentId) {
-        const { appointmentId: prevId, encounterSnapshots: _snaps, ...rest } = state;
-        const { setActiveTab, setConsent, setPatient, setSectionData, loadFromAppointment, loadEncounterFromDb,
+      if (state.encounterId && state.encounterId !== encounterId) {
+        const { appointmentId: prevApt, encounterId: prevId, encounterSnapshots: _snaps, ...rest } = state;
+        const { setActiveTab, setConsent, setPatient, setSectionData, startExam, loadEncounterFromDb,
           saveEncounter, markExamFinalized, updateOcularCondition, setOcularGeneralRemarks, setNoOcularHistory,
           updateRefraction, updateVisualAcuity, setVisualAcuityCell, setVisualAcuityUnit,
           setCanvasVectors, updateSlitLamp, updateTonometry,
@@ -350,12 +351,12 @@ export const useEncounterStore = create<EncounterState>((rawSet, get) => {
           setSystemicGeneralRemarks, setNoSystemicHistory, addPatientMedication, removePatientMedication,
           addFamilyHistoryItem, removeFamilyHistoryItem, updateSpectacles, updateContactLens,
           updateLifestyle, ...dataOnly } = rest;
-        snapshots[prevId as string] = { appointmentId: prevId, ...dataOnly };
+        snapshots[prevId as string] = { encounterId: prevId, appointmentId: prevApt, ...dataOnly };
       }
       return {
         ...getDefaultClinicalState(),
-        appointmentId,
-        encounterId: null,
+        appointmentId: appointmentId ?? null,
+        encounterId,
         isLocked: false,
         lockedAt: null,
         addendumNotes: null,
@@ -375,7 +376,7 @@ export const useEncounterStore = create<EncounterState>((rawSet, get) => {
   saveEncounter: async () => {
     const state = useEncounterStore.getState();
     if (state.isLocked) return;
-    if (!state.appointmentId || !state.patient.id) return;
+    if (!state.encounterId || !state.patient.id) return;
     const { api } = await import('../lib/api');
 
     let refractions: any[] = [];
@@ -412,14 +413,15 @@ export const useEncounterStore = create<EncounterState>((rawSet, get) => {
     }
 
     const payload: Record<string, any> = {
+      encounterId: state.encounterId,
       appointmentId: state.appointmentId,
       patientId: state.patient.id,
       reasonForVisit: {
         selectedReason: state.patient.reasonForVisit || '',
-        remarks: '',
-        showInDischarge: false,
+        remarks: (state.sectionData['reason-for-visit'] as any)?.remarks ?? '',
+        showInDischarge: (state.sectionData['reason-for-visit'] as any)?.showInDischarge ?? false,
       },
-      symptomaticHistory: { symptoms: state.symptoms, remarks: '', showInDischarge: false },
+      symptomaticHistory: { symptoms: state.symptoms, remarks: (state.sectionData['symptomatic-history'] as any)?.remarks ?? '', showInDischarge: (state.sectionData['symptomatic-history'] as any)?.showInDischarge ?? false },
       ocularHistory: state.ocularHistory,
       systemicHistory: state.systemicHistory,
       medicationHistory: state.patientMedications,
@@ -441,7 +443,7 @@ export const useEncounterStore = create<EncounterState>((rawSet, get) => {
 
     await api.post('/clinical/encounter', payload);
 
-    if (state.consentObtained !== undefined) {
+    if (state.appointmentId && state.consentObtained !== undefined) {
       await api.patch(`/appointments/${state.appointmentId}/consent`, { consentObtained: state.consentObtained }).catch(() => {});
     }
   },

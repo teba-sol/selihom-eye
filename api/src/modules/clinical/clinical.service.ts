@@ -1,5 +1,5 @@
 import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, inArray } from 'drizzle-orm';
 import { DRIZZLE_PROVIDER } from '../../database/database.module';
 import {
   clinicalEncounters, refractionRecords, ocularCanvases,
@@ -7,20 +7,22 @@ import {
 } from '../../database/schema';
 import { UpsertClinicalEncounterDto, AddendumDto } from './dto/clinical.dto';
 
+function numStr(v: unknown): string | null {
+  return v === undefined || v === null || v === '' ? null : String(v);
+}
+
 @Injectable()
 export class ClinicalService {
   constructor(@Inject(DRIZZLE_PROVIDER) private db: any) {}
 
-  async getEncounterByAppointmentId(appointmentId: string) {
+  private async hydrate(encounterId: string) {
     const [encounter] = await this.db
       .select()
       .from(clinicalEncounters)
-      .where(eq(clinicalEncounters.appointmentId, appointmentId))
+      .where(eq(clinicalEncounters.id, encounterId))
       .limit(1);
 
-    if (!encounter) {
-      return null;
-    }
+    if (!encounter) return null;
 
     const refractions = await this.db
       .select()
@@ -33,32 +35,82 @@ export class ClinicalService {
       .where(eq(ocularCanvases.encounterId, encounter.id))
       .limit(1);
 
+    const [patient] = await this.db
+      .select()
+      .from(patients)
+      .where(eq(patients.id, encounter.patientId))
+      .limit(1);
+
     return {
       ...encounter,
       refractions,
       canvas: canvas || null,
+      patient: patient
+        ? {
+            id: patient.id,
+            mrn: patient.mrn,
+            firstName: patient.firstName,
+            lastName: patient.lastName,
+            grandfatherName: patient.grandfatherName,
+            gender: patient.gender,
+            dob: patient.dob,
+          }
+        : null,
     };
   }
 
-  async upsertEncounter(doctorUserId: string, dto: UpsertClinicalEncounterDto) {
-    const [appointment] = await this.db
-      .select()
-      .from(appointments)
-      .where(eq(appointments.id, dto.appointmentId))
-      .limit(1);
-
-    if (!appointment) {
-      throw new NotFoundException(`Appointment with ID ${dto.appointmentId} not found`);
-    }
-
-    const [existing] = await this.db
+  async getEncounterByAppointmentId(appointmentId: string) {
+    const [encounter] = await this.db
       .select()
       .from(clinicalEncounters)
-      .where(eq(clinicalEncounters.appointmentId, dto.appointmentId))
+      .where(eq(clinicalEncounters.appointmentId, appointmentId))
       .limit(1);
+
+    if (!encounter) return null;
+    return this.hydrate(encounter.id);
+  }
+
+  async getEncounterById(encounterId: string) {
+    return this.hydrate(encounterId);
+  }
+
+  async upsertEncounter(doctorUserId: string, dto: UpsertClinicalEncounterDto) {
+    // Eager-create: a walk-in exam may be created with only a patientId.
+    // The encounter is created immediately so the client always has an id.
+    const appointmentId = dto.appointmentId ?? null;
+    let existing: any = null;
+
+    if (dto.encounterId) {
+      const [byId] = await this.db
+        .select()
+        .from(clinicalEncounters)
+        .where(eq(clinicalEncounters.id, dto.encounterId))
+        .limit(1);
+      existing = byId ?? null;
+    } else if (appointmentId) {
+      const [byApt] = await this.db
+        .select()
+        .from(clinicalEncounters)
+        .where(eq(clinicalEncounters.appointmentId, appointmentId))
+        .limit(1);
+      existing = byApt ?? null;
+    }
 
     if (existing && existing.isLocked) {
       throw new BadRequestException('Encounter is locked and finalized. Use addendum to record further clinical updates.');
+    }
+
+    // When an appointment is provided, verify it exists and enforce a 1:1 map.
+    if (appointmentId && !existing) {
+      const [appointment] = await this.db
+        .select()
+        .from(appointments)
+        .where(eq(appointments.id, appointmentId))
+        .limit(1);
+
+      if (!appointment) {
+        throw new NotFoundException(`Appointment with ID ${appointmentId} not found`);
+      }
     }
 
     let tonometryPayload: any = undefined;
@@ -151,10 +203,12 @@ export class ClinicalService {
 
       encounterId = inserted.id;
 
-      await this.db
-        .update(appointments)
-        .set({ status: 'IN_EXAM', updatedAt: new Date() })
-        .where(eq(appointments.id, dto.appointmentId));
+      if (appointmentId) {
+        await this.db
+          .update(appointments)
+          .set({ status: 'IN_EXAM', updatedAt: new Date() })
+          .where(eq(appointments.id, appointmentId));
+      }
     }
 
     // Upsert Refraction Records
@@ -164,20 +218,20 @@ export class ClinicalService {
         await this.db.insert(refractionRecords).values({
           encounterId,
           type: rx.type,
-          odSph: rx.od.sph !== undefined ? String(rx.od.sph) : null,
-          odCyl: rx.od.cyl !== undefined ? String(rx.od.cyl) : null,
-          odAxis: rx.od.axis ?? null,
+          odSph: numStr(rx.od.sph),
+          odCyl: numStr(rx.od.cyl),
+          odAxis: numStr(rx.od.axis),
           odVa: rx.od.va ?? null,
-          odAdd: rx.od.add !== undefined ? String(rx.od.add) : null,
-          osSph: rx.os.sph !== undefined ? String(rx.os.sph) : null,
-          osCyl: rx.os.cyl !== undefined ? String(rx.os.cyl) : null,
-          osAxis: rx.os.axis ?? null,
+          odAdd: numStr(rx.od.add),
+          osSph: numStr(rx.os.sph),
+          osCyl: numStr(rx.os.cyl),
+          osAxis: numStr(rx.os.axis),
           osVa: rx.os.va ?? null,
-          osAdd: rx.os.add !== undefined ? String(rx.os.add) : null,
-          pdBinocular: rx.pdBinocular !== undefined ? String(rx.pdBinocular) : null,
-          pdOd: rx.pdOd !== undefined ? String(rx.pdOd) : null,
-          pdOs: rx.pdOs !== undefined ? String(rx.pdOs) : null,
-          bvdMm: rx.bvdMm !== undefined ? String(rx.bvdMm) : null,
+          osAdd: numStr(rx.os.add),
+          pdBinocular: numStr(rx.pdBinocular),
+          pdOd: numStr(rx.pdOd),
+          pdOs: numStr(rx.pdOs),
+          bvdMm: numStr(rx.bvdMm),
           pinholeVaOd: rx.pinholeVaOd ?? null,
           pinholeVaOs: rx.pinholeVaOs ?? null,
         });
@@ -215,7 +269,7 @@ export class ClinicalService {
       }
     }
 
-    return this.getEncounterByAppointmentId(dto.appointmentId);
+    return this.hydrate(encounterId);
   }
 
   async lockEncounter(id: string) {
@@ -236,13 +290,58 @@ export class ClinicalService {
         .where(eq(clinicalEncounters.id, id))
         .returning();
 
-      await tx
-        .update(appointments)
-        .set({ status: 'COMPLETED', updatedAt: new Date() })
-        .where(eq(appointments.id, encounter.appointmentId));
+      if (encounter.appointmentId) {
+        await tx
+          .update(appointments)
+          .set({ status: 'COMPLETED', updatedAt: new Date() })
+          .where(eq(appointments.id, encounter.appointmentId));
+      }
 
       return locked;
     });
+  }
+
+  async deleteEncounter(id: string) {
+    const [encounter] = await this.db
+      .select()
+      .from(clinicalEncounters)
+      .where(eq(clinicalEncounters.id, id))
+      .limit(1);
+
+    if (!encounter) {
+      throw new NotFoundException(`Encounter with ID ${id} not found`);
+    }
+
+    if (encounter.isLocked) {
+      throw new BadRequestException('Finalized encounters cannot be deleted.');
+    }
+
+    await this.db.delete(refractionRecords).where(eq(refractionRecords.encounterId, id));
+    await this.db.delete(ocularCanvases).where(eq(ocularCanvases.encounterId, id));
+    await this.db.delete(clinicalEncounters).where(eq(clinicalEncounters.id, id));
+
+    return { id };
+  }
+
+  async getCompletedCountsByPatient(patientIds: string[]) {
+    if (!patientIds.length) return [];
+
+    const rows = await this.db
+      .select({
+        patientId: clinicalEncounters.patientId,
+        id: clinicalEncounters.id,
+        isLocked: clinicalEncounters.isLocked,
+      })
+      .from(clinicalEncounters)
+      .where(inArray(clinicalEncounters.patientId, patientIds));
+
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      if (r.isLocked) {
+        counts.set(r.patientId, (counts.get(r.patientId) ?? 0) + 1);
+      }
+    }
+    return Array.from(counts, ([patientId, count]) => ({ patientId, count }));
   }
 
   async addAddendum(id: string, dto: AddendumDto, author?: string) {
@@ -273,7 +372,7 @@ export class ClinicalService {
   }
 
   async getPatientHistory(patientId: string) {
-    return this.db
+    const rows = await this.db
       .select({
         id: clinicalEncounters.id,
         appointmentId: clinicalEncounters.appointmentId,
@@ -284,6 +383,7 @@ export class ClinicalService {
         tonometry: clinicalEncounters.tonometry,
         visualAcuity: clinicalEncounters.visualAcuity,
         addendumNotes: clinicalEncounters.addendumNotes,
+        reasonForVisit: clinicalEncounters.reasonForVisit,
         appointmentDate: appointments.scheduledDate,
         appointmentReason: appointments.reason,
         appointmentStatus: appointments.status,
@@ -294,8 +394,30 @@ export class ClinicalService {
       })
       .from(clinicalEncounters)
       .innerJoin(users, eq(clinicalEncounters.doctorUserId, users.id))
-      .innerJoin(appointments, eq(clinicalEncounters.appointmentId, appointments.id))
+      .leftJoin(appointments, eq(clinicalEncounters.appointmentId, appointments.id))
       .where(eq(clinicalEncounters.patientId, patientId))
-      .orderBy(desc(appointments.scheduledDate));
+      .orderBy(desc(clinicalEncounters.createdAt));
+
+    return rows.map((r) => ({
+      id: r.id,
+      appointmentId: r.appointmentId,
+      createdAt: r.createdAt,
+      isLocked: r.isLocked,
+      diagnoses: r.diagnoses,
+      treatmentPlanPathway: r.treatmentPlanPathway,
+      tonometry: r.tonometry,
+      visualAcuity: r.visualAcuity,
+      addendumNotes: r.addendumNotes,
+      appointmentDate: r.appointmentDate ?? r.createdAt,
+      appointmentReason:
+        r.appointmentReason ??
+        (typeof r.reasonForVisit === 'object' &&
+        r.reasonForVisit !== null &&
+        (r.reasonForVisit as any).selectedReason
+          ? (r.reasonForVisit as any).selectedReason
+          : null),
+      appointmentStatus: r.appointmentStatus,
+      doctor: r.doctor,
+    }));
   }
 }

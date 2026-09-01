@@ -44,7 +44,7 @@ const DEFAULT_TEAR_FILM: TearFilmData = {
   tbut: { od: '6', os: '4' },
   nibut: { od: '0', os: '0' },
   remarks: '',
-  showInDischarge: true,
+  showInDischarge: false,
 };
 
 export const TearFilmEvaluationView: React.FC = () => {

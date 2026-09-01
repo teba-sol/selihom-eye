@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useEncounterStore } from '../store/useEncounterStore';
-import { ArrowLeftRight, RotateCcw, Check } from 'lucide-react';
+import { ArrowLeftRight } from 'lucide-react';
+import { StepperInput } from '../components/StepperInput';
 
 const VA_OPTIONS = ['6/6', '6/9', '6/12', '6/18', '6/24', '6/36', '6/60', 'CF', 'HM'];
 
@@ -87,21 +88,23 @@ export const RefractionView: React.FC = () => {
                 Right Eye
               </td>
               <td className="py-2 px-3">
-                <input
-                  type="text"
-                  placeholder="0.00"
+                <StepperInput
                   value={refraction.odSph}
-                  onChange={(e) => updateRefraction({ odSph: e.target.value })}
-                  className="w-24 px-2 py-1.5 border border-slate-300 rounded text-center font-bold text-slate-800 focus:outline-hidden focus:border-teal-600"
+                  onChange={(v) => updateRefraction({ odSph: v })}
+                  step={0.25}
+                  placeholder="0.00"
+                  className="w-24"
+                  ariaLabel="OD Sphere"
                 />
               </td>
               <td className="py-2 px-3">
-                <input
-                  type="text"
-                  placeholder="0.00"
+                <StepperInput
                   value={refraction.odCyl}
-                  onChange={(e) => updateRefraction({ odCyl: e.target.value })}
-                  className="w-24 px-2 py-1.5 border border-slate-300 rounded text-center font-bold text-slate-800 focus:outline-hidden focus:border-teal-600"
+                  onChange={(v) => updateRefraction({ odCyl: v })}
+                  step={0.25}
+                  placeholder="0.00"
+                  className="w-24"
+                  ariaLabel="OD Cylinder"
                 />
               </td>
               <td className="py-2 px-3">
@@ -127,12 +130,13 @@ export const RefractionView: React.FC = () => {
                 </select>
               </td>
               <td className="py-2 px-3">
-                <input
-                  type="text"
-                  placeholder="+2.00"
+                <StepperInput
                   value={refraction.odAdd}
-                  onChange={(e) => updateRefraction({ odAdd: e.target.value })}
-                  className="w-20 px-2 py-1.5 border border-slate-300 rounded text-center font-bold text-slate-800 focus:outline-hidden focus:border-teal-600"
+                  onChange={(v) => updateRefraction({ odAdd: v })}
+                  step={0.25}
+                  placeholder="+2.00"
+                  className="w-20"
+                  ariaLabel="OD Near Add"
                 />
               </td>
               <td className="py-2 px-4 text-center">
@@ -156,21 +160,23 @@ export const RefractionView: React.FC = () => {
                 Left Eye
               </td>
               <td className="py-2 px-3">
-                <input
-                  type="text"
-                  placeholder="0.00"
+                <StepperInput
                   value={refraction.osSph}
-                  onChange={(e) => updateRefraction({ osSph: e.target.value })}
-                  className="w-24 px-2 py-1.5 border border-slate-300 rounded text-center font-bold text-slate-800 focus:outline-hidden focus:border-indigo-600"
+                  onChange={(v) => updateRefraction({ osSph: v })}
+                  step={0.25}
+                  placeholder="0.00"
+                  className="w-24"
+                  ariaLabel="OS Sphere"
                 />
               </td>
               <td className="py-2 px-3">
-                <input
-                  type="text"
-                  placeholder="0.00"
+                <StepperInput
                   value={refraction.osCyl}
-                  onChange={(e) => updateRefraction({ osCyl: e.target.value })}
-                  className="w-24 px-2 py-1.5 border border-slate-300 rounded text-center font-bold text-slate-800 focus:outline-hidden focus:border-indigo-600"
+                  onChange={(v) => updateRefraction({ osCyl: v })}
+                  step={0.25}
+                  placeholder="0.00"
+                  className="w-24"
+                  ariaLabel="OS Cylinder"
                 />
               </td>
               <td className="py-2 px-3">
@@ -196,12 +202,13 @@ export const RefractionView: React.FC = () => {
                 </select>
               </td>
               <td className="py-2 px-3">
-                <input
-                  type="text"
-                  placeholder="+2.00"
+                <StepperInput
                   value={refraction.osAdd}
-                  onChange={(e) => updateRefraction({ osAdd: e.target.value })}
-                  className="w-20 px-2 py-1.5 border border-slate-300 rounded text-center font-bold text-slate-800 focus:outline-hidden focus:border-indigo-600"
+                  onChange={(v) => updateRefraction({ osAdd: v })}
+                  step={0.25}
+                  placeholder="+2.00"
+                  className="w-20"
+                  ariaLabel="OS Near Add"
                 />
               </td>
               <td className="py-2 px-4 text-center">
