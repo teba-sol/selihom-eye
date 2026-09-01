@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useEncounterStore } from '../../store/useEncounterStore';
+import { SendToReceptionButton } from '../../components/SendToReceptionButton';
+import type { OpticalOrderPayload } from '../../lib/opticalOrders';
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -89,6 +91,31 @@ export const SpectacleDispensingView: React.FC = () => {
     }
   };
 
+  const encounterState = useEncounterStore.getState();
+
+  const buildPayload = useCallback((): OpticalOrderPayload => {
+    const fsp: any = sectionData['final-spectacle-prescription'] ?? {};
+    const r = fsp.rx ?? {};
+    return {
+      encounterId: encounterState.encounterId ?? '',
+      appointmentId: encounterState.appointmentId,
+      patientId: encounterState.patient.id,
+      rx: {
+        od: { sph: r.odDist?.sph, cyl: r.odDist?.cyl, axis: r.odDist?.axis },
+        os: { sph: r.osDist?.sph, cyl: r.osDist?.cyl, axis: r.osDist?.axis },
+      },
+      lensType: d.lensType,
+      lensMaterial: d.lensMaterial,
+      coatings: d.coatings,
+      frameType: d.frameType,
+      frameRef: d.frameRef,
+      collectionMethod: d.collectionMethod,
+      orderRef: d.orderRef,
+      pdMm: d.rightPd || d.leftPd,
+      notes: d.remarks,
+    };
+  }, [encounterState, sectionData, d]);
+
   return (
     <div className="p-6 bg-slate-50 min-h-full">
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 max-w-4xl">
@@ -97,9 +124,12 @@ export const SpectacleDispensingView: React.FC = () => {
           This eye exam can only be edited for another 23 hours. After this period, editing will be disabled.
         </div>
 
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
           <h1 className="text-2xl font-bold text-[#2563eb]">Spectacle Dispensing</h1>
-          <button onClick={handleSave} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700">{saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved ✓' : 'Save'}</button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <SendToReceptionButton buildPayload={buildPayload} />
+            <button onClick={handleSave} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700">{saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved ✓' : 'Save'}</button>
+          </div>
         </div>
 
         {/* Frame */}

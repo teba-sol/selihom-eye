@@ -12,24 +12,7 @@ export function getDefaultClinicalState() {
         amblyopia: { active: false, eye: 'Left Eye' as const, date: '', type: 'Refractive', remarks: '', showInDischarge: false },
       },
     },
-    symptoms: [
-      {
-        id: 'reduced_near',
-        name: 'Reduced Vision Near',
-        eye: 'Right Eye',
-        since: '1 month',
-        frequency: 'Constant',
-        severity: 'Moderate',
-      },
-      {
-        id: 'headache',
-        name: 'Headache',
-        eye: 'Right Side',
-        since: '1 month',
-        frequency: '',
-        severity: '',
-      },
-    ],
+    symptoms: [],
     systemicHistory: {
       noHistoryReported: false,
       generalRemarks: '',

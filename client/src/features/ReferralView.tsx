@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useEncounterStore } from '../store/useEncounterStore';
 
 const REFERRAL_REASON_OPTIONS = [
   'Glaucoma Management',
@@ -32,21 +33,42 @@ const PRIORITY_OPTIONS = [
   'Emergent',
 ];
 
+const DEFAULT_REFERRAL = {
+  referralType: 'referral' as 'referral' | 'co-management',
+  selectedReasons: [] as string[],
+  referringDoctor: '',
+  facility: '',
+  priority: 'Routine',
+  clinicalSummary: '',
+  additionalNotes: '',
+  remarks: '',
+  showInDischarge: false,
+};
+
 export const ReferralView: React.FC = () => {
-  const [referralType, setReferralType] = useState<'referral' | 'co-management'>('referral');
-  const [selectedReasons, setSelectedReasons] = useState<string[]>([]);
-  const [referringDoctor, setReferringDoctor] = useState('');
-  const [facility, setFacility] = useState('');
-  const [priority, setPriority] = useState('Routine');
-  const [clinicalSummary, setClinicalSummary] = useState('');
-  const [additionalNotes, setAdditionalNotes] = useState('');
-  const [remarks, setRemarks] = useState('');
-  const [showInDischarge, setShowInDischarge] = useState(false);
+  const sectionData = useEncounterStore((s) => s.sectionData);
+  const setSectionData = useEncounterStore((s) => s.setSectionData);
+
+  const referral = (sectionData['referral'] ?? DEFAULT_REFERRAL) as typeof DEFAULT_REFERRAL;
+
+  const patch = (partial: Partial<typeof referral>) =>
+    setSectionData('referral', { ...referral, ...partial });
+
+  const referralType = referral.referralType;
+  const selectedReasons = referral.selectedReasons;
+  const referringDoctor = referral.referringDoctor;
+  const facility = referral.facility;
+  const priority = referral.priority;
+  const clinicalSummary = referral.clinicalSummary;
+  const additionalNotes = referral.additionalNotes;
+  const remarks = referral.remarks;
+  const showInDischarge = referral.showInDischarge;
 
   const toggleReason = (reason: string) => {
-    setSelectedReasons((prev) =>
-      prev.includes(reason) ? prev.filter((r) => r !== reason) : [...prev, reason]
-    );
+    const next = selectedReasons.includes(reason)
+      ? selectedReasons.filter((r) => r !== reason)
+      : [...selectedReasons, reason];
+    patch({ selectedReasons: next });
   };
 
   const reasonOptions = referralType === 'referral' ? REFERRAL_REASON_OPTIONS : CO_MANAGEMENT_OPTIONS;
@@ -65,8 +87,7 @@ export const ReferralView: React.FC = () => {
                 key={type}
                 type="button"
                 onClick={() => {
-                  setReferralType(type);
-                  setSelectedReasons([]);
+                  patch({ referralType: type, selectedReasons: [] });
                 }}
                 className={`px-6 py-2 text-xs font-semibold transition-colors border-r last:border-r-0 border-slate-200 ${
                   referralType === type
@@ -116,7 +137,7 @@ export const ReferralView: React.FC = () => {
             <input
               type="text"
               value={referringDoctor}
-              onChange={(e) => setReferringDoctor(e.target.value)}
+              onChange={(e) => patch({ referringDoctor: e.target.value })}
               placeholder="Dr. ..."
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
             />
@@ -130,7 +151,7 @@ export const ReferralView: React.FC = () => {
             <input
               type="text"
               value={facility}
-              onChange={(e) => setFacility(e.target.value)}
+              onChange={(e) => patch({ facility: e.target.value })}
               placeholder="Clinic / Hospital name"
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
             />
@@ -146,7 +167,7 @@ export const ReferralView: React.FC = () => {
                 <button
                   key={p}
                   type="button"
-                  onClick={() => setPriority(p)}
+                  onClick={() => patch({ priority: p })}
                   className={`px-5 py-1.5 text-xs font-semibold transition-colors border-r last:border-r-0 border-slate-200 ${
                     priority === p
                       ? p === 'Emergent'
@@ -171,7 +192,7 @@ export const ReferralView: React.FC = () => {
             <textarea
               rows={4}
               value={clinicalSummary}
-              onChange={(e) => setClinicalSummary(e.target.value)}
+              onChange={(e) => patch({ clinicalSummary: e.target.value })}
               placeholder="Brief clinical summary for the receiving doctor..."
               className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600"
             />
@@ -185,7 +206,7 @@ export const ReferralView: React.FC = () => {
             <textarea
               rows={3}
               value={additionalNotes}
-              onChange={(e) => setAdditionalNotes(e.target.value)}
+              onChange={(e) => patch({ additionalNotes: e.target.value })}
               placeholder="Special instructions or requests..."
               className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600"
             />
@@ -199,7 +220,7 @@ export const ReferralView: React.FC = () => {
         <textarea
           rows={3}
           value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
+          onChange={(e) => patch({ remarks: e.target.value })}
           placeholder="Add any remarks..."
           className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600"
         />
@@ -211,7 +232,7 @@ export const ReferralView: React.FC = () => {
           <input
             type="checkbox"
             checked={showInDischarge}
-            onChange={(e) => setShowInDischarge(e.target.checked)}
+            onChange={(e) => patch({ showInDischarge: e.target.checked })}
             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0"
           />
           <span>Show in Discharge Summary</span>

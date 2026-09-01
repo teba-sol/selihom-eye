@@ -70,7 +70,7 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/patients" element={<PatientsPage />} />
             <Route path="/appointments" element={<AppointmentsPage />} />
-            <Route path="/exam/:appointmentId" element={<ExamDashboard />} />
+            <Route path="/exam/:encounterId" element={<ExamDashboard />} />
             <Route path="/receptionist/*" element={<ReceptionistDashboard />} />
           </Route>
 

@@ -23,13 +23,13 @@ export const VisitContextBanner: React.FC<VisitContextBannerProps> = ({
   const patientId = useEncounterStore((s) => s.patient.id);
   const patientName = useEncounterStore((s) => s.patient.name);
   const patientMrn = useEncounterStore((s) => s.patient.mrn);
-  const appointmentId = useEncounterStore((s) => s.appointmentId);
+  const encounterId = useEncounterStore((s) => s.encounterId);
   const isLocked = useEncounterStore((s) => s.isLocked);
   const addendumNotes = useEncounterStore((s) => s.addendumNotes);
 
   const record = usePatientRecordData(patientId || null);
   const completedPast = record.history.filter(
-    (h: ExamHistoryEntry) => h.appointmentId !== appointmentId && isCompletedExam(h),
+    (h: ExamHistoryEntry) => h.id !== encounterId && isCompletedExam(h),
   );
   const pastCount = completedPast.length;
   const lastExam = completedPast[0] ?? null;

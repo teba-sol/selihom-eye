@@ -43,7 +43,8 @@ export class OcularCanvasInputDto {
 // ── Main Encounter DTO ──────────────────────────────────────────────────
 
 export class UpsertClinicalEncounterDto {
-  @IsUUID() @IsNotEmpty() appointmentId!: string;
+  @IsOptional() @IsUUID() appointmentId?: string;
+  @IsOptional() @IsUUID() encounterId?: string;
   @IsUUID() @IsNotEmpty() patientId!: string;
 
   // ── History & Symptoms ──────────────────────────────────────────────

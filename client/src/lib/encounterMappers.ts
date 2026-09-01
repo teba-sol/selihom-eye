@@ -37,7 +37,7 @@ function toGrid(rx: any): any {
 }
 
 // Pure DB→snapshot mapping. Consumes the payload returned by
-// GET /clinical/appointment/:appointmentId (encounter + refractions +
+// GET /clinical/encounter/:encounterId (encounter + refractions +
 // canvas) and produces a partial EncounterSnapshot patch, seeded from
 // `base` for any missing fields. Never mutates the store.
 export function apiEncounterToSnapshot(

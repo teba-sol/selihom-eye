@@ -7,6 +7,7 @@ import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { ClinicalModule } from './modules/clinical/clinical.module';
 import { DoctorsModule } from './modules/doctors/doctors.module';
 import { PatientDocumentsModule } from './modules/patient-documents/patient-documents.module';
+import { OpticalOrdersModule } from './modules/optical-orders/optical-orders.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { PatientDocumentsModule } from './modules/patient-documents/patient-docu
     ClinicalModule,
     DoctorsModule,
     PatientDocumentsModule,
+    OpticalOrdersModule,
   ],
 })
 export class AppModule {}

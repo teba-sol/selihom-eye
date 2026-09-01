@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useEncounterStore } from '../../store/useEncounterStore';
 import { downloadEncounterPdf } from '../../lib/generatePdf';
+import { SendToReceptionButton } from '../../components/SendToReceptionButton';
+import type { OpticalOrderPayload } from '../../lib/opticalOrders';
 
 const VA_SNELLEN = ['-','6/4','6/5','6/6','6/7.5','6/9','6/12','6/18','6/24','6/36','6/60','CF','HM','PL','NPL'];
 const VA_NEAR = ['-','N4','N5','N6','N8','N10','N12','N14','N18','N24','N36'];
@@ -80,7 +82,6 @@ const DEFAULT_FSP: FspData = {
 
 export const FinalSpectaclePrescriptionView: React.FC = () => {
   const encounterState = useEncounterStore.getState();
-  const patient = useEncounterStore(s => s.patient);
   const sectionData = useEncounterStore(s => s.sectionData);
   const setSectionData = useEncounterStore(s => s.setSectionData);
   const f = Object.assign({}, DEFAULT_FSP, sectionData[SECTION_KEY] ?? {}) as FspData;
@@ -94,6 +95,28 @@ export const FinalSpectaclePrescriptionView: React.FC = () => {
 
   const handleDownloadPdf = () => downloadEncounterPdf(encounterState);
 
+  const buildPayload = useCallback((): OpticalOrderPayload => {
+    const dispensing: any = sectionData['spectacle-dispensing'] ?? {};
+    return {
+      encounterId: encounterState.encounterId ?? '',
+      appointmentId: encounterState.appointmentId,
+      patientId: encounterState.patient.id,
+      rx: {
+        od: { sph: rx.odDist?.sph, cyl: rx.odDist?.cyl, axis: rx.odDist?.axis },
+        os: { sph: rx.osDist?.sph, cyl: rx.osDist?.cyl, axis: rx.osDist?.axis },
+      },
+      lensType: dispensing.lensType || f.vaType,
+      lensMaterial: dispensing.lensMaterial,
+      coatings: dispensing.coatings,
+      frameType: dispensing.frameType,
+      frameRef: dispensing.frameRef,
+      collectionMethod: dispensing.collectionMethod,
+      orderRef: dispensing.orderRef,
+      pdMm: f.ipd,
+      notes: f.remarks || dispensing.remarks,
+    };
+  }, [encounterState, sectionData, rx, f]);
+
   return (
     <div className="p-6 bg-slate-50 min-h-full">
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 max-w-4xl">
@@ -103,9 +126,10 @@ export const FinalSpectaclePrescriptionView: React.FC = () => {
           This eye exam can only be edited for another 23 hours. After this period, editing will be disabled.
         </div>
 
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between gap-3 mb-5">
           <h1 className="text-2xl font-bold text-[#2563eb]">Final Spectacle Prescription</h1>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <SendToReceptionButton buildPayload={buildPayload} />
             <button onClick={handleDownloadPdf} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors">Download PDF</button>
             <button className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-200">Share</button>
           </div>

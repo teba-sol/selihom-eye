@@ -1,12 +1,13 @@
 import { pgTable, uuid, varchar, text, timestamp, boolean, decimal, date, integer } from 'drizzle-orm/pg-core';
 import { clinicalEncounters } from './clinical';
-import { patients, users } from './core';
+import { appointments, patients, users } from './core';
 import { eyeLateralityEnum, surgicalStatusEnum, referralUrgencyEnum } from './enums';
 
 // 1. Dedicated Optical Prescription (Strictly Separate Template)
 export const opticalPrescriptions = pgTable('optical_prescriptions', {
   id: uuid('id').defaultRandom().primaryKey(),
   encounterId: uuid('encounter_id').references(() => clinicalEncounters.id, { onDelete: 'cascade' }).notNull(),
+  appointmentId: uuid('appointment_id').references(() => appointments.id, { onDelete: 'set null' }),
   patientId: uuid('patient_id').references(() => patients.id, { onDelete: 'cascade' }).notNull(),
   prescribedByDoctorId: uuid('prescribed_by_doctor_id').references(() => users.id).notNull(),
 
@@ -21,11 +22,22 @@ export const opticalPrescriptions = pgTable('optical_prescriptions', {
   osAdd: decimal('os_add', { precision: 4, scale: 2 }),
 
   lensRecommendation: varchar('lens_recommendation', { length: 100 }), // Single Vision, Bifocal, Progressive, Anti-glare
+  lensType: varchar('lens_type', { length: 100 }),
+  lensMaterial: varchar('lens_material', { length: 100 }),
+  coatings: text('coatings').array(),
+  frameType: varchar('frame_type', { length: 100 }),
+  frameRef: varchar('frame_ref', { length: 100 }),
+  collectionMethod: varchar('collection_method', { length: 100 }),
+  orderRef: varchar('order_ref', { length: 100 }),
+  status: varchar('status', { length: 32 }).notNull().default('READY_TO_DELIVER'),
   pdMm: decimal('pd_mm', { precision: 4, scale: 1 }),
   notes: text('notes'),
   pdfUrl: text('pdf_url'),
+  deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+  deliveredByUserId: uuid('delivered_by_user_id').references(() => users.id, { onDelete: 'set null' }),
 
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 // 2. Dedicated Medication Prescription (Strictly Separate Template)

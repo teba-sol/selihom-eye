@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { TopHeader } from '../components/TopHeader';
 import { AsiraSidebar, ASIRA_EXAM_TREE } from '../components/AsiraSidebar';
 import { ReasonForVisitView } from '../features/ReasonForVisitView';
@@ -135,9 +135,7 @@ export function ExamDashboard() {
   useExamLoader();
 
   const navigate = useNavigate();
-  const { appointmentId: routeAppointmentId } = useParams<{ appointmentId: string }>();
   const activeTab = useEncounterStore((s) => s.activeTab);
-  const appointmentId = useEncounterStore((s) => s.appointmentId);
   const encounterId = useEncounterStore((s) => s.encounterId);
   const isLocked = useEncounterStore((s) => s.isLocked);
   const encounterPatient = useEncounterStore((s) => s.patient);
@@ -206,15 +204,11 @@ export function ExamDashboard() {
     try {
       await saveEncounter();
     } catch {}
-    const id = appointmentId ?? routeAppointmentId;
-    if (id) {
-      updateAppointment(id, { status: 'completed' });
+    const st = useEncounterStore.getState();
+    if (st.appointmentId) {
+      updateAppointment(st.appointmentId, { status: 'completed' });
     }
-    const patientId = useEncounterStore.getState().patient.id;
-    if (patientId) {
-      try { await api.patch(`/patients/${patientId}`, {}); } catch {}
-    }
-    navigate('/appointments');
+    navigate(st.appointmentId ? '/appointments' : '/patients');
   };
 
   const handleFinalize = async () => {
@@ -224,17 +218,15 @@ export function ExamDashboard() {
     try {
       await saveEncounter();
       const st = useEncounterStore.getState();
-      let eid = st.encounterId;
-      if (!eid && st.appointmentId) {
-        const data = await api.get<any>(`/clinical/appointment/${st.appointmentId}`);
-        eid = data?.id ?? null;
-      }
-      if (!eid || !st.appointmentId) {
+      const eid = st.encounterId;
+      if (!eid) {
         throw new Error('Encounter not found — save failed.');
       }
       await api.patch(`/clinical/encounter/${eid}/lock`);
       useEncounterStore.getState().markExamFinalized(eid);
-      updateAppointment(st.appointmentId, { status: 'completed' });
+      if (st.appointmentId) {
+        updateAppointment(st.appointmentId, { status: 'completed' });
+      }
       flashStatus('saved', 2000);
     } catch (err: any) {
       setFinalizeError(
@@ -247,9 +239,9 @@ export function ExamDashboard() {
 
   const handleCorrectionSaved = async () => {
     const st = useEncounterStore.getState();
-    if (!st.appointmentId) return;
+    if (!st.encounterId) return;
     try {
-      const data = await api.get<any>(`/clinical/appointment/${st.appointmentId}`);
+      const data = await api.get<any>(`/clinical/encounter/${st.encounterId}`);
       if (data) st.loadEncounterFromDb(data);
     } catch {}
   };

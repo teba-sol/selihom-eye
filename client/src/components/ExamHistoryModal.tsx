@@ -114,10 +114,10 @@ export const ExamHistoryModal: React.FC<ExamHistoryModalProps> = ({ patient, onC
                 ) : (
                   completed.map((entry) => (
                     <ExamRow
-                      key={entry.appointmentId}
+                      key={entry.id}
                       entry={entry}
                       action="view"
-                      onAction={() => navigate(`/exam/${entry.appointmentId}`)}
+                      onAction={() => navigate(`/exam/${entry.id}`)}
                     />
                   ))
                 )}
@@ -129,10 +129,10 @@ export const ExamHistoryModal: React.FC<ExamHistoryModalProps> = ({ patient, onC
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Current visit</p>
                   {current.map((entry) => (
                     <ExamRow
-                      key={entry.appointmentId}
+                      key={entry.id}
                       entry={entry}
                       action="continue"
-                      onAction={() => navigate(`/exam/${entry.appointmentId}`)}
+                      onAction={() => navigate(`/exam/${entry.id}`)}
                     />
                   ))}
                 </div>

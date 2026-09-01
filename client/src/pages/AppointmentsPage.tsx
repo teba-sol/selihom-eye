@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Calendar, CheckCircle2, X } from 'lucide-react';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
+import { EthiopianDatePicker } from '../components/EthiopianDatePicker';
 import { useAppStore } from '../store/useAppStore';
 import { useEncounterStore } from '../store/useEncounterStore';
 import { calcAge, formatDisplayDate } from '../lib/formatters';
@@ -65,7 +66,7 @@ export const AppointmentsPage: React.FC = () => {
   const addAppointment = useAppStore((s) => s.addAppointment);
   const updateAppointment = useAppStore((s) => s.updateAppointment);
   const cancelAppointment = useAppStore((s) => s.cancelAppointment);
-  const loadFromAppointment = useEncounterStore((s) => s.loadFromAppointment);
+  const startExam = useEncounterStore((s) => s.startExam);
 
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
   const [view, setView] = useState<CalendarView>('week');
@@ -126,30 +127,42 @@ export const AppointmentsPage: React.FC = () => {
     setConsentChecked(apt.consentObtained);
   };
 
-  const handleStartTest = () => {
+  const handleStartTest = async () => {
     if (!selectedApt) return;
     const patient = getPatientById(selectedApt.patientId);
     if (!patient) return;
 
     updateAppointment(selectedApt.id, { consentObtained: consentChecked, status: 'in_exam' });
 
-    loadFromAppointment({
-      appointmentId: selectedApt.id,
-      consentObtained: consentChecked,
-      reasonForVisit: selectedApt.reason,
-      patient: {
-        id: patient.id,
-        mrn: patient.mrn || patient.id,
-        name: `${patient.firstName} ${patient.lastName}`,
-        age: calcAge(patient.dateOfBirth),
-        gender: patient.gender || '',
-        appointmentTime: buildAppointmentTime(selectedApt.date, selectedApt.startTime),
-        reasonForVisit: selectedApt.reason,
-      },
-    });
+    try {
+      const { api } = await import('../lib/api');
+      const encounter = await api.post<any>('/clinical/encounter', {
+        patientId: patient.id,
+        appointmentId: selectedApt.id,
+        reasonForVisit: { selectedReason: selectedApt.reason || '', remarks: '', showInDischarge: false },
+      });
 
-    setSelectedApt(null);
-    navigate(`/exam/${selectedApt.id}`);
+      startExam({
+        encounterId: encounter.id,
+        appointmentId: selectedApt.id,
+        consentObtained: consentChecked,
+        reasonForVisit: selectedApt.reason || '',
+        patient: {
+          id: patient.id,
+          mrn: patient.mrn || patient.id,
+          name: `${patient.firstName} ${patient.lastName}`,
+          age: calcAge(patient.dateOfBirth),
+          gender: patient.gender || '',
+          appointmentTime: buildAppointmentTime(selectedApt.date, selectedApt.startTime),
+          reasonForVisit: selectedApt.reason || '',
+        },
+      });
+
+      setSelectedApt(null);
+      navigate(`/exam/${encounter.id}`);
+    } catch {
+      setSelectedApt(null);
+    }
   };
 
   const handleReschedule = () => {
@@ -451,8 +464,17 @@ export const AppointmentsPage: React.FC = () => {
                   <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>
                 ))}
               </select>
-              <input required type="date" value={bookForm.date} onChange={(e) => setBookForm({ ...bookForm, date: e.target.value })} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
-              <input required type="time" value={bookForm.startTime} onChange={(e) => setBookForm({ ...bookForm, startTime: e.target.value })} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">Date (Ethiopian)</label>
+                <EthiopianDatePicker
+                  value={bookForm.date}
+                  onChange={(d) => setBookForm({ ...bookForm, date: d })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">Time (EAT, 24h)</label>
+                <input required type="time" step="60" value={bookForm.startTime} onChange={(e) => setBookForm({ ...bookForm, startTime: e.target.value })} className="w-full border border-slate-300 rounded px-3 py-2 text-sm bg-white" />
+              </div>
               <input required placeholder="Reason for visit" value={bookForm.reason} onChange={(e) => setBookForm({ ...bookForm, reason: e.target.value })} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
               <button type="submit" className="w-full py-2.5 bg-[#2563eb] text-white rounded-md text-sm font-medium">Confirm booking</button>
             </form>

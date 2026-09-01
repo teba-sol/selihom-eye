@@ -73,7 +73,7 @@ const DEFAULT_ACTION_AND_ADVICE: ActionAndAdviceData = {
   spectacleRecommendation: 'Not Recommended / Trial Frame Only',
   followUpPeriod: '6 months',
   remarks: '',
-  showInDischarge: true,
+  showInDischarge: false,
 };
 
 export const ActionAndAdviceView: React.FC = () => {

@@ -1,11 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { UserPlus, Search, Calendar, Users, LogOut } from 'lucide-react';
+import { UserPlus, Search, Calendar, Users, LogOut, Printer, CheckCircle2, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { AddPatientModal } from '../components/AddPatientModal';
 import { api } from '../lib/api';
-import { formatDobEthiopian } from '../lib/formatters';
+import { formatDobEthiopian, patientFullName } from '../lib/formatters';
+import { listOpticalOrders, deliverOpticalOrder, type OpticalOrder } from '../lib/opticalOrders';
+import { printOpticalRx } from '../components/OpticalRxCard';
+
+function formatRxShort(v?: string | number | null): string {
+  if (v === undefined || v === null || v === '') return '-';
+  const n = Number(v);
+  if (Number.isNaN(n)) return String(v);
+  const out = n === 0 ? '0' : String(n);
+  return out.replace('-0', '0');
+}
 
 interface ApiPatient {
   id: string;
@@ -43,8 +53,18 @@ export const ReceptionistDashboard: React.FC = () => {
 
   const [todayAppts, setTodayAppts] = useState<ApiAppointment[]>([]);
   const [recentRegistrations, setRecentRegistrations] = useState<ApiPatient[]>([]);
+  const [pendingOrders, setPendingOrders] = useState<OpticalOrder[]>([]);
 
   const todayStr = new Date().toISOString().split('T')[0];
+
+  const fetchOpticalOrders = async () => {
+    try {
+      const orders = await listOpticalOrders('READY_TO_DELIVER');
+      setPendingOrders(orders);
+    } catch {
+      // silent
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -66,6 +86,7 @@ export const ReceptionistDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchDashboardData();
+    fetchOpticalOrders();
   }, []);
 
   useEffect(() => {
@@ -100,6 +121,16 @@ export const ReceptionistDashboard: React.FC = () => {
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleDeliver = async (order: OpticalOrder) => {
+    try {
+      await deliverOpticalOrder(order.id);
+      setPendingOrders((prev) => prev.filter((o) => o.id !== order.id));
+      showToast(`${order.patient ? order.patient.firstName + ' ' + order.patient.lastName : 'Order'} marked as delivered`);
+    } catch {
+      showToast('Failed to mark as delivered');
+    }
   };
 
   const showToast = (msg: string) => {
@@ -210,7 +241,7 @@ export const ReceptionistDashboard: React.FC = () => {
                           {searchResults.map((p) => (
                             <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50">
                               <td className="py-2 font-semibold text-slate-700">{p.mrn}</td>
-                              <td className="py-2 text-slate-800">{p.firstName} {p.lastName} {p.grandfatherName || ''}</td>
+                              <td className="py-2 text-slate-800">{p.firstName} {p.lastName}</td>
                               <td className="py-2 text-slate-600">{p.phone}</td>
                               <td className="py-2 text-slate-600">{formatDobEthiopian(p.dob || '')}</td>
                             </tr>
@@ -230,6 +261,78 @@ export const ReceptionistDashboard: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Optical Orders / Dispensing Queue */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6 mb-8">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <Eye className="w-5 h-5 text-teal-600" />
+                <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Optical Orders / Dispensing Queue</h2>
+              </div>
+              <span className="text-xs font-semibold text-slate-500">{pendingOrders.length} pending</span>
+            </div>
+
+            {pendingOrders.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-slate-500 uppercase border-b border-slate-100">
+                      <th className="pb-2 font-semibold">Patient Name</th>
+                      <th className="pb-2 font-semibold">Prescription (OD / OS)</th>
+                      <th className="pb-2 font-semibold">Lens Type</th>
+                      <th className="pb-2 font-semibold">Status</th>
+                      <th className="pb-2 font-semibold text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingOrders.map((order) => {
+                      const name = order.patient
+                        ? patientFullName(order.patient) || 'Unknown'
+                        : 'Unknown';
+                      const od = formatRxShort(order.rx?.od?.sph);
+                      const os = formatRxShort(order.rx?.os?.sph);
+                      const lens = [order.lensType, order.lensMaterial].filter(Boolean).join(' ') || (
+                        order.coatings?.length ? order.coatings.join(', ') : 'Spectacle'
+                      );
+                      return (
+                        <tr key={order.id} className="border-b border-slate-50 hover:bg-slate-50">
+                          <td className="py-2.5">
+                            <p className="font-semibold text-slate-800">{name}</p>
+                            {order.patient?.mrn && <p className="text-xs text-slate-400">MRN: {order.patient.mrn}</p>}
+                          </td>
+                          <td className="py-2.5 text-slate-700 whitespace-nowrap">OD: {od} / OS: {os}</td>
+                          <td className="py-2.5 text-slate-700">{lens}</td>
+                          <td className="py-2.5">
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                              Ready to Deliver
+                            </span>
+                          </td>
+                          <td className="py-2.5">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => printOpticalRx(order)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-200 transition-colors"
+                              >
+                                <Printer className="w-3.5 h-3.5" /> Print Rx
+                              </button>
+                              <button
+                                onClick={() => handleDeliver(order)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-semibold hover:bg-teal-700 transition-colors"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Mark as Delivered
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400 text-center py-10">No pending optical orders. Orders will appear here once the doctor sends them from the exam room.</p>
+            )}
           </div>
 
           {/* Lower grid — 3:1 */}
@@ -256,7 +359,7 @@ export const ReceptionistDashboard: React.FC = () => {
                       {recentRegistrations.map((p) => (
                         <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50">
                           <td className="py-2.5 font-semibold text-slate-700">{p.mrn}</td>
-                          <td className="py-2.5 text-slate-800">{p.firstName} {p.lastName} {p.grandfatherName || ''}</td>
+                          <td className="py-2.5 text-slate-800">{p.firstName} {p.lastName}</td>
                           <td className="py-2.5 text-slate-600">{p.phone}</td>
                           <td className="py-2.5 text-slate-600">
                             {p.createdAt

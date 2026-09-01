@@ -1,86 +1,88 @@
 import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAppStore } from '../store/useAppStore';
 import { useEncounterStore } from '../store/useEncounterStore';
-import { calcAge } from '../lib/formatters';
-import { buildAppointmentTime } from '../lib/encounterDefaults';
+import { calcAge, patientFullName } from '../lib/formatters';
+
+function makePatient(data: any): EncounterPatient {
+  const d = data?.patient;
+  const name = d ? patientFullName(d) : '';
+  let reason = '';
+  if (data?.reasonForVisit) {
+    reason =
+      typeof data.reasonForVisit === 'string'
+        ? data.reasonForVisit
+        : data.reasonForVisit.selectedReason ?? '';
+  }
+  return {
+    id: d?.id ?? '',
+    mrn: d?.mrn ?? d?.id ?? '',
+    name,
+    age: calcAge(d?.dob),
+    gender: d?.gender ?? '',
+    appointmentTime: '',
+    reasonForVisit: reason,
+  };
+}
+
+type EncounterPatient = {
+  id: string;
+  mrn: string;
+  name: string;
+  age: number;
+  gender: string;
+  appointmentTime: string;
+  reasonForVisit: string;
+};
 
 export function useExamLoader() {
-  const { appointmentId } = useParams<{ appointmentId: string }>();
+  const { encounterId } = useParams<{ encounterId: string }>();
   const navigate = useNavigate();
-  const appointments = useAppStore((s) => s.appointments);
-  const getPatientById = useAppStore((s) => s.getPatientById);
-  const loadFromAppointment = useEncounterStore((s) => s.loadFromAppointment);
-  const loadEncounterFromDb = useEncounterStore((s) => s.loadEncounterFromDb);
-  const storeAppointmentId = useEncounterStore((s) => s.appointmentId);
+  const storeEncounterId = useEncounterStore((s) => s.encounterId);
   const patientName = useEncounterStore((s) => s.patient.name);
+  const startExam = useEncounterStore((s) => s.startExam);
+  const loadEncounterFromDb = useEncounterStore((s) => s.loadEncounterFromDb);
 
   useEffect(() => {
-    if (!appointmentId) {
-      navigate('/appointments', { replace: true });
+    if (!encounterId) {
+      navigate('/patients', { replace: true });
       return;
     }
 
-    const apt = appointments.find((a) => a.id === appointmentId);
-    if (!apt || apt.status === 'cancelled') {
-      navigate('/appointments', { replace: true });
-      return;
-    }
+    // Already loaded (fresh eager-create or previously fetched) with patient
+    // details — don't clobber unsaved edits.
+    if (storeEncounterId === encounterId && patientName) return;
 
-    const patient = getPatientById(apt.patientId);
-    if (!patient) {
-      navigate('/appointments', { replace: true });
-      return;
-    }
-
-    if (storeAppointmentId === appointmentId && patientName) return;
-
-    loadFromAppointment({
-      appointmentId,
-      consentObtained: apt.consentObtained,
-      reasonForVisit: apt.reason,
-      patient: {
-        id: patient.id,
-        mrn: patient.mrn || patient.id,
-        name: `${patient.firstName} ${patient.lastName}`,
-        age: calcAge(patient.dateOfBirth),
-        gender: patient.gender,
-        appointmentTime: buildAppointmentTime(apt.date, apt.startTime),
-        reasonForVisit: apt.reason,
-      },
-    });
-  }, [
-    appointmentId,
-    appointments,
-    getPatientById,
-    loadFromAppointment,
-    navigate,
-    storeAppointmentId,
-    patientName,
-  ]);
-
-  useEffect(() => {
-    if (!appointmentId || storeAppointmentId !== appointmentId) return;
-
-    const loadSaved = async () => {
+    const load = async () => {
       try {
         const { api } = await import('../lib/api');
-        const data = await api.get<any>(`/clinical/appointment/${appointmentId}`);
-        if (data) {
-          loadEncounterFromDb(data);
+        const data = await api.get<any>(`/clinical/encounter/${encounterId}`);
+        if (!data) {
+          navigate('/patients', { replace: true });
+          return;
         }
-        // Completed appointments are always read-only, even if the lock
-        // flag wasn't written (legacy records). Mirror that in the store.
-        const apt = useAppStore.getState().appointments.find((a) => a.id === appointmentId);
-        if (apt?.status === 'completed') {
-          const st = useEncounterStore.getState();
-          const eid = st.encounterId ?? data?.id ?? null;
-          if (eid && !st.isLocked) useEncounterStore.getState().markExamFinalized(eid);
+        const patient = makePatient(data);
+        startExam({
+          encounterId,
+          appointmentId: data.appointmentId ?? null,
+          consentObtained: false,
+          reasonForVisit: patient.reasonForVisit,
+          patient,
+        });
+        loadEncounterFromDb(data);
+        if (data.isLocked) {
+          useEncounterStore.getState().markExamFinalized(encounterId);
         }
       } catch {
-        // No saved encounter — that's fine
+        navigate('/patients', { replace: true });
       }
     };
-    loadSaved();
-  }, [appointmentId, storeAppointmentId]);
+    load();
+  }, [
+    encounterId,
+    storeEncounterId,
+    patientName,
+    navigate,
+    startExam,
+    loadEncounterFromDb,
+  ]);
 }
