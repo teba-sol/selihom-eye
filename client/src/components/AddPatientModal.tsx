@@ -151,6 +151,9 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
         const maxLen = el.getAttribute('maxlength') === '4' ? 4 : 2;
 
         el.addEventListener('input', function() {
+          if (groupId === 'ethDobGroup') {
+             lastEditedField = 'dob';
+          }
           let val = digitsOnly(this.value).slice(0, maxLen);
           this.value = val;
           group.classList.remove('invalid');
@@ -214,6 +217,7 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
     }
 
     let authoritativeToday: Date | null = null;
+    let lastEditedField: 'age' | 'dob' = 'age';
 
     function getAddisParts(d: Date) {
       try {
@@ -267,12 +271,64 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
       }
 
       const todayParts = getAddisParts(authoritativeToday);
-      let age = todayParts.year - year;
-      if (todayParts.month < month || (todayParts.month === month && todayParts.day < day)) {
-        age--;
+      
+      const birthDate = new Date(year, month - 1, day);
+      const timeDiff = authoritativeToday.getTime() - birthDate.getTime();
+      let diffDays = Math.floor(timeDiff / (1000 * 3600 * 24));
+      
+      const dobGroup = document.getElementById('ethDobGroup');
+      const dobFeedback = document.getElementById('dobFeedback');
+      
+      // Validation: Date of birth in the future
+      if (diffDays < 0) {
+        if (dobGroup) dobGroup.classList.add('invalid');
+        if (dobFeedback) {
+          dobFeedback.textContent = '⚠ Date of birth cannot be in the future';
+          dobFeedback.style.color = '#dc2626';
+        }
+        const ageEl = document.getElementById('age') as HTMLInputElement;
+        if (ageEl) ageEl.value = '';
+        return;
       }
+      
+      // Validation: Unrealistic age (over 150 years)
+      const ageInYears = todayParts.year - year;
+      if (ageInYears > 150) {
+        if (dobGroup) dobGroup.classList.add('invalid');
+        if (dobFeedback) {
+          dobFeedback.textContent = '⚠ Invalid date of birth: Age exceeds 150 years';
+          dobFeedback.style.color = '#dc2626';
+        }
+        const ageEl = document.getElementById('age') as HTMLInputElement;
+        if (ageEl) ageEl.value = '';
+        return;
+      }
+
+      // Clear error state
+      if (dobGroup) dobGroup.classList.remove('invalid');
+      if (dobFeedback) {
+        dobFeedback.textContent = '';
+      }
+
+      const unitEl = document.getElementById('ageUnit') as HTMLSelectElement;
+      const ageUnit = unitEl?.value || 'years';
+
+      let ageY = todayParts.year - year;
+      if (todayParts.month < month || (todayParts.month === month && todayParts.day < day)) {
+        ageY--;
+      }
+
+      let ageVal = '0';
+      if (ageUnit === 'days') {
+         ageVal = String(diffDays);
+      } else if (ageUnit === 'months') {
+         ageVal = String(Math.floor(diffDays / 30.4375));
+      } else {
+         ageVal = String(Math.max(0, ageY));
+      }
+
       const ageEl = document.getElementById('age') as HTMLInputElement;
-      if (ageEl) ageEl.value = (age >= 0) ? String(age) : '0';
+      if (ageEl) ageEl.value = ageVal;
       updateAgeDateStatus();
     }
 
@@ -613,55 +669,130 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
       el.className = 'conversion-feedback';
     }
 
-    // Auto-calculate birth year from age + day + month (same as receptionist)
-    function tryCalculateYearFromAge() {
+    // Auto-calculate birth year/month/day from age
+    function tryCalculateYearFromAge(e?: Event) {
+      lastEditedField = 'age';
       const ageEl = document.getElementById('age') as HTMLInputElement;
-      const ageVal = parseInt(digitsOnly(ageEl?.value), 10);
-      if (isNaN(ageVal) || ageVal < 0) return;
+      const unitEl = document.getElementById('ageUnit') as HTMLSelectElement;
+      const ageFeedback = document.getElementById('ageFeedback');
+      
+      if (!ageEl || !unitEl) return;
+      const ageVal = parseInt(digitsOnly(ageEl.value), 10);
+      
+      // Validation: Negative age
+      if (isNaN(ageVal) || ageVal < 0) {
+        if (ageFeedback) {
+          ageFeedback.textContent = '⚠ Age cannot be negative';
+          ageFeedback.style.color = '#dc2626';
+        }
+        return;
+      }
+
+      const isMonths = unitEl.value === 'months';
+      const isDays = unitEl.value === 'days';
+      const isYears = !isMonths && !isDays;
+
+      // Validation: Unrealistic age values
+      if (isYears && ageVal > 150) {
+        if (ageFeedback) {
+          ageFeedback.textContent = '⚠ Age exceeds 150 years - please verify';
+          ageFeedback.style.color = '#dc2626';
+        }
+        return;
+      }
+      
+      if (isMonths && ageVal > 1800) { // 150 years * 12 months
+        if (ageFeedback) {
+          ageFeedback.textContent = '⚠ Age exceeds realistic value - please verify';
+          ageFeedback.style.color = '#dc2626';
+        }
+        return;
+      }
+      
+      if (isDays && ageVal > 54750) { // 150 years * 365 days
+        if (ageFeedback) {
+          ageFeedback.textContent = '⚠ Age exceeds realistic value - please verify';
+          ageFeedback.style.color = '#dc2626';
+        }
+        return;
+      }
+      
+      // Clear error
+      if (ageFeedback) {
+        ageFeedback.textContent = '';
+      }
 
       const todayRef = authoritativeToday || new Date();
       const todayEuroParts = getAddisParts(todayRef);
       const todayEthParts = gregorianToEthiopian(todayEuroParts.year, todayEuroParts.month, todayEuroParts.day);
 
-      // Check European DOB day & month
-      const euroDEl = document.getElementById('euroDobD') as HTMLInputElement;
-      const euroMEl = document.getElementById('euroDobM') as HTMLInputElement;
-      const euroYEl = document.getElementById('euroDobY') as HTMLInputElement;
-      const ed = parseInt(digitsOnly(euroDEl?.value), 10);
-      const em = parseInt(digitsOnly(euroMEl?.value), 10);
-
-      if (ed && em && em >= 1 && em <= 12 && ed >= 1 && ed <= 31) {
-        let bYear = todayEuroParts.year - ageVal;
-        if (todayEuroParts.month < em || (todayEuroParts.month === em && todayEuroParts.day < ed)) {
-          bYear--;
-        }
-        if (bYear >= 1800 && bYear <= 2200) {
-          euroYEl.value = String(bYear);
-          const ethResult = gregorianToEthiopian(bYear, em, ed);
-          writeGroup('ethDobD', 'ethDobM', 'ethDobY', ethResult.day, ethResult.month, ethResult.year);
-          clearFeedback('dobFeedback');
-          return;
-        }
-      }
-
-      // Check Ethiopian DOB day & month
       const ethDEl = document.getElementById('ethDobD') as HTMLInputElement;
       const ethMEl = document.getElementById('ethDobM') as HTMLInputElement;
       const ethYEl = document.getElementById('ethDobY') as HTMLInputElement;
-      const etd = parseInt(digitsOnly(ethDEl?.value), 10);
-      const etm = parseInt(digitsOnly(ethMEl?.value), 10);
+      if (!ethDEl || !ethMEl || !ethYEl) return;
 
-      if (etd && etm && etm >= 1 && etm <= 13 && etd >= 1 && etd <= 30) {
-        let bYear = todayEthParts.year - ageVal;
-        if (todayEthParts.month < etm || (todayEthParts.month === etm && todayEthParts.day < etd)) {
-          bYear--;
-        }
-        if (bYear >= 1892 && bYear <= 2200) {
-          ethYEl.value = String(bYear);
-          const greg = ethiopianToGregorian(bYear, etm, etd);
-          writeGroup('euroDobD', 'euroDobM', 'euroDobY', greg.day, greg.month, greg.year);
+      let etd = parseInt(digitsOnly(ethDEl.value), 10);
+      let etm = parseInt(digitsOnly(ethMEl.value), 10);
+      let ety = parseInt(digitsOnly(ethYEl.value), 10);
+
+      // Exact date ago
+      let exactYear = todayEthParts.year;
+      let exactMonth = todayEthParts.month;
+      let exactDay = todayEthParts.day;
+
+      if (isYears) {
+          exactYear -= ageVal;
+      } else if (isMonths) {
+          exactMonth -= ageVal;
+          while (exactMonth <= 0) { exactMonth += 13; exactYear--; }
+      } else if (isDays) {
+          exactDay -= ageVal;
+          while (exactDay <= 0) {
+              exactMonth--;
+              if (exactMonth <= 0) { exactMonth += 13; exactYear--; }
+              exactDay += (exactMonth === 13 ? 5 : 30);
+          }
+      }
+
+      // Apply intelligent overwriting rules
+      if (isDays) {
+          etd = exactDay;
+          etm = exactMonth;
+          ety = exactYear;
+      } else if (isMonths) {
+          if (isNaN(etd) || etd < 1 || etd > 30) etd = exactDay;
+          etm = exactMonth;
+          ety = exactYear;
+      } else if (isYears) {
+          if (isNaN(etd) || etd < 1 || etd > 30) etd = exactDay;
+          if (isNaN(etm) || etm < 1 || etm > 13) etm = exactMonth;
+          ety = exactYear;
+      }
+
+      if (ety >= 1892 && ety <= 2200) {
+          ethDEl.value = String(etd).padStart(2, '0');
+          ethMEl.value = String(etm).padStart(2, '0');
+          ethYEl.value = String(ety);
+          updateGregorianReadout();
           clearFeedback('dobFeedback');
-          return;
+      }
+    }
+
+    function handleAgeUnitChange(e?: Event) {
+      if (lastEditedField === 'age') {
+        tryCalculateYearFromAge(e);
+      } else {
+        // Recalculate Age from DOB based on new unit
+        const ethDEl = document.getElementById('ethDobD') as HTMLInputElement;
+        const ethMEl = document.getElementById('ethDobM') as HTMLInputElement;
+        const ethYEl = document.getElementById('ethDobY') as HTMLInputElement;
+        if (!ethDEl || !ethMEl || !ethYEl) return;
+        const d = parseInt(digitsOnly(ethDEl.value), 10);
+        const m = parseInt(digitsOnly(ethMEl.value), 10);
+        const y = parseInt(digitsOnly(ethYEl.value), 10);
+        if (d && m && y && m >= 1 && m <= 13 && d >= 1 && d <= 30 && y >= 1892) {
+           const greg = ethiopianToGregorian(y, m, d);
+           calculateAge(greg.year, greg.month, greg.day);
         }
       }
     }
@@ -677,12 +808,8 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
     initAddressDropdowns();
 
     // Wire up age -> year auto-calculation
-    const ageInputEl = document.getElementById('age');
-    if (ageInputEl) ageInputEl.addEventListener('input', tryCalculateYearFromAge);
-    ['ethDobD', 'ethDobM', 'euroDobD', 'euroDobM'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.addEventListener('input', tryCalculateYearFromAge);
-    });
+    (window as any).__tryCalculateYearFromAge = tryCalculateYearFromAge;
+    (window as any).__handleAgeUnitChange = handleAgeUnitChange;
 
     // MRN blur: normalize format
     const mrnEl = document.getElementById('mrn') as HTMLInputElement;
@@ -733,10 +860,11 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
         saveKebeleName(currentWoredaName(), (document.getElementById('kebele') as HTMLInputElement)?.value.trim() || '');
 
         const firstName = (document.getElementById('firstName') as HTMLInputElement)?.value;
-        const grandfatherName = (document.getElementById('grandfatherName') as HTMLInputElement)?.value.trim();
         const fatherName = (document.getElementById('fatherName') as HTMLInputElement)?.value;
+        const grandfatherName = (document.getElementById('grandfatherName') as HTMLInputElement)?.value.trim();
         const sex = (document.getElementById('sex') as HTMLSelectElement)?.value;
         const age = (document.getElementById('age') as HTMLInputElement)?.value;
+        const ageUnit = (document.getElementById('ageUnit') as HTMLSelectElement)?.value || 'years';
         const phone = (document.getElementById('phoneNumber') as HTMLInputElement)?.value;
         const mrn = (document.getElementById('mrn') as HTMLInputElement)?.value;
 
@@ -746,6 +874,75 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
         const kebele = (document.getElementById('kebele') as HTMLInputElement)?.value.trim() || '';
         const ketena = (document.getElementById('ketena') as HTMLInputElement)?.value.trim() || '';
         const houseNumber = (document.getElementById('houseNumber') as HTMLInputElement)?.value || '';
+
+        // Validation: Date of birth
+        const dobGroup = document.getElementById('ethDobGroup');
+        const dobFeedback = document.getElementById('dobFeedback');
+        
+        if (dobEth && !isValidEthDate(dobEth.day, dobEth.month, dobEth.year)) {
+          if (dobGroup) dobGroup.classList.add('invalid');
+          if (dobFeedback) {
+            dobFeedback.textContent = '⚠ Invalid date of birth - please check day, month, and year';
+            dobFeedback.style.color = '#dc2626';
+          }
+          document.getElementById('ethDobD')?.focus();
+          return;
+        }
+        
+        // Validation: DOB vs current date
+        if (dobEth && isValidEthDate(dobEth.day, dobEth.month, dobEth.year)) {
+          const greg = ethiopianToGregorian(dobEth.year, dobEth.month, dobEth.day);
+          const birthDate = new Date(greg.year, greg.month - 1, greg.day);
+          const today = authoritativeToday || new Date();
+          
+          if (birthDate.getTime() > today.getTime()) {
+            if (dobGroup) dobGroup.classList.add('invalid');
+            if (dobFeedback) {
+              dobFeedback.textContent = '⚠ Date of birth cannot be in the future';
+              dobFeedback.style.color = '#dc2626';
+            }
+            document.getElementById('ethDobD')?.focus();
+            return;
+          }
+          
+          // Check if age exceeds 150 years
+          const todayParts = getAddisParts(today);
+          const ageInYears = todayParts.year - greg.year;
+          if (ageInYears > 150) {
+            if (dobGroup) dobGroup.classList.add('invalid');
+            if (dobFeedback) {
+              dobFeedback.textContent = '⚠ Date of birth indicates age over 150 years - please verify';
+              dobFeedback.style.color = '#dc2626';
+            }
+            document.getElementById('ethDobD')?.focus();
+            return;
+          }
+        }
+        
+        // Validation: Age value
+        const ageEl = document.getElementById('age') as HTMLInputElement;
+        const ageFeedback = document.getElementById('ageFeedback');
+        const ageVal = parseInt(digitsOnly(age), 10);
+        
+        if (!isNaN(ageVal)) {
+          if (ageVal < 0) {
+            if (ageFeedback) {
+              ageFeedback.textContent = '⚠ Age cannot be negative';
+              ageFeedback.style.color = '#dc2626';
+            }
+            ageEl?.focus();
+            return;
+          }
+          
+          if (ageUnit === 'years' && ageVal > 150) {
+            if (ageFeedback) {
+              ageFeedback.textContent = '⚠ Age exceeds 150 years - please verify';
+              ageFeedback.style.color = '#dc2626';
+            }
+            ageEl?.focus();
+            return;
+          }
+        }
 
         // Build address string
         const addressParts = [kebele, ketena, woreda, zone, region].filter(Boolean);
@@ -803,13 +1000,13 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
             <div className="flex items-center gap-3 mb-5">
               <div className="w-8 h-8 rounded-lg bg-[#1e3a8a]/5 text-[#1e3a8a] flex items-center justify-center shrink-0"><Calendar className="w-4 h-4" /></div>
               <div>
-                <h3 className="text-sm font-bold text-slate-800">Registration date</h3>
+                <h3 className="text-sm font-bold text-slate-800">Registration date <span className="text-xs font-normal text-slate-400">(የምዝገባ ቀን)</span></h3>
                 <p className="text-xs text-slate-500 mt-0.5">Auto-defaults to the current date in the Ethiopian calendar</p>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Ethiopian Date (የኢትዮጵያ ቀን)</label>
+                <label className="block text-[11px] font-semibold text-[#1e3a8a] uppercase tracking-wide mb-2">Ethiopian Date (የኢትዮጵያ ቀን)</label>
                 <div className="date-input-group" id="regEthGroup">
                   <input type="text" inputMode="numeric" autoComplete="off" className="date-seg" id="regEthD" placeholder="DD" maxLength={2} />
                   <span className="date-sep">/</span>
@@ -819,8 +1016,8 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
                 </div>
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Gregorian Date</label>
-                <div id="regDateGregorian" className="w-full border border-slate-300 bg-slate-50 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#1e3a8a]">Gregorian: —</div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Gregorian Date (Reference)</label>
+                <div id="regDateGregorian" className="w-full border border-slate-300 bg-slate-50 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-600">Gregorian: —</div>
               </div>
             </div>
           </section>
@@ -861,16 +1058,16 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">First Name (ስም) <span className="text-red-500">*</span></label>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Patient Name / First Name (ስም) <span className="text-red-500">*</span></label>
                 <input type="text" id="firstName" required placeholder="e.g. Abebe" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">ስም አባት / Grandfather Name <span className="text-red-500">*</span></label>
-                <input type="text" id="grandfatherName" required placeholder="e.g. Kebede" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Father's Name (የአባት ስም) <span className="text-red-500">*</span></label>
                 <input type="text" id="fatherName" required placeholder="e.g. Bekele" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Grandfather's Name (የአያት ስም) <span className="text-red-500">*</span></label>
+                <input type="text" id="grandfatherName" required placeholder="e.g. Kebede" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
               </div>
             </div>
             <div className="mt-5 max-w-[240px]">
@@ -893,7 +1090,7 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Ethiopian DOB</label>
+                <label className="block text-[11px] font-semibold text-[#1e3a8a] uppercase tracking-wide mb-2">Ethiopian DOB (የኢትዮጵያ የልደት ቀን)</label>
                 <div className="date-input-group" id="ethDobGroup">
                   <input type="text" inputMode="numeric" autoComplete="off" className="date-seg" id="ethDobD" placeholder="DD" maxLength={2} />
                   <span className="date-sep">/</span>
@@ -903,16 +1100,25 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
                 </div>
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Gregorian DOB</label>
-                <div id="dobGregorian" className="w-full border border-slate-300 bg-slate-50 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#1e3a8a]">Gregorian: —</div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Gregorian DOB (Reference)</label>
+                <div id="dobGregorian" className="w-full border border-slate-300 bg-slate-50 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-600">Gregorian: —</div>
               </div>
             </div>
             <div className="conversion-feedback mt-2" id="dobFeedback"></div>
 
+            <div className="conversion-feedback mt-2" id="ageFeedback"></div>
+
             <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-5 items-end">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Calculated Age (ዕድሜ)</label>
-                <input type="number" id="age" placeholder="0" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-lg font-extrabold text-center text-[#1e3a8a] bg-white" />
+                <div className="flex gap-2">
+                  <input type="number" id="age" placeholder="0" min="0" className="w-1/2 border border-slate-300 rounded-lg px-3 py-2.5 text-lg font-extrabold text-center text-[#1e3a8a] bg-white focus:outline-none focus:border-blue-600" onInput={(e) => (window as any).__tryCalculateYearFromAge && (window as any).__tryCalculateYearFromAge(e.nativeEvent)} />
+                  <select id="ageUnit" className="w-1/2 border border-slate-300 rounded-lg px-2 text-sm text-slate-700 bg-white cursor-pointer focus:outline-none focus:border-blue-600" onChange={(e) => (window as any).__handleAgeUnitChange && (window as any).__handleAgeUnitChange(e.nativeEvent)}>
+                    <option value="years">Years</option>
+                    <option value="months">Months</option>
+                    <option value="days">Days</option>
+                  </select>
+                </div>
               </div>
               <div className="md:col-span-2 text-xs text-slate-500">
                 <span id="ageDateStatus" className="font-semibold text-slate-600">Checking online date…</span>

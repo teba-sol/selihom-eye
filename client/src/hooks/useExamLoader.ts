@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEncounterStore } from '../store/useEncounterStore';
-import { calcAge, patientFullName } from '../lib/formatters';
+import { formatAge, patientFullName } from '../lib/formatters';
 
 function makePatient(data: any): EncounterPatient {
   const d = data?.patient;
@@ -17,7 +17,7 @@ function makePatient(data: any): EncounterPatient {
     id: d?.id ?? '',
     mrn: d?.mrn ?? d?.id ?? '',
     name,
-    age: calcAge(d?.dob),
+    age: formatAge(d?.dob || ''),
     gender: d?.gender ?? '',
     appointmentTime: '',
     reasonForVisit: reason,

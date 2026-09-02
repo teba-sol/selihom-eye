@@ -1,5 +1,5 @@
 import React from 'react';
-import { downloadEncounterPdf } from '../../lib/generatePdf';
+import { downloadContactLensSpecificationPdf } from '../../lib/generatePdf';
 import { useEncounterStore } from '../../store/useEncounterStore';
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -76,7 +76,7 @@ export const FinalContactLensSpecificationView: React.FC = () => {
 
   return (
     <div className="p-6 bg-slate-50 min-h-full">
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 max-w-4xl">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 max-w-4xl" id="contact-lens-specification-report">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-5 flex items-center gap-2 text-sm text-blue-700">
           <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           This eye exam can only be edited for another 23 hours. After this period, editing will be disabled.
@@ -85,7 +85,7 @@ export const FinalContactLensSpecificationView: React.FC = () => {
         <div className="flex items-center justify-between mb-5">
           <h1 className="text-2xl font-bold text-[#2563eb]">Final Contact Lens Specification</h1>
           <div className="flex gap-2">
-            <button onClick={() => downloadEncounterPdf(encounterState)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700">Download PDF</button>
+            <button onClick={() => downloadContactLensSpecificationPdf(encounterState)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700">Download PDF</button>
             <button className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-200">Share</button>
           </div>
         </div>
@@ -161,7 +161,7 @@ export const FinalContactLensSpecificationView: React.FC = () => {
               className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0" />
             Show in Discharge Summary
           </label>
-          <button onClick={() => downloadEncounterPdf(encounterState)} className="px-4 py-2 border border-slate-300 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50">Download PDF</button>
+          <button onClick={() => downloadContactLensSpecificationPdf(encounterState)} className="px-4 py-2 border border-slate-300 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50">Download PDF</button>
         </div>
       </div>
     </div>

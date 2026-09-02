@@ -1,5 +1,9 @@
 import React from 'react';
 import { useEncounterStore } from '../store/useEncounterStore';
+import { CataractSurgeryForm, DEFAULT_CATARACT_DETAILS } from './CataractSurgeryForm';
+import type { CataractDetails } from './CataractSurgeryForm';
+import { GenericSurgeryForm, DEFAULT_GENERIC_SURGERY_DETAILS } from './GenericSurgeryForm';
+import type { GenericSurgeryDetails } from './GenericSurgeryForm';
 
 const REFERRAL_OPTIONS = [
   'None',
@@ -21,6 +25,19 @@ const REFERRAL_OPTIONS = [
   'Referral to Neurologist',
   'Referral to Diabetologist',
   'Referral to Cardiologist',
+];
+
+const SURGERY_OPTIONS = [
+  'None',
+  'Cataract Surgery',
+  'LASIK / PRK',
+  'Trabeculectomy',
+  'Vitrectomy',
+  'Corneal Graft / PKP',
+  'Pterygium Excision',
+  'Strabismus Surgery',
+  'Oculoplastic Surgery',
+  'Other (Enter Manually)',
 ];
 
 const URGENCY_OPTIONS = [
@@ -55,6 +72,11 @@ const FOLLOW_UP_PERIODS = [
 ];
 
 type ActionAndAdviceData = {
+  surgeryType: string;
+  surgeryOther: string;
+  surgeryRemarks: string;
+  cataractDetails?: CataractDetails;
+  genericSurgeryDetails?: Record<string, GenericSurgeryDetails>;
   referral: string;
   urgency: string;
   medicationName: string;
@@ -66,6 +88,11 @@ type ActionAndAdviceData = {
 };
 
 const DEFAULT_ACTION_AND_ADVICE: ActionAndAdviceData = {
+  surgeryType: '',
+  surgeryOther: '',
+  surgeryRemarks: '',
+  cataractDetails: DEFAULT_CATARACT_DETAILS,
+  genericSurgeryDetails: {},
   referral: 'Referral to Ophthalmologist',
   urgency: 'Soon (2 - 4 weeks)',
   medicationName: '',
@@ -81,13 +108,60 @@ export const ActionAndAdviceView: React.FC = () => {
   const setSectionData = useEncounterStore((s) => s.setSectionData);
   const f = Object.assign({}, DEFAULT_ACTION_AND_ADVICE, sectionData['action-and-advice'] ?? {}) as ActionAndAdviceData;
   const patch = (p: Partial<ActionAndAdviceData>) => setSectionData('action-and-advice', { ...f, ...p });
-  const { referral, urgency, medicationName, medicationFreq, spectacleRecommendation, followUpPeriod, remarks, showInDischarge } = f;
+  const { surgeryType, surgeryOther, surgeryRemarks, cataractDetails, genericSurgeryDetails = {}, referral, urgency, medicationName, medicationFreq, spectacleRecommendation, followUpPeriod, remarks, showInDischarge } = f;
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full">
       <h1 className="text-xl font-bold text-[#1E3A8A] mb-8">Action And Advice</h1>
 
       <div className="space-y-6 max-w-4xl mb-8">
+        {/* Surgery */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+          <label className="text-xs font-bold text-slate-800 pt-2">Surgery</label>
+          <div className="md:col-span-3 space-y-3">
+            <select
+              value={surgeryType}
+              onChange={(e) => patch({ surgeryType: e.target.value })}
+              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
+            >
+              {SURGERY_OPTIONS.map((opt) => (
+                <option key={opt} value={opt === 'None' ? '' : opt}>{opt}</option>
+              ))}
+            </select>
+            {surgeryType === 'Other (Enter Manually)' && (
+              <input
+                type="text"
+                value={surgeryOther}
+                onChange={(e) => patch({ surgeryOther: e.target.value })}
+                placeholder="Enter surgery manually..."
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:border-blue-600 placeholder:text-slate-400"
+              />
+            )}
+            {surgeryType === 'Cataract Surgery' && (
+              <CataractSurgeryForm
+                data={cataractDetails ?? DEFAULT_CATARACT_DETAILS}
+                onChange={(d) => patch({ cataractDetails: d })}
+              />
+            )}
+            {surgeryType && surgeryType !== 'None' && surgeryType !== 'Cataract Surgery' && surgeryType !== 'Other (Enter Manually)' && (
+              <GenericSurgeryForm
+                surgeryType={surgeryType}
+                data={genericSurgeryDetails[surgeryType] ?? DEFAULT_GENERIC_SURGERY_DETAILS}
+                onChange={(d) => patch({ genericSurgeryDetails: { ...genericSurgeryDetails, [surgeryType]: d } })}
+              />
+            )}
+            {surgeryType && (
+              <textarea
+                rows={2}
+                value={surgeryRemarks}
+                onChange={(e) => patch({ surgeryRemarks: e.target.value })}
+                placeholder="Surgery remarks / details..."
+                className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 placeholder:text-slate-400"
+              />
+            )}
+          </div>
+        </div>
+
         {/* Further Referral / Tests */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
           <label className="text-xs font-bold text-slate-800">Further Referral / Tests</label>

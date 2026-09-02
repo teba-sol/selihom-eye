@@ -5,7 +5,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { AddPatientModal } from '../components/AddPatientModal';
 import { api } from '../lib/api';
-import { formatDobEthiopian, patientFullName } from '../lib/formatters';
+import { formatDobEthiopian, patientFullName, formatEthiopianDate } from '../lib/formatters';
 import { listOpticalOrders, deliverOpticalOrder, type OpticalOrder } from '../lib/opticalOrders';
 import { printOpticalRx } from '../components/OpticalRxCard';
 
@@ -352,7 +352,7 @@ export const ReceptionistDashboard: React.FC = () => {
                         <th className="pb-2 font-semibold">MRN</th>
                         <th className="pb-2 font-semibold">Name</th>
                         <th className="pb-2 font-semibold">Phone</th>
-                        <th className="pb-2 font-semibold">Registered</th>
+                        <th className="pb-2 font-semibold">Registered (Ethiopian)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -362,9 +362,7 @@ export const ReceptionistDashboard: React.FC = () => {
                           <td className="py-2.5 text-slate-800">{p.firstName} {p.lastName}</td>
                           <td className="py-2.5 text-slate-600">{p.phone}</td>
                           <td className="py-2.5 text-slate-600">
-                            {p.createdAt
-                              ? new Date(p.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-                              : '-'}
+                            {p.createdAt ? formatEthiopianDate(p.createdAt) : '-'}
                           </td>
                         </tr>
                       ))}

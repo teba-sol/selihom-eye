@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, History, Plus, Loader2, ExternalLink, Pencil } from 'lucide-react';
 import type { Patient } from '../store/useAppStore';
-import { calcAge } from '../lib/formatters';
+import { formatAge } from '../lib/formatters';
 import { usePatientRecordData, type ExamHistoryEntry } from '../hooks/usePatientRecordData';
 import { fmtDate, StatusBadge, SummaryChips, doctorName, parseAddendums } from '../lib/examHistory';
 
@@ -83,7 +83,7 @@ export const ExamHistoryModal: React.FC<ExamHistoryModalProps> = ({ patient, onC
                 Past examinations <span className="text-slate-400 font-semibold">({completed.length})</span>
               </h2>
               <p className="text-xs text-slate-500">
-                {patient.firstName} {patient.lastName} · MRN: {patient.mrn ?? `SEL-${patient.id}`} · {calcAge(patient.dateOfBirth)} yrs
+                {patient.firstName} {patient.lastName} · MRN: {patient.mrn ?? `SEL-${patient.id}`} · {formatAge(patient.dateOfBirth)}
               </p>
             </div>
           </div>

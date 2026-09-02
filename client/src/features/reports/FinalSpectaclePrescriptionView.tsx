@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { useEncounterStore } from '../../store/useEncounterStore';
-import { downloadEncounterPdf } from '../../lib/generatePdf';
+import { downloadSpectaclePrescriptionPdf } from '../../lib/generatePdf';
 import { SendToReceptionButton } from '../../components/SendToReceptionButton';
 import type { OpticalOrderPayload } from '../../lib/opticalOrders';
 
@@ -93,7 +93,7 @@ export const FinalSpectaclePrescriptionView: React.FC = () => {
     patch({ rx: { ...rx } });
   };
 
-  const handleDownloadPdf = () => downloadEncounterPdf(encounterState);
+  const handleDownloadPdf = () => downloadSpectaclePrescriptionPdf(encounterState);
 
   const buildPayload = useCallback((): OpticalOrderPayload => {
     const dispensing: any = sectionData['spectacle-dispensing'] ?? {};
@@ -119,7 +119,7 @@ export const FinalSpectaclePrescriptionView: React.FC = () => {
 
   return (
     <div className="p-6 bg-slate-50 min-h-full">
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 max-w-4xl">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 max-w-4xl" id="spectacle-prescription-report">
         {/* Info banner */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-5 flex items-center gap-2 text-sm text-blue-700">
           <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>

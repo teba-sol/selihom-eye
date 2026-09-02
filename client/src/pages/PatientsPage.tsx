@@ -7,7 +7,7 @@ import { PatientRecordModal } from '../components/PatientRecordModal';
 import { ExamHistoryModal } from '../components/ExamHistoryModal';
 import { useAppStore } from '../store/useAppStore';
 import { useEncounterStore } from '../store/useEncounterStore';
-import { formatDobEthiopian, calcAge, patientFullName, formatDisplayDate } from '../lib/formatters';
+import { formatDobEthiopian, formatAge, patientFullName, formatDisplayDate } from '../lib/formatters';
 import type { Patient } from '../store/useAppStore';
 
 import type { NavigateFunction } from 'react-router-dom';
@@ -31,7 +31,7 @@ function openExamForPatient(
       id: patient.id,
       mrn: patient.mrn ?? patient.id,
       name: patientFullName(patient),
-      age: calcAge(patient.dateOfBirth),
+      age: formatAge(patient.dateOfBirth),
       gender: patient.gender,
       appointmentTime: '',
       reasonForVisit: reason,
