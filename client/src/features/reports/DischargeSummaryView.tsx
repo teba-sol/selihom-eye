@@ -43,6 +43,104 @@ function KV({ label, value }: { label: string; value: any }) {
   return <Row label={label} value={d} />;
 }
 
+// Normalize surgery list from either the new `surgeries` array or legacy flat fields
+function resolveSurgeryList(a: any): any[] {
+  if (Array.isArray(a?.surgeries) && a.surgeries.length > 0) return a.surgeries;
+  const type = a?.surgeryType || '';
+  if (!type) return [];
+  return [{
+    type,
+    otherName: a?.surgeryOther ?? '',
+    remarks: a?.surgeryRemarks ?? '',
+    cataractDetails: a?.cataractDetails,
+    genericDetails: type === 'Other (Enter Manually)'
+      ? a?.genericSurgeryDetails?.['Other (Enter Manually)']
+      : a?.genericSurgeryDetails?.[type],
+  }];
+}
+
+// Rows that render the full structured detail of one surgery (only non-empty fields)
+function SurgeryRows({ e }: { e: any }) {
+  const rows: React.ReactNode[] = [];
+  const add = (label: string, value: any) => {
+    const d = dash(value);
+    if (d === '—') return;
+    rows.push(<Row key={`${label}-${rows.length}`} label={label} value={d} />);
+  };
+  const addEye = (label: string, od?: any, os?: any, unit?: string) => {
+    if (!String(od ?? '').trim() && !String(os ?? '').trim()) return;
+    rows.push(<EyeRow key={`${label}-${rows.length}`} label={label} od={od} os={os} unit={unit} />);
+  };
+  const addRec = (rec: Record<string, { od?: any; os?: any }> | undefined) => {
+    if (!rec) return;
+    for (const [label, v] of Object.entries(rec)) {
+      if (String(v?.od ?? '').trim() || String(v?.os ?? '').trim()) {
+        addEye(label, v?.od, v?.os);
+      }
+    }
+  };
+  const addStrRec = (rec: Record<string, any> | undefined) => {
+    if (!rec) return;
+    for (const [label, v] of Object.entries(rec)) {
+      if (String(v ?? '').trim()) add(label, v);
+    }
+  };
+
+  const name = (e.otherName || '').trim() || e.type || '';
+  const remarks = (e.remarks || '').trim();
+  add('Surgery', name ? `${name}${remarks ? ` — ${remarks}` : ''}` : '');
+
+  const cat = e.cataractDetails;
+  const gen = e.genericDetails;
+
+  if (cat) {
+    add('Diagnosis', cat.diagnosis);
+    add('Eye To Be Operated', cat.eyeToBeOperated);
+    addEye('Pre-Op VA', cat.preOpVaOd, cat.preOpVaOs);
+    addEye('Pre-Op IOP', cat.preOpIopOd, cat.preOpIopOs);
+    addEye('Biometry — K1', cat.biometryOd?.k1, cat.biometryOs?.k1);
+    addEye('Biometry — K2', cat.biometryOd?.k2, cat.biometryOs?.k2);
+    addEye('Biometry — AXL', cat.biometryOd?.axl, cat.biometryOs?.axl);
+    addEye('Biometry — IOL', cat.biometryOd?.iol, cat.biometryOs?.iol);
+    add('Date Of Surgery', cat.dateOfSurgery);
+    add('Surgeon', cat.surgeon);
+    addEye('IOL — PC', cat.iolPcOd, cat.iolPcOs);
+    addEye('IOL — AC', cat.iolAcOd, cat.iolAcOs);
+    addEye('IOL — NO', cat.iolNoOd, cat.iolNoOs);
+    addRec(cat.intraOpComplications);
+    add('Complication Management', cat.intraOpComplicationAction);
+    add('Documented By', cat.documentedBy);
+    add('Surgeon (Post-Op)', cat.surgeonPostOp);
+    addEye('1st Post-Op Day VA', cat.postOpDay1VaOd, cat.postOpDay1VaOs);
+    addRec(cat.postOpDay1Complications);
+    add('Assessment', cat.assessment);
+    add('Plan', cat.plan);
+  } else if (gen) {
+    add('Diagnosis', gen.diagnosis);
+    add('Eye To Be Operated', gen.eyeToBeOperated);
+    addEye('Pre-Op VA', gen.preOpVaOd, gen.preOpVaOs);
+    addEye('Pre-Op IOP', gen.preOpIopOd, gen.preOpIopOs);
+    addRec(gen.preOpFindings);
+    add('Pre-Op Notes', gen.preOpNotes);
+    add('Date Of Surgery', gen.dateOfSurgery);
+    add('Surgeon', gen.surgeon);
+    addStrRec(gen.surgicalFields);
+    addRec(gen.intraOpComplications);
+    add('Complication Management', gen.intraOpAction);
+    add('Documented By', gen.documentedBy);
+    addEye('1st Post-Op Day VA', gen.postOpDay1VaOd, gen.postOpDay1VaOs);
+    addEye('1st Post-Op Day IOP', gen.postOpDay1IopOd, gen.postOpDay1IopOs);
+    addRec(gen.postOpFindings);
+    add('Post-Op Notes', gen.postOpNotes);
+    add('Assessment', gen.assessment);
+    add('Plan', gen.plan);
+  } else if (!name) {
+    return null;
+  }
+
+  return <>{rows}</>;
+}
+
 // Wrapper: only render a section block if its toggle is ON
 function ToggleSection({
   s,
@@ -583,11 +681,10 @@ export const DischargeSummaryView: React.FC = () => {
                 <tbody>
                   {(() => {
                     const a = s.sectionData['action-and-advice'] ?? {};
-                    const surgeryVal = a.surgeryType === 'Other (Enter Manually)' ? a.surgeryOther : a.surgeryType;
-                    const surgeryDisp = surgeryVal ? `${surgeryVal}${a.surgeryRemarks ? ` — ${a.surgeryRemarks}` : ''}` : '';
+                    const surgeryList = resolveSurgeryList(a);
                     return (
                       <>
-                        <KV label="Surgery" value={surgeryDisp} />
+                        {surgeryList.map((e, i) => <SurgeryRows key={`${e.type}-${e.otherName}-${i}`} e={e} />)}
                         <KV label="Prescribed Medication" value={a.medicationName ? `${a.medicationName}${a.medicationFreq && a.medicationFreq !== 'None' ? ` (${a.medicationFreq})` : ''}` : ''} />
                         <KV label="Spectacle Recommendation" value={a.spectacleRecommendation} />
                         <KV label="Referral" value={a.referral} />
