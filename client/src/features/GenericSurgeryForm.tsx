@@ -19,6 +19,10 @@ export type GenericSurgeryDetails = {
   postOpNotes: string;
   assessment: string;
   plan: string;
+  customPreOpLabels: string[];
+  customPostOpLabels: string[];
+  customIntraOpLabels: string[];
+  customSurgicalFieldLabels: string[];
 };
 
 export const DEFAULT_GENERIC_SURGERY_DETAILS: GenericSurgeryDetails = {
@@ -31,6 +35,10 @@ export const DEFAULT_GENERIC_SURGERY_DETAILS: GenericSurgeryDetails = {
   postOpDay1IopOd: '', postOpDay1IopOs: '',
   postOpFindings: {}, postOpNotes: '',
   assessment: '', plan: '',
+  customPreOpLabels: [],
+  customPostOpLabels: [],
+  customIntraOpLabels: [],
+  customSurgicalFieldLabels: [],
 };
 
 interface Props {
@@ -41,14 +49,16 @@ interface Props {
 
 const inputCls = 'w-full border-b border-slate-300 focus:border-blue-600 outline-none px-1 py-0.5 text-xs bg-transparent';
 
-function OdOsTable({ title, items, values, onChange }: {
-  title: string; items: string[];
+function OdOsTable({ title, items, customItems, values, onChange, onRemove }: {
+  title: string; items: string[]; customItems: string[];
   values: Record<string, { od: string; os: string }>;
   onChange: (v: Record<string, { od: string; os: string }>) => void;
+  onRemove: (label: string) => void;
 }) {
   const set = (item: string, eye: 'od' | 'os', val: string) => {
     onChange({ ...values, [item]: { ...(values[item] ?? { od: '', os: '' }), [eye]: val } });
   };
+  const rows = [...items, ...customItems.filter(l => !items.includes(l))];
   return (
     <table className="w-full bg-white border border-slate-200 text-xs text-left">
       <thead className="bg-slate-100">
@@ -58,9 +68,17 @@ function OdOsTable({ title, items, values, onChange }: {
           <th className="p-2 text-center w-1/4">OS</th>
         </tr>
       </thead>
-      <tbody>{items.map(item => (
+      <tbody>{rows.map(item => (
         <tr key={item} className="border-t border-slate-200 hover:bg-slate-50/50">
-          <td className="p-2 border-r border-slate-200">{item}</td>
+          <td className="p-2 border-r border-slate-200">
+            <span className="flex items-center justify-between gap-2">
+              <span>{item}</span>
+              {customItems.includes(item) && (
+                <button type="button" title="Remove row" onClick={() => onRemove(item)}
+                  className="text-red-400 hover:text-red-600 text-xs leading-none shrink-0">✕</button>
+              )}
+            </span>
+          </td>
           <td className="p-2 border-r border-slate-200"><input type="text" value={values[item]?.od ?? ''} onChange={e => set(item, 'od', e.target.value)} className={inputCls} /></td>
           <td className="p-2"><input type="text" value={values[item]?.os ?? ''} onChange={e => set(item, 'os', e.target.value)} className={inputCls} /></td>
         </tr>
@@ -69,11 +87,40 @@ function OdOsTable({ title, items, values, onChange }: {
   );
 }
 
-function FieldRow({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+function FieldRow({ label, value, onChange, placeholder, custom, onRemove }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; custom?: boolean; onRemove?: (label: string) => void }) {
   return (
     <div className="flex gap-2 items-center text-xs font-semibold">
-      <span className="whitespace-nowrap min-w-[140px]">{label}:</span>
+      <span className="whitespace-nowrap min-w-[140px] flex items-center gap-1">
+        {custom && onRemove && (
+          <button type="button" title="Remove field" onClick={() => onRemove(label)}
+            className="text-red-400 hover:text-red-600 text-[10px] leading-none shrink-0">✕</button>
+        )}
+        {label}:
+      </span>
       <input type="text" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="flex-1 border-b border-slate-300 focus:border-blue-600 outline-none py-0.5" />
+    </div>
+  );
+}
+
+function AddRowInput({ onAdd, placeholder }: { onAdd: (label: string) => void; placeholder: string }) {
+  const [val, setVal] = React.useState('');
+  const submit = () => {
+    const v = val.trim();
+    if (!v) return;
+    onAdd(v);
+    setVal('');
+  };
+  return (
+    <div className="flex items-center gap-2 mt-2 text-xs">
+      <input
+        type="text"
+        value={val}
+        onChange={e => setVal(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }}
+        placeholder={`${placeholder} (e.g. Biometry K1)`}
+        className="flex-1 px-2 py-1 border border-slate-300 rounded focus:outline-none focus:border-blue-600"
+      />
+      <button type="button" onClick={submit} className="px-2 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 font-semibold whitespace-nowrap">＋ Add</button>
     </div>
   );
 }
@@ -132,14 +179,40 @@ const SURGERY_CONFIGS: Record<string, SurgeryConfig> = {
 
 export const GenericSurgeryForm: React.FC<Props> = ({ surgeryType, data, onChange }) => {
   const patch = (p: Partial<GenericSurgeryDetails>) => onChange({ ...data, ...p });
-  const cfg = SURGERY_CONFIGS[surgeryType];
+  const cfg = SURGERY_CONFIGS[surgeryType] ?? { preOpItems: [], surgicalFieldLabels: [], intraOpItems: [], postOpItems: [] };
   const sf = data.surgicalFields;
   const setSf = (k: string, v: string) => patch({ surgicalFields: { ...sf, [k]: v } });
 
-  if (!cfg) return null;
+  const customPreOp = data.customPreOpLabels ?? [];
+  const customPostOp = data.customPostOpLabels ?? [];
+  const customIntraOp = data.customIntraOpLabels ?? [];
+  const customFields = data.customSurgicalFieldLabels ?? [];
+
+  const addPreOp = (label: string) => patch({ customPreOpLabels: [...customPreOp, label], preOpFindings: { ...data.preOpFindings, [label]: { od: '', os: '' } } });
+  const addPostOp = (label: string) => patch({ customPostOpLabels: [...customPostOp, label], postOpFindings: { ...data.postOpFindings, [label]: { od: '', os: '' } } });
+  const addIntraOp = (label: string) => patch({ customIntraOpLabels: [...customIntraOp, label], intraOpComplications: { ...data.intraOpComplications, [label]: { od: '', os: '' } } });
+  const addField = (label: string) => patch({ customSurgicalFieldLabels: [...customFields, label], surgicalFields: { ...sf, [label]: '' } });
+
+  const removePreOp = (label: string) => {
+    const pf = { ...data.preOpFindings }; delete pf[label];
+    patch({ customPreOpLabels: customPreOp.filter(l => l !== label), preOpFindings: pf });
+  };
+  const removePostOp = (label: string) => {
+    const pf = { ...data.postOpFindings }; delete pf[label];
+    patch({ customPostOpLabels: customPostOp.filter(l => l !== label), postOpFindings: pf });
+  };
+  const removeIntraOp = (label: string) => {
+    const co = { ...data.intraOpComplications }; delete co[label];
+    patch({ customIntraOpLabels: customIntraOp.filter(l => l !== label), intraOpComplications: co });
+  };
+  const removeField = (label: string) => {
+    const nf = { ...sf }; delete nf[label];
+    patch({ customSurgicalFieldLabels: customFields.filter(l => l !== label), surgicalFields: nf });
+  };
 
   return (
     <div className="border border-slate-200 rounded-lg p-5 bg-slate-50 space-y-8 text-sm mt-4">
+      <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">{surgeryType}</div>
 
       {/* DIAGNOSIS */}
       <div>
@@ -174,7 +247,8 @@ export const GenericSurgeryForm: React.FC<Props> = ({ surgeryType, data, onChang
           </tbody>
         </table>
 
-        <OdOsTable title="Pre-Op Findings" items={cfg.preOpItems} values={data.preOpFindings} onChange={v => patch({ preOpFindings: v })} />
+        <OdOsTable title="Pre-Op Findings" items={cfg.preOpItems} customItems={customPreOp} values={data.preOpFindings} onChange={v => patch({ preOpFindings: v })} onRemove={removePreOp} />
+        <AddRowInput onAdd={addPreOp} placeholder="Add measurement row" />
 
         <div className="flex items-center gap-4 text-xs font-semibold mt-3">
           <span>Eye to be operated:</span>
@@ -209,13 +283,18 @@ export const GenericSurgeryForm: React.FC<Props> = ({ surgeryType, data, onChang
           {cfg.surgicalFieldLabels.map(label => (
             <FieldRow key={label} label={label} value={sf[label] ?? ''} onChange={v => setSf(label, v)} />
           ))}
+          {customFields.map(label => (
+            <FieldRow key={label} label={label} value={sf[label] ?? ''} onChange={v => setSf(label, v)} custom onRemove={removeField} />
+          ))}
+          <AddRowInput onAdd={addField} placeholder="Add surgical field" />
         </div>
       </div>
 
       {/* INTRAOPERATIVE COMPLICATION */}
       <div>
         <h3 className="font-bold text-[#1E3A8A] mb-3 border-b border-slate-200 pb-2">Intraoperative Complications</h3>
-        <OdOsTable title="Complication" items={cfg.intraOpItems} values={data.intraOpComplications} onChange={v => patch({ intraOpComplications: v })} />
+        <OdOsTable title="Complication" items={cfg.intraOpItems} customItems={customIntraOp} values={data.intraOpComplications} onChange={v => patch({ intraOpComplications: v })} onRemove={removeIntraOp} />
+        <AddRowInput onAdd={addIntraOp} placeholder="Add complication row" />
         <div className="flex gap-2 items-start text-xs font-semibold mt-3">
           <span className="whitespace-nowrap pt-1">Complication management:</span>
           <input type="text" value={data.intraOpAction} onChange={e => patch({ intraOpAction: e.target.value })} className="flex-1 border-b border-slate-300 focus:border-blue-600 outline-none" />
@@ -255,7 +334,8 @@ export const GenericSurgeryForm: React.FC<Props> = ({ surgeryType, data, onChang
           </tbody>
         </table>
 
-        <OdOsTable title="Post-Op Findings" items={cfg.postOpItems} values={data.postOpFindings} onChange={v => patch({ postOpFindings: v })} />
+        <OdOsTable title="Post-Op Findings" items={cfg.postOpItems} customItems={customPostOp} values={data.postOpFindings} onChange={v => patch({ postOpFindings: v })} onRemove={removePostOp} />
+        <AddRowInput onAdd={addPostOp} placeholder="Add measurement row" />
 
         <div className="mt-3">
           <label className="text-xs font-semibold block mb-1">Post-Op Notes:</label>

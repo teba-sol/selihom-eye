@@ -71,10 +71,20 @@ const FOLLOW_UP_PERIODS = [
   'SOS (As and when required)',
 ];
 
+type SurgeryEntry = {
+  id: string;
+  type: string;
+  otherName: string;
+  remarks: string;
+  cataractDetails?: CataractDetails;
+  genericDetails?: GenericSurgeryDetails;
+};
+
 type ActionAndAdviceData = {
   surgeryType: string;
   surgeryOther: string;
   surgeryRemarks: string;
+  surgeries?: SurgeryEntry[];
   cataractDetails?: CataractDetails;
   genericSurgeryDetails?: Record<string, GenericSurgeryDetails>;
   referral: string;
@@ -91,6 +101,7 @@ const DEFAULT_ACTION_AND_ADVICE: ActionAndAdviceData = {
   surgeryType: '',
   surgeryOther: '',
   surgeryRemarks: '',
+  surgeries: [],
   cataractDetails: DEFAULT_CATARACT_DETAILS,
   genericSurgeryDetails: {},
   referral: 'Referral to Ophthalmologist',
@@ -103,12 +114,63 @@ const DEFAULT_ACTION_AND_ADVICE: ActionAndAdviceData = {
   showInDischarge: false,
 };
 
+// Back-compat: old exams stored a single surgery in flat fields (surgeryType/surgeryOther/...).
+// If the new `surgeries` array is missing, derive one entry from the legacy fields.
+function legacyToSurgeries(f: ActionAndAdviceData): SurgeryEntry[] {
+  if ((f.surgeries ?? []).length > 0) return f.surgeries as SurgeryEntry[];
+  const type = f.surgeryType ?? '';
+  if (!type) return [];
+  const entry: SurgeryEntry = {
+    id: crypto.randomUUID(),
+    type,
+    otherName: f.surgeryOther ?? '',
+    remarks: f.surgeryRemarks ?? '',
+  };
+  if (type === 'Cataract Surgery') {
+    entry.cataractDetails = f.cataractDetails ?? { ...DEFAULT_CATARACT_DETAILS };
+  } else if (type !== 'Other (Enter Manually)') {
+    entry.genericDetails = f.genericSurgeryDetails?.[type] ?? { ...DEFAULT_GENERIC_SURGERY_DETAILS };
+  } else {
+    entry.genericDetails = { ...DEFAULT_GENERIC_SURGERY_DETAILS };
+  }
+  return [entry];
+}
+
+// Mirror the first surgery back into the legacy flat fields so any other reader stays consistent.
+function mirrorLegacy(list: SurgeryEntry[]): Partial<ActionAndAdviceData> {
+  const first = list[0];
+  const genericSurgeryDetails: Record<string, GenericSurgeryDetails> = {};
+  for (const s of list) {
+    if (s.type && s.type !== 'Cataract Surgery') {
+      genericSurgeryDetails[s.type] = s.genericDetails ?? { ...DEFAULT_GENERIC_SURGERY_DETAILS };
+    }
+  }
+  return {
+    surgeryType: first?.type ?? '',
+    surgeryOther: first?.otherName ?? '',
+    surgeryRemarks: first?.remarks ?? '',
+    surgeries: list,
+    cataractDetails: first?.cataractDetails,
+    genericSurgeryDetails,
+  };
+}
+
 export const ActionAndAdviceView: React.FC = () => {
   const sectionData = useEncounterStore((s) => s.sectionData);
   const setSectionData = useEncounterStore((s) => s.setSectionData);
   const f = Object.assign({}, DEFAULT_ACTION_AND_ADVICE, sectionData['action-and-advice'] ?? {}) as ActionAndAdviceData;
   const patch = (p: Partial<ActionAndAdviceData>) => setSectionData('action-and-advice', { ...f, ...p });
-  const { surgeryType, surgeryOther, surgeryRemarks, cataractDetails, genericSurgeryDetails = {}, referral, urgency, medicationName, medicationFreq, spectacleRecommendation, followUpPeriod, remarks, showInDischarge } = f;
+  const surgeries = legacyToSurgeries(f);
+  const patchSurgery = (id: string, p: Partial<SurgeryEntry>) => {
+    const next = surgeries.map((s) => (s.id === id ? { ...s, ...p } : s));
+    patch(mirrorLegacy(next));
+  };
+  const addSurgery = () => {
+    const entry: SurgeryEntry = { id: crypto.randomUUID(), type: '', otherName: '', remarks: '' };
+    patch(mirrorLegacy([...surgeries, entry]));
+  };
+  const removeSurgery = (id: string) => patch(mirrorLegacy(surgeries.filter((s) => s.id !== id)));
+  const { referral, urgency, medicationName, medicationFreq, spectacleRecommendation, followUpPeriod, remarks, showInDischarge } = f;
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full">
@@ -119,46 +181,70 @@ export const ActionAndAdviceView: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
           <label className="text-xs font-bold text-slate-800 pt-2">Surgery</label>
           <div className="md:col-span-3 space-y-3">
-            <select
-              value={surgeryType}
-              onChange={(e) => patch({ surgeryType: e.target.value })}
-              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
+            {surgeries.map((s, i) => (
+              <div key={s.id} className="border border-slate-200 rounded-lg p-4 bg-white space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Surgery #{i + 1}</span>
+                  <button type="button" onClick={() => removeSurgery(s.id)} className="text-xs text-red-500 hover:text-red-700 font-semibold">
+                    Remove
+                  </button>
+                </div>
+                <select
+                  value={s.type}
+                  onChange={(e) => patchSurgery(s.id, { type: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
+                >
+                  {SURGERY_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt === 'None' ? '' : opt}>{opt}</option>
+                  ))}
+                </select>
+                {s.type === 'Other (Enter Manually)' && (
+                  <input
+                    type="text"
+                    value={s.otherName}
+                    onChange={(e) => patchSurgery(s.id, { otherName: e.target.value })}
+                    placeholder="Enter surgery name..."
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:border-blue-600 placeholder:text-slate-400"
+                  />
+                )}
+                {s.type === 'Cataract Surgery' && (
+                  <CataractSurgeryForm
+                    data={s.cataractDetails ?? DEFAULT_CATARACT_DETAILS}
+                    onChange={(d) => patchSurgery(s.id, { cataractDetails: d })}
+                  />
+                )}
+                {s.type && s.type !== 'None' && s.type !== 'Cataract Surgery' && s.type !== 'Other (Enter Manually)' && (
+                  <GenericSurgeryForm
+                    surgeryType={s.type}
+                    data={s.genericDetails ?? DEFAULT_GENERIC_SURGERY_DETAILS}
+                    onChange={(d) => patchSurgery(s.id, { genericDetails: d })}
+                  />
+                )}
+                {s.type === 'Other (Enter Manually)' && (
+                  <GenericSurgeryForm
+                    surgeryType={s.otherName.trim() || 'Custom Surgery'}
+                    data={s.genericDetails ?? DEFAULT_GENERIC_SURGERY_DETAILS}
+                    onChange={(d) => patchSurgery(s.id, { genericDetails: d })}
+                  />
+                )}
+                {s.type && s.type !== 'None' && (
+                  <textarea
+                    rows={2}
+                    value={s.remarks}
+                    onChange={(e) => patchSurgery(s.id, { remarks: e.target.value })}
+                    placeholder="Surgery remarks / details..."
+                    className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 placeholder:text-slate-400"
+                  />
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addSurgery}
+              className="px-3 py-2 text-xs font-semibold rounded-md border border-dashed border-slate-400 text-slate-600 hover:border-blue-500 hover:text-blue-600"
             >
-              {SURGERY_OPTIONS.map((opt) => (
-                <option key={opt} value={opt === 'None' ? '' : opt}>{opt}</option>
-              ))}
-            </select>
-            {surgeryType === 'Other (Enter Manually)' && (
-              <input
-                type="text"
-                value={surgeryOther}
-                onChange={(e) => patch({ surgeryOther: e.target.value })}
-                placeholder="Enter surgery manually..."
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:border-blue-600 placeholder:text-slate-400"
-              />
-            )}
-            {surgeryType === 'Cataract Surgery' && (
-              <CataractSurgeryForm
-                data={cataractDetails ?? DEFAULT_CATARACT_DETAILS}
-                onChange={(d) => patch({ cataractDetails: d })}
-              />
-            )}
-            {surgeryType && surgeryType !== 'None' && surgeryType !== 'Cataract Surgery' && surgeryType !== 'Other (Enter Manually)' && (
-              <GenericSurgeryForm
-                surgeryType={surgeryType}
-                data={genericSurgeryDetails[surgeryType] ?? DEFAULT_GENERIC_SURGERY_DETAILS}
-                onChange={(d) => patch({ genericSurgeryDetails: { ...genericSurgeryDetails, [surgeryType]: d } })}
-              />
-            )}
-            {surgeryType && (
-              <textarea
-                rows={2}
-                value={surgeryRemarks}
-                onChange={(e) => patch({ surgeryRemarks: e.target.value })}
-                placeholder="Surgery remarks / details..."
-                className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 placeholder:text-slate-400"
-              />
-            )}
+              ＋ Add Surgery
+            </button>
           </div>
         </div>
 
