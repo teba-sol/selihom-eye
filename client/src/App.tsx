@@ -5,6 +5,7 @@ import { PatientsPage } from './pages/PatientsPage';
 import { AppointmentsPage } from './pages/AppointmentsPage';
 import { ExamDashboard } from './pages/ExamDashboard';
 import { ReceptionistDashboard } from './pages/ReceptionistDashboard';
+import { SettingsPage } from './pages/SettingsPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 // Error boundary to catch runtime crashes and clear bad localStorage
@@ -72,6 +73,7 @@ export default function App() {
             <Route path="/appointments" element={<AppointmentsPage />} />
             <Route path="/exam/:encounterId" element={<ExamDashboard />} />
             <Route path="/receptionist/*" element={<ReceptionistDashboard />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
 
           <Route path="/" element={<Navigate to="/login" replace />} />

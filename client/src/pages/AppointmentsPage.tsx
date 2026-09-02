@@ -29,12 +29,28 @@ function addDays(d: Date, n: number): Date {
   return r;
 }
 
+import { gregorianToEthiopian } from '../lib/formatters';
+
+const ETH_MONTHS_SHORT = [
+  'Mes', 'Tik', 'Hid', 'Tah', 'Tir', 'Yek',
+  'Meg', 'Mia', 'Gin', 'Sen', 'Ham', 'Neh', 'Pag',
+];
+
+function toEthDay(d: Date): string {
+  const eth = gregorianToEthiopian(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  return String(eth.day);
+}
+
 function formatWeekRange(start: Date): string {
   const end = addDays(start, 6);
-  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  const s = start.toLocaleDateString('en-US', opts);
-  const e = end.toLocaleDateString('en-US', { ...opts, year: 'numeric' });
-  return `${s} – ${e}`;
+  const es = gregorianToEthiopian(start.getFullYear(), start.getMonth() + 1, start.getDate());
+  const ee = gregorianToEthiopian(end.getFullYear(), end.getMonth() + 1, end.getDate());
+  const sm = ETH_MONTHS_SHORT[es.month - 1] ?? `M${es.month}`;
+  const em = ETH_MONTHS_SHORT[ee.month - 1] ?? `M${ee.month}`;
+  if (es.month === ee.month && es.year === ee.year) {
+    return `${sm} ${es.day} – ${ee.day}, ${ee.year}`;
+  }
+  return `${sm} ${es.day} – ${em} ${ee.day}, ${ee.year}`;
 }
 
 function parseTime(t: string): number {
@@ -221,7 +237,7 @@ export const AppointmentsPage: React.FC = () => {
                   isToday || isSunday ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-700'
                 }`}
               >
-                {day.getDate()} {day.toLocaleDateString('en-US', { weekday: 'short' })}
+                {toEthDay(day)} {day.toLocaleDateString('en-US', { weekday: 'short' })}
               </div>
             );
           })}
@@ -343,7 +359,7 @@ export const AppointmentsPage: React.FC = () => {
 
         {view === 'day' && (
           <div className="bg-white border border-slate-200 rounded-md p-8 text-center text-slate-500 text-sm">
-            Day view — showing appointments for {weekStart.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            Day view — showing appointments for {(() => { const eth = gregorianToEthiopian(weekStart.getFullYear(), weekStart.getMonth() + 1, weekStart.getDate()); const mn = ETH_MONTHS_SHORT[eth.month - 1] ?? `M${eth.month}`; return `${weekStart.toLocaleDateString('en-US', { weekday: 'long' })}, ${mn} ${eth.day} ${eth.year}`; })()}
             <div className="mt-4 space-y-2">
               {visibleAppointments.filter((a) => a.date === weekStart.toISOString().split('T')[0]).map((apt) => {
                 const p = getPatientById(apt.patientId);
@@ -372,7 +388,7 @@ export const AppointmentsPage: React.FC = () => {
                       day.getTime() === today.getTime() ? 'bg-emerald-50 border-emerald-200' : ''
                     }`}
                   >
-                    <div className="text-xs font-medium text-slate-700">{day.getDate()}</div>
+                    <div className="text-xs font-medium text-slate-700">{toEthDay(day)}</div>
                     {count > 0 && (
                       <div className="mt-1 text-[10px] text-emerald-700 font-medium">{count} apt{count > 1 ? 's' : ''}</div>
                     )}

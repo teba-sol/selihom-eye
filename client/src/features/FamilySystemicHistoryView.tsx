@@ -1,6 +1,7 @@
 import React from 'react';
 import { useEncounterStore } from '../store/useEncounterStore';
 import type { FamilyHistoryItem } from '../store/useEncounterStore';
+import { generateId } from '../utils/uuid';
 
 const DEFAULT_FLAGS = {
   noHistory: true,
@@ -24,7 +25,7 @@ export const FamilySystemicHistoryView: React.FC = () => {
       return;
     }
     const build = (relation: FamilyHistoryItem['relation']): FamilyHistoryItem => ({
-      id: crypto.randomUUID(),
+      id: generateId(),
       relation,
       condition: '',
       notes: f.remarks,

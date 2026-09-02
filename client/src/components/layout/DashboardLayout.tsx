@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Users, Calendar, Eye, LogOut } from 'lucide-react';
+import { Users, Calendar, Eye, LogOut, Settings } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
 interface DashboardLayoutProps {
@@ -58,6 +58,19 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
         <div className="px-3 py-4 border-t border-slate-700/50">
           <div className="text-xs text-slate-400 px-2 mb-2 truncate">{user?.name ?? 'Doctor'}</div>
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              `flex items-center gap-2 w-full px-3 py-2 text-sm rounded-sm transition-colors mb-1 ${
+                isActive
+                  ? 'bg-[#2a3f6b] text-white'
+                  : 'text-slate-300 hover:bg-[#243659] hover:text-white'
+              }`
+            }
+          >
+            <Settings className="w-4 h-4" />
+            Settings
+          </NavLink>
           <button
             onClick={handleLogout}
             className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-300 hover:bg-rose-600/20 hover:text-rose-300 rounded-sm transition-colors"

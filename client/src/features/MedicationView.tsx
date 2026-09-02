@@ -1,6 +1,7 @@
 import React from 'react';
 import { useEncounterStore } from '../store/useEncounterStore';
 import type { MedicationEntry } from '../store/useEncounterStore';
+import { generateId } from '../utils/uuid';
 
 const DEFAULT_FLAGS = {
   none: false,
@@ -24,7 +25,7 @@ export const MedicationView: React.FC = () => {
       return;
     }
     const build = (route: MedicationEntry['route'], name: string): MedicationEntry => ({
-      id: crypto.randomUUID(),
+      id: generateId(),
       drugName: name,
       dosage: '',
       frequency: '',

@@ -1,5 +1,6 @@
 import type { ExamHistoryEntry } from '../hooks/usePatientRecordData';
 import { vaVal, vaHasData } from '../components/ExamDetails';
+import { formatEthiopianDate } from './formatters';
 
 export function fmtDate(value: unknown): string {
   if (!value) return '';
@@ -8,7 +9,7 @@ export function fmtDate(value: unknown): string {
     ? new Date(`${str}T00:00:00`)
     : new Date(str);
   if (isNaN(d.getTime())) return str;
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return formatEthiopianDate(d);
 }
 
 export function humanize(s: string | null | undefined): string {

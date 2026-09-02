@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength, IsIn, IsOptional } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, MinLength, IsIn, IsOptional, ValidateIf } from 'class-validator';
 
 export class LoginDto {
   @IsEmail()
@@ -31,4 +31,30 @@ export class RegisterStaffDto {
   @IsString()
   @IsOptional()
   licenseNumber?: string;
+}
+
+export class UpdateProfileDto {
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  firstName?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  lastName?: string;
+
+  @IsEmail()
+  @IsOptional()
+  email?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  currentPassword?: string;
+
+  @IsString()
+  @MinLength(6)
+  @IsOptional()
+  newPassword?: string;
 }

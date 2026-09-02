@@ -462,7 +462,7 @@ export function downloadEncounterPdf(state: EncounterState) {
         </div>
         <div>
           <div class="patient-info-label">Age</div>
-          <div>${patient.age} years</div>
+          <div>${patient.age}</div>
         </div>
         <div>
           <div class="patient-info-label">MRN</div>

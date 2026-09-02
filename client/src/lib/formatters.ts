@@ -120,10 +120,11 @@ export function calcAge(dob: string): number {
 }
 
 export function formatDisplayDate(iso: string): string {
+  if (!iso) return '-';
   if (isEthiopianDob(iso)) return iso;
   const d = parseDate(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return formatEthiopianDate(d);
 }
 
 // DOB is stored as a pre-formatted Ethiopian date string (DD/MM/YYYY).

@@ -87,7 +87,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({ onEndExam }) => {
                 <span className="text-[11px] font-normal text-slate-400 font-mono">({patient.mrn})</span>
               </h2>
               <p className="text-xs text-slate-300">
-                {patient.age} years · {patient.gender}
+                {patient.age} · {patient.gender}
               </p>
             </div>
           </div>

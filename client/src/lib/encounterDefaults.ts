@@ -107,13 +107,11 @@ export function getDefaultClinicalState() {
   };
 }
 
+import { formatEthiopianDate } from '../lib/formatters';
+
 export function buildAppointmentTime(date: string, startTime: string): string {
   const d = new Date(date + 'T00:00:00');
-  const day = d.toLocaleDateString('en-US', {
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-  return `${day}, ${startTime}`;
+  const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
+  const ethDate = formatEthiopianDate(d);
+  return `${weekday}, ${ethDate}, ${startTime}`;
 }

@@ -15,6 +15,7 @@ interface AuthState {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; role?: string }>;
   logout: () => void;
+  setUser: (user: AuthUser) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -48,6 +49,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => set({ user: null, token: null, isAuthenticated: false }),
+      setUser: (user) => set({ user }),
     }),
     { 
       name: 'asira-auth',
