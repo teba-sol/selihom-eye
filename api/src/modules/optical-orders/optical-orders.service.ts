@@ -8,6 +8,13 @@ function numStr(v: unknown): string | null {
   return v === undefined || v === null || v === '' ? null : String(v);
 }
 
+// Axis is stored as an integer (degrees); coerce any decimal/whitespace input.
+function intNum(v: unknown): number | null {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Math.round(Number(String(v).trim()));
+  return Number.isFinite(n) ? n : null;
+}
+
 @Injectable()
 export class OpticalOrdersService {
   constructor(@Inject(DRIZZLE_PROVIDER) private db: any) {}
@@ -81,11 +88,11 @@ export class OpticalOrdersService {
       prescribedByDoctorId: doctorId,
       odSph: numStr(dto.rx?.od?.sph),
       odCyl: numStr(dto.rx?.od?.cyl),
-      odAxis: numStr(dto.rx?.od?.axis),
+      odAxis: intNum(dto.rx?.od?.axis),
       odAdd: numStr(dto.rx?.od?.add),
       osSph: numStr(dto.rx?.os?.sph),
       osCyl: numStr(dto.rx?.os?.cyl),
-      osAxis: numStr(dto.rx?.os?.axis),
+      osAxis: intNum(dto.rx?.os?.axis),
       osAdd: numStr(dto.rx?.os?.add),
       lensType: dto.lensType || null,
       lensMaterial: dto.lensMaterial || null,
