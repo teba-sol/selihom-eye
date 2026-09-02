@@ -66,6 +66,41 @@ export function formatDob(iso: string): string {
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
+export function formatAge(dob: string): string {
+  const birth = parseDate(dob);
+  const today = new Date();
+  if (Number.isNaN(birth.getTime())) return '0 yrs';
+  
+  let ageY = 0, ageM = 0, ageD = 0;
+  
+  if (isEthiopianDob(dob)) {
+    const t = gregorianToEthiopian(today.getFullYear(), today.getMonth() + 1, today.getDate());
+    const ethMatch = dob.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+    if (!ethMatch) return '0 yrs';
+    
+    ageY = t.year - Number(ethMatch[3]);
+    ageM = t.month - Number(ethMatch[2]);
+    ageD = t.day - Number(ethMatch[1]);
+    
+    if (ageD < 0) { ageM--; ageD += 30; }
+    if (ageM < 0) { ageY--; ageM += 13; }
+  } else {
+    ageY = today.getFullYear() - birth.getFullYear();
+    ageM = today.getMonth() - birth.getMonth();
+    ageD = today.getDate() - birth.getDate();
+    
+    if (ageD < 0) {
+      ageM--;
+      ageD += new Date(today.getFullYear(), today.getMonth(), 0).getDate();
+    }
+    if (ageM < 0) { ageY--; ageM += 12; }
+  }
+  
+  if (ageY > 0) return `${ageY} yrs`;
+  if (ageM > 0) return `${ageM} mos`;
+  return `${ageD} days`;
+}
+
 export function calcAge(dob: string): number {
   const birth = parseDate(dob);
   const today = new Date();

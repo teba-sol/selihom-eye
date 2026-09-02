@@ -3,7 +3,7 @@ import { X, FileText, Eye, Calendar, ChevronDown, ChevronRight, Printer, Plus, T
 import type { Patient } from '../store/useAppStore';
 import type { EncounterSnapshot } from '../store/useEncounterStore';
 import { ExamDetails, Field, vaVal, vaHasData } from './ExamDetails';
-import { formatDobEthiopian, calcAge } from '../lib/formatters';
+import { formatDobEthiopian, formatAge } from '../lib/formatters';
 import { usePatientRecordData, type ExamHistoryEntry } from '../hooks/usePatientRecordData';
 import { fmtDate, humanize, StatusBadge, SummaryChips, doctorName } from '../lib/examHistory';
 import { api } from '../lib/api';
@@ -659,7 +659,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
         <div class="meta-field"><label>Grandfather</label><span>${patient.grandfatherName??'-'}</span></div>
         <div class="meta-field"><label>Gender</label><span>${patient.gender}</span></div>
         <div class="meta-field"><label>Date of Birth</label><span>${formatDobEthiopian(patient.dateOfBirth)}</span></div>
-        <div class="meta-field"><label>Age</label><span>${calcAge(patient.dateOfBirth)} years</span></div>
+        <div class="meta-field"><label>Age</label><span>${formatAge(patient.dateOfBirth)}</span></div>
         <div class="meta-field"><label>Phone</label><span>${patient.phone}</span></div>
         <div class="meta-field"><label>Status</label><span>${patient.isNew?'New Patient':'Returning Patient'}</span></div>
         <div class="meta-field"><label>Address</label><span>${patient.address??'—'}</span></div>
@@ -696,7 +696,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-800">{patient.firstName} {patient.lastName}</h2>
-              <p className="text-xs text-slate-500">{patient.mrn??`SEL-${patient.id}`} · {calcAge(patient.dateOfBirth)} yrs · {patient.gender}</p>
+              <p className="text-xs text-slate-500">{patient.mrn??`SEL-${patient.id}`} · {formatAge(patient.dateOfBirth)} · {patient.gender}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -729,7 +729,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
               <Field label="Grandfather" value={patient.grandfatherName ?? '-'}/>
               <Field label="Gender" value={patient.gender}/>
               <Field label="Date of Birth" value={formatDobEthiopian(patient.dateOfBirth)}/>
-              <Field label="Age" value={`${calcAge(patient.dateOfBirth)} years`}/>
+              <Field label="Age" value={formatAge(patient.dateOfBirth)}/>
               <Field label="Phone" value={patient.phone}/>
               <Field label="Address" value={patient.address??'—'} wide/>
               <Field label="Last Visit" value={lastVisit}/>

@@ -30,6 +30,8 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
     const result = await login(email, password);
     setLoading(false);
+    console.log('Login result:', result);
+    console.log('Auth state after login:', useAuthStore.getState());
     if (result.success) {
       if (result.role === 'RECEPTIONIST') {
         navigate('/receptionist');

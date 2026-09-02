@@ -23,7 +23,8 @@ async function request<T>(method: string, url: string, data?: any): Promise<T> {
   });
 
   if (!res.ok) {
-    if (res.status === 401) {
+    // Don't redirect on 401 from login — let the caller show the error
+    if (res.status === 401 && !url.includes('/auth/login')) {
       localStorage.removeItem('asira-auth');
       window.location.href = '/login';
       throw new Error('Session expired. Please log in again.');

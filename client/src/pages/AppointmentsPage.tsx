@@ -5,7 +5,7 @@ import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { EthiopianDatePicker } from '../components/EthiopianDatePicker';
 import { useAppStore } from '../store/useAppStore';
 import { useEncounterStore } from '../store/useEncounterStore';
-import { calcAge, formatDisplayDate } from '../lib/formatters';
+import { formatAge, formatDisplayDate } from '../lib/formatters';
 import { buildAppointmentTime } from '../lib/encounterDefaults';
 import type { Appointment, Patient } from '../store/useAppStore';
 
@@ -151,7 +151,7 @@ export const AppointmentsPage: React.FC = () => {
           id: patient.id,
           mrn: patient.mrn || patient.id,
           name: `${patient.firstName} ${patient.lastName}`,
-          age: calcAge(patient.dateOfBirth),
+          age: formatAge(patient.dateOfBirth),
           gender: patient.gender || '',
           appointmentTime: buildAppointmentTime(selectedApt.date, selectedApt.startTime),
           reasonForVisit: selectedApt.reason || '',

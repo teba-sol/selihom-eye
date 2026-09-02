@@ -583,9 +583,12 @@ export const DischargeSummaryView: React.FC = () => {
                 <tbody>
                   {(() => {
                     const a = s.sectionData['action-and-advice'] ?? {};
+                    const surgeryVal = a.surgeryType === 'Other (Enter Manually)' ? a.surgeryOther : a.surgeryType;
+                    const surgeryDisp = surgeryVal ? `${surgeryVal}${a.surgeryRemarks ? ` — ${a.surgeryRemarks}` : ''}` : '';
                     return (
                       <>
-                        <KV label="Prescribed Medication" value={a.medicationName ? `${a.medicationName}${a.medicationFreq ? ` (${a.medicationFreq})` : ''}` : ''} />
+                        <KV label="Surgery" value={surgeryDisp} />
+                        <KV label="Prescribed Medication" value={a.medicationName ? `${a.medicationName}${a.medicationFreq && a.medicationFreq !== 'None' ? ` (${a.medicationFreq})` : ''}` : ''} />
                         <KV label="Spectacle Recommendation" value={a.spectacleRecommendation} />
                         <KV label="Referral" value={a.referral} />
                         <KV label="Urgency" value={a.urgency} />
