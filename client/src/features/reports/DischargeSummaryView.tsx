@@ -205,6 +205,7 @@ export const DischargeSummaryView: React.FC = () => {
 
           <div className="border border-slate-200 rounded-xl overflow-hidden">
             <table className="w-full border-collapse text-sm">
+              <tbody>
               {/* ================= HISTORY & SYMPTOMS ================= */}
               {(() => {
                 const historyToggled = [
@@ -710,6 +711,7 @@ export const DischargeSummaryView: React.FC = () => {
                   </tr>
                 );
               })()}
+              </tbody>
             </table>
           </div>
 
@@ -730,10 +732,6 @@ export const DischargeSummaryView: React.FC = () => {
               <p className="text-slate-600">Dr. Tarekegn</p>
               <p className="text-slate-500 text-xs">Selihome Ophthalmic Medium Clinic</p>
             </div>
-          </div>
-
-          <div className="flex justify-end mt-4">
-            <button onClick={handleDownloadPdf} className="px-4 py-2 border border-teal-600 text-teal-700 rounded-lg text-sm font-medium hover:bg-teal-50">Download PDF</button>
           </div>
         </div>
       </div>

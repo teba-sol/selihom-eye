@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, integer } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, boolean } from 'drizzle-orm/pg-core';
 import { userRoleEnum, appointmentStatusEnum } from './enums';
 
 // 1. Staff Accounts (Receptionist and Doctor)
@@ -38,7 +38,7 @@ export const patients = pgTable('patients', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-// 3. Appointments & Queue Management
+// 3. Appointments
 export const appointments = pgTable('appointments', {
   id: uuid('id').defaultRandom().primaryKey(),
   patientId: uuid('patient_id').references(() => patients.id, { onDelete: 'cascade' }).notNull(),
@@ -47,7 +47,6 @@ export const appointments = pgTable('appointments', {
   startTime: varchar('start_time', { length: 10 }),
   endTime: varchar('end_time', { length: 10 }),
   reason: varchar('reason', { length: 255 }),
-  queueNumber: integer('queue_number'),
   status: appointmentStatusEnum('status').default('CHECKED_IN').notNull(),
 
   // Informed Consent Verification

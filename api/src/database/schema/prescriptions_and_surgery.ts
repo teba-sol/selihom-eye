@@ -1,7 +1,7 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, decimal, date, integer } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, decimal, integer, jsonb, boolean } from 'drizzle-orm/pg-core';
 import { clinicalEncounters } from './clinical';
 import { appointments, patients, users } from './core';
-import { eyeLateralityEnum, surgicalStatusEnum, referralUrgencyEnum } from './enums';
+import { surgeryStatusEnum } from './enums';
 
 // 1. Dedicated Optical Prescription (Strictly Separate Template)
 export const opticalPrescriptions = pgTable('optical_prescriptions', {
@@ -54,16 +54,27 @@ export const medicationPrescriptions = pgTable('medication_prescriptions', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-// 3. Specialist Referrals & Co-Management
-export const referrals = pgTable('referrals', {
+// 3. Surgical Procedures (projection of the encounter's action-and-advice surgery list)
+export const surgicalProcedures = pgTable('surgical_procedures', {
   id: uuid('id').defaultRandom().primaryKey(),
   encounterId: uuid('encounter_id').references(() => clinicalEncounters.id, { onDelete: 'cascade' }).notNull(),
+  appointmentId: uuid('appointment_id').references(() => appointments.id, { onDelete: 'set null' }),
   patientId: uuid('patient_id').references(() => patients.id, { onDelete: 'cascade' }).notNull(),
-  referringDoctorId: uuid('referring_doctor_id').references(() => users.id).notNull(),
-  targetSpecialistName: varchar('target_specialist_name', { length: 255 }).notNull(),
-  targetSpecialty: varchar('target_specialty', { length: 100 }),
-  urgency: referralUrgencyEnum('urgency').default('ROUTINE').notNull(),
-  clinicalNotes: text('clinical_notes').notNull(),
-  pdfSummaryUrl: text('pdf_summary_url'),
+  doctorUserId: uuid('doctor_user_id').references(() => users.id).notNull(),
+
+  index: integer('index').notNull().default(0),
+  type: varchar('type', { length: 100 }).notNull().default(''),
+  otherName: varchar('other_name', { length: 255 }).default(''),
+  eye: varchar('eye', { length: 32 }).default(''),
+  dateOfSurgery: varchar('date_of_surgery', { length: 50 }).default(''),
+  surgeon: varchar('surgeon', { length: 255 }).default(''),
+  status: surgeryStatusEnum('status').notNull().default('PLANNED'),
+  details: jsonb('details').$type<Record<string, unknown> | null>(),
+  remarks: text('remarks'),
+  showInDischarge: boolean('show_in_discharge').notNull().default(false),
+
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+export type SurgicalProcedure = typeof surgicalProcedures.$inferSelect;

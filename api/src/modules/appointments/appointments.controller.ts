@@ -10,15 +10,9 @@ export class AppointmentsController {
   constructor(private readonly appointmentsService: AppointmentsService) {}
 
   @Post()
-  @Roles('RECEPTIONIST', 'DOCTOR')
+  @Roles('DOCTOR')
   async book(@Body() dto: BookAppointmentDto) {
     return this.appointmentsService.book(dto);
-  }
-
-  @Get('queue')
-  @Roles('RECEPTIONIST', 'DOCTOR')
-  async getLiveQueue() {
-    return this.appointmentsService.getLiveQueue();
   }
 
   @Get()

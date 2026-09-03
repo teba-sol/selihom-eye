@@ -37,10 +37,10 @@ export const StepperInput: React.FC<StepperInputProps> = ({
   const set = (n: number) => onChange(fmtSigned(clamp(n)));
 
   const btnBase =
-    'h-full px-1.5 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
+    'w-8 shrink-0 self-stretch flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-blue-50 active:bg-blue-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
 
   return (
-    <div className={`inline-flex items-stretch border border-slate-300 rounded overflow-hidden bg-white ${className}`}>
+    <div className={`inline-flex items-stretch border border-slate-300 rounded overflow-hidden bg-white focus-within:border-teal-500 focus-within:ring-1 focus-within:ring-teal-500 ${className}`}>
       <button
         type="button"
         aria-label={ariaLabel ? `Decrease ${ariaLabel}` : 'Decrease'}
@@ -48,13 +48,14 @@ export const StepperInput: React.FC<StepperInputProps> = ({
         disabled={min !== undefined && current - step < min}
         className={btnBase}
       >
-        <Minus className="w-3 h-3" />
+        <Minus className="w-4 h-4" strokeWidth={2.5} />
       </button>
       <input
         type="text"
         inputMode="decimal"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={(e) => e.target.select()}
         onBlur={() => {
           const n = parseFloat(value);
           if (!Number.isNaN(n)) set(n);
@@ -69,7 +70,7 @@ export const StepperInput: React.FC<StepperInputProps> = ({
           }
         }}
         placeholder={placeholder}
-        className="w-full min-w-0 px-2 py-1.5 text-center font-bold text-slate-800 focus:outline-hidden focus:border-teal-600"
+        className="w-full min-w-0 px-2 py-2 text-center text-sm font-bold text-slate-800 outline-none"
       />
       <button
         type="button"
@@ -78,7 +79,7 @@ export const StepperInput: React.FC<StepperInputProps> = ({
         disabled={max !== undefined && current + step > max}
         className={btnBase}
       >
-        <Plus className="w-3 h-3" />
+        <Plus className="w-4 h-4" strokeWidth={2.5} />
       </button>
     </div>
   );

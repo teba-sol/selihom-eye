@@ -5,6 +5,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { AddPatientModal } from '../components/AddPatientModal';
 import { api } from '../lib/api';
+import { useToast } from '../lib/toast';
 import { formatDobEthiopian, patientFullName, formatEthiopianDate } from '../lib/formatters';
 import { listOpticalOrders, deliverOpticalOrder, type OpticalOrder } from '../lib/opticalOrders';
 import { printOpticalRx } from '../components/OpticalRxCard';
@@ -46,7 +47,7 @@ export const ReceptionistDashboard: React.FC = () => {
   const user = useAuthStore((s) => s.user);
 
   const [showModal, setShowModal] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<ApiPatient[]>([]);
   const [searching, setSearching] = useState(false);
@@ -90,31 +91,43 @@ export const ReceptionistDashboard: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    let active = true;
+    const q = searchQuery.trim();
+    if (!q) {
       setSearchResults([]);
+      setSearching(false);
       return;
     }
+    setSearching(true);
     const timer = setTimeout(async () => {
-      setSearching(true);
       try {
-        const results = await api.get<ApiPatient[]>(`/patients?q=${encodeURIComponent(searchQuery.trim())}`);
-        setSearchResults(results);
+        const results = await api.get<ApiPatient[]>(`/patients?q=${encodeURIComponent(q)}`);
+        if (active) {
+          setSearchResults(results);
+          setSearching(false);
+        }
       } catch {
-        setSearchResults([]);
+        if (active) {
+          setSearchResults([]);
+          setSearching(false);
+        }
       }
-      setSearching(false);
     }, 300);
-    return () => clearTimeout(timer);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, [searchQuery]);
 
   const handleSave = async (data: any) => {
     try {
       await addPatient(data);
       setShowModal(false);
-      showToast('Patient registered successfully');
       fetchDashboardData();
+      return true;
     } catch {
-      showToast('Failed to register patient');
+      toast.error('Failed to register patient');
+      return false;
     }
   };
 
@@ -127,15 +140,10 @@ export const ReceptionistDashboard: React.FC = () => {
     try {
       await deliverOpticalOrder(order.id);
       setPendingOrders((prev) => prev.filter((o) => o.id !== order.id));
-      showToast(`${order.patient ? order.patient.firstName + ' ' + order.patient.lastName : 'Order'} marked as delivered`);
+      toast.success(`${order.patient ? order.patient.firstName + ' ' + order.patient.lastName : 'Order'} marked as delivered`);
     } catch {
-      showToast('Failed to mark as delivered');
+      toast.error('Failed to mark as delivered');
     }
-  };
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
   };
 
   return (
@@ -164,22 +172,13 @@ export const ReceptionistDashboard: React.FC = () => {
 
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-6xl mx-auto px-6 py-6">
-          {/* Page header — title left, primary button right */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-2">
-              <Users className="w-6 h-6 text-teal-600" />
-              <div>
-                <h1 className="text-2xl font-semibold text-slate-800">Reception</h1>
-                <p className="text-sm text-slate-500">Register and manage patient intake</p>
-              </div>
+          {/* Page header — title */}
+          <div className="flex items-center gap-2 mb-6">
+            <Users className="w-6 h-6 text-teal-600" />
+            <div>
+              <h1 className="text-2xl font-semibold text-slate-800">Reception</h1>
+              <p className="text-sm text-slate-500">Register and manage patient intake</p>
             </div>
-            <button
-              onClick={() => setShowModal(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-xl shadow-md transition-colors"
-            >
-              <UserPlus className="w-5 h-5" />
-              Register New Patient
-            </button>
           </div>
 
           {/* Main feature card — 50/50 register | search */}
@@ -425,11 +424,6 @@ export const ReceptionistDashboard: React.FC = () => {
         onSave={handleSave}
       />
 
-      {toast && (
-        <div className="fixed bottom-6 right-6 bg-slate-800 text-white px-4 py-3 rounded-lg shadow-lg text-sm z-50">
-          {toast}
-        </div>
-      )}
     </div>
   );
 };

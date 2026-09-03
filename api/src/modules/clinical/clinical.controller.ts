@@ -72,4 +72,15 @@ export class ClinicalController {
   async getPatientHistory(@Param('patientId') patientId: string) {
     return this.clinicalService.getPatientHistory(patientId);
   }
+
+  @Get('surgeries')
+  @Roles('DOCTOR', 'RECEPTIONIST')
+  async getSurgeries(
+    @Query('status') status?: string,
+    @Query('patientId') patientId?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.clinicalService.getSurgeries({ status, patientId, from, to });
+  }
 }

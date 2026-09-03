@@ -1,10 +1,21 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
 
 dotenv.config();
+
+function resolveDrizzleDir(): string {
+  let dir = __dirname;
+  while (true) {
+    const candidate = path.join(dir, 'drizzle');
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  throw new Error('Could not locate the drizzle directory');
+}
 
 async function migrate() {
   const connectionString = process.env.DATABASE_URL;
@@ -15,17 +26,24 @@ async function migrate() {
 
   const client = postgres(connectionString, { ssl: 'require' });
 
-  const sqlFile = fs.readFileSync(
-    path.join(__dirname, '..', 'drizzle', '0002_add_appointment_fields.sql'),
-    'utf-8',
-  );
+  // The migration file to run. Defaults to the latest migration. Override with
+  // MIGRATION_FILE=0002_add_appointment_fields.sql if you need to run an older
+  // migration against an environment where the table was created differently.
+  const file = process.env.MIGRATION_FILE ?? '0007_drop_patient_documents.sql';
 
+  const filePath = path.join(resolveDrizzleDir(), file);
+  if (!fs.existsSync(filePath)) {
+    console.error(`Migration file not found: ${filePath}`);
+    process.exit(1);
+  }
+
+  const sqlFile = fs.readFileSync(filePath, 'utf-8');
   const statements = sqlFile
     .split('--> statement-breakpoint')
     .map((s: string) => s.trim())
     .filter((s: string) => s.length > 0);
 
-  console.log(`Executing ${statements.length} migration statements...`);
+  console.log(`Running migration ${file} (${statements.length} statements)...`);
 
   for (const stmt of statements) {
     console.log(`  > ${stmt.substring(0, 80)}...`);

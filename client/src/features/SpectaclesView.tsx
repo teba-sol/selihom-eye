@@ -177,7 +177,7 @@ export const SpectaclesView: React.FC = () => {
                     value={f.odDist.sph}
                     onChange={(v) => setFlag({ odDist: { ...f.odDist, sph: v } })}
                     step={0.25}
-                    className="w-20"
+                    className="w-28"
                     ariaLabel="Right Eye Sphere"
                   />
                 </td>
@@ -186,7 +186,7 @@ export const SpectaclesView: React.FC = () => {
                     value={f.odDist.cyl}
                     onChange={(v) => setFlag({ odDist: { ...f.odDist, cyl: v } })}
                     step={0.25}
-                    className="w-20"
+                    className="w-28"
                     ariaLabel="Right Eye Cylinder"
                   />
                 </td>
@@ -248,7 +248,7 @@ export const SpectaclesView: React.FC = () => {
                     value={f.osDist.sph}
                     onChange={(v) => setFlag({ osDist: { ...f.osDist, sph: v } })}
                     step={0.25}
-                    className="w-20"
+                    className="w-28"
                     ariaLabel="Left Eye Sphere"
                   />
                 </td>
@@ -257,7 +257,7 @@ export const SpectaclesView: React.FC = () => {
                     value={f.osDist.cyl}
                     onChange={(v) => setFlag({ osDist: { ...f.osDist, cyl: v } })}
                     step={0.25}
-                    className="w-20"
+                    className="w-28"
                     ariaLabel="Left Eye Cylinder"
                   />
                 </td>

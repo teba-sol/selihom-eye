@@ -44,11 +44,14 @@ export function doctorName(first: string | null | undefined, last: string | null
   return `${alreadyPrefixed ? '' : 'Dr. '}${first ?? ''} ${last ?? ''}`.trim();
 }
 
+export function statusLabel(entry: ExamHistoryEntry): string {
+  if (entry.isLocked) return 'Locked · Finalized';
+  if (entry.appointmentStatus === 'IN_EXAM') return 'In progress';
+  return entry.appointmentStatus ? humanize(entry.appointmentStatus) : 'Recorded';
+}
+
 export function StatusBadge({ entry }: { entry: ExamHistoryEntry }) {
-  if (entry.isLocked) {
-    return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">Locked · Finalized</span>;
-  }
-  const status = entry.appointmentStatus ? humanize(entry.appointmentStatus) : 'Recorded';
+  const status = statusLabel(entry);
   const color = entry.appointmentStatus === 'COMPLETED'
     ? 'bg-emerald-100 text-emerald-700'
     : entry.appointmentStatus === 'IN_EXAM'

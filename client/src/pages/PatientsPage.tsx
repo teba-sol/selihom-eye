@@ -8,6 +8,7 @@ import { ExamHistoryModal } from '../components/ExamHistoryModal';
 import { useAppStore } from '../store/useAppStore';
 import { useEncounterStore } from '../store/useEncounterStore';
 import { formatDobEthiopian, formatAge, patientFullName, formatDisplayDate } from '../lib/formatters';
+import { useToast } from '../lib/toast';
 import type { Patient } from '../store/useAppStore';
 
 import type { NavigateFunction } from 'react-router-dom';
@@ -20,6 +21,7 @@ function openExamForPatient(
   reason: string,
   startExam: ReturnType<typeof useEncounterStore.getState>['startExam'],
   navigate: NavigateFunction,
+  freshCreate = false,
 ) {
   const encounterId = encounter.id;
   startExam({
@@ -37,6 +39,10 @@ function openExamForPatient(
       reasonForVisit: reason,
     },
   });
+  if (freshCreate) {
+    // Brand-new empty encounter — mark hydrated so autosave may run.
+    useEncounterStore.getState().markEncounterDataLoaded();
+  }
   navigate(`/exam/${encounterId}`);
 }
 
@@ -59,28 +65,27 @@ export const PatientsPage: React.FC = () => {
   const [showImportModal, setShowImportModal] = useState(false);
   const [paperRecordPatient, setPaperRecordPatient] = useState<Patient | null>(null);
   const [examHistoryPatient, setExamHistoryPatient] = useState<Patient | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const toast = useToast();
 
   const filtered = useMemo(() => searchPatients(search), [search, searchPatients, patients]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  };
-
-  const handleAddPatient = (patientData: Omit<Patient, 'id'>) => {
-    addPatient(patientData);
-    setShowAddModal(false);
-    setPage(1);
-    showToast('Patient registered successfully.');
+  const handleAddPatient = async (patientData: Omit<Patient, 'id'>) => {
+    try {
+      await addPatient(patientData);
+      setPage(1);
+      return true;
+    } catch {
+      toast.error('Registration failed. The MRN may already exist, or the server is unreachable.');
+      return false;
+    }
   };
 
   const handleImport = () => {
     setShowImportModal(false);
-    showToast('Import feature will connect to your file system.');
+    toast.success('Import feature will connect to your file system.');
   };
 
   const [completedExamCounts, setCompletedExamCounts] = useState<Map<string, number>>(new Map());
@@ -109,17 +114,34 @@ export const PatientsPage: React.FC = () => {
   }, [patients]);
 
   const handleOpenExam = async (patient: Patient) => {
-    const completedCount = completedExamCounts.get(patient.id) ?? 0;
-    const reason = completedCount === 0 ? 'First examination' : 'Follow-up examination';
     try {
       const { api } = await import('../lib/api');
+
+      // Resume any existing in-progress encounter before creating a new one.
+      const history = await api.get<any[]>(`/clinical/patient/${patient.id}/history`);
+      const resumable = history
+        .filter((e: any) =>
+          !e.isLocked &&
+          (e.appointmentId ? e.appointmentStatus === 'IN_EXAM' : true),
+        )
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+      if (resumable) {
+        // Continue the existing exam — no POST, no duplicate. The exam screen's
+        // useExamLoader will hydrate the persisted clinical data.
+        openExamForPatient(patient, resumable, resumable.appointmentReason || 'Examination', startExam, navigate);
+        return;
+      }
+
+      // No resumable encounter — create exactly one new exam. No reason is
+      // pre-filled; the doctor chooses it from the Reason For Visit tab.
       const encounter = await api.post<any>('/clinical/encounter', {
         patientId: patient.id,
-        reasonForVisit: { selectedReason: reason, remarks: '', showInDischarge: false },
+        reasonForVisit: { selectedReason: '', remarks: '', showInDischarge: false },
       });
-      openExamForPatient(patient, encounter, reason, startExam, navigate);
+      openExamForPatient(patient, encounter, '', startExam, navigate, true);
     } catch {
-      showToast('Failed to start examination.');
+      toast.error('Failed to start examination.');
     }
   };
 
@@ -169,7 +191,7 @@ export const PatientsPage: React.FC = () => {
               <thead>
                 <tr className="bg-[#1e3a5f] text-white text-xs uppercase tracking-wide">
                   <th className="px-4 py-3 text-left font-semibold">MRN</th>
-                  <th className="px-4 py-3 text-left font-semibold">Given Name</th>
+                  <th className="px-4 py-3 text-left font-semibold">Name</th>
                   <th className="px-4 py-3 text-left font-semibold">Father's Name</th>
                   <th className="px-4 py-3 text-left font-semibold">Registered On</th>
                   <th className="px-4 py-3 text-left font-semibold">Gender</th>
@@ -299,12 +321,6 @@ export const PatientsPage: React.FC = () => {
             <input type="file" accept=".csv" className="w-full text-sm mb-4" />
             <button onClick={handleImport} className="w-full py-2.5 bg-[#2563eb] text-white rounded-md text-sm font-medium hover:bg-[#1d4ed8]">Import</button>
           </div>
-        </div>
-      )}
-
-      {toast && (
-        <div className="fixed bottom-6 right-6 bg-slate-800 text-white px-4 py-3 rounded-lg shadow-lg text-sm z-50">
-          {toast}
         </div>
       )}
 

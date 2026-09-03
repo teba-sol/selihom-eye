@@ -1,7 +1,7 @@
 import { Injectable, Inject, NotFoundException } from '@nestjs/common';
-import { eq, sql, and, gte, lte } from 'drizzle-orm';
+import { eq, and, gte, lte } from 'drizzle-orm';
 import { DRIZZLE_PROVIDER } from '../../database/database.module';
-import { appointments, patients, users } from '../../database/schema';
+import { appointments, patients } from '../../database/schema';
 import { BookAppointmentDto, UpdateAppointmentStatusDto, UpdateConsentDto } from './dto/appointment.dto';
 
 @Injectable()
@@ -9,18 +9,6 @@ export class AppointmentsService {
   constructor(@Inject(DRIZZLE_PROVIDER) private db: any) {}
 
   async book(dto: BookAppointmentDto) {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
-
-    const [todayCount] = await this.db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(appointments)
-      .where(and(gte(appointments.scheduledDate, todayStart), lte(appointments.scheduledDate, todayEnd)));
-
-    const queueNumber = (todayCount?.count || 0) + 1;
-
     const [newAppointment] = await this.db
       .insert(appointments)
       .values({
@@ -28,7 +16,6 @@ export class AppointmentsService {
         scheduledDate: new Date(dto.scheduledDate),
         startTime: dto.startTime || null,
         reason: dto.reason || null,
-        queueNumber,
         status: dto.consentObtained ? 'CHECKED_IN' : 'SCHEDULED',
         consentObtained: dto.consentObtained ?? false,
         consentTimestamp: dto.consentObtained ? new Date() : null,
@@ -36,42 +23,6 @@ export class AppointmentsService {
       .returning();
 
     return newAppointment;
-  }
-
-  async getLiveQueue() {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
-
-    return this.db
-      .select({
-        appointmentId: appointments.id,
-        scheduledDate: appointments.scheduledDate,
-        startTime: appointments.startTime,
-        endTime: appointments.endTime,
-        reason: appointments.reason,
-        queueNumber: appointments.queueNumber,
-        status: appointments.status,
-        consentObtained: appointments.consentObtained,
-        consentTimestamp: appointments.consentTimestamp,
-        patient: {
-          id: patients.id,
-          mrn: patients.mrn,
-          firstName: patients.firstName,
-          lastName: patients.lastName,
-          dob: patients.dob,
-          gender: patients.gender,
-          phone: patients.phone,
-          isDiabetic: patients.isDiabetic,
-          hasGlaucomaFamilyHistory: patients.hasGlaucomaFamilyHistory,
-          priorEyeSurgery: patients.priorEyeSurgery,
-        },
-      })
-      .from(appointments)
-      .innerJoin(patients, eq(appointments.patientId, patients.id))
-      .where(and(gte(appointments.scheduledDate, todayStart), lte(appointments.scheduledDate, todayEnd)))
-      .orderBy(appointments.queueNumber);
   }
 
   async findByRange(from?: string, to?: string, doctorId?: string) {
@@ -100,7 +51,6 @@ export class AppointmentsService {
         startTime: appointments.startTime,
         endTime: appointments.endTime,
         reason: appointments.reason,
-        queueNumber: appointments.queueNumber,
         status: appointments.status,
         consentObtained: appointments.consentObtained,
         patient: {

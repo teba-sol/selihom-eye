@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LoginPage } from './pages/LoginPage';
 import { PatientsPage } from './pages/PatientsPage';
 import { AppointmentsPage } from './pages/AppointmentsPage';
+import { SurgeriesPage } from './pages/SurgeriesPage';
 import { ExamDashboard } from './pages/ExamDashboard';
 import { ReceptionistDashboard } from './pages/ReceptionistDashboard';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -70,6 +71,7 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/patients" element={<PatientsPage />} />
             <Route path="/appointments" element={<AppointmentsPage />} />
+            <Route path="/surgeries" element={<SurgeriesPage />} />
             <Route path="/exam/:encounterId" element={<ExamDashboard />} />
             <Route path="/receptionist/*" element={<ReceptionistDashboard />} />
           </Route>

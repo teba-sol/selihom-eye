@@ -17,6 +17,7 @@ export function buildSnapshotBase(
     patient,
     consentObtained: false,
     activeTab: 'reason-for-visit',
+    dataLoaded: false,
     ...getDefaultClinicalState(),
     ...extra,
   };

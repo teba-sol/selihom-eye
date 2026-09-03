@@ -1,6 +1,6 @@
 import {
   IsUUID, IsNotEmpty, IsOptional, IsString, IsBoolean,
-  IsArray, IsObject, IsNumber,
+  IsArray, IsObject, IsNumber, MaxLength,
 } from 'class-validator';
 import type {
   ReasonForVisitData, SymptomaticHistoryData, OcularHistoryData,
@@ -109,6 +109,6 @@ export class LockEncounterDto {
 }
 
 export class AddendumDto {
-  @IsString() @IsNotEmpty() addendumNotes!: string;
+  @IsString() @IsNotEmpty() @MaxLength(10000) addendumNotes!: string;
   @IsString() @IsOptional() author?: string;
 }

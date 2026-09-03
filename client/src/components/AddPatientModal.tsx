@@ -6,7 +6,9 @@ import { REGION_DATA, SW_REGION_KEY, SW_KEBELE_DATA } from '../data/regionData';
 interface AddPatientModalProps {
   open: boolean;
   onClose: () => void;
-  onSave: (patient: Omit<Patient, 'id'>) => void;
+  // May return a Promise; the modal only closes when it resolves success
+  // (does not reject/false). Lets callers keep the form open on save failure.
+  onSave: (patient: Omit<Patient, 'id'>) => Promise<boolean> | boolean;
 }
 
 export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose, onSave }) => {
@@ -258,7 +260,9 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
             if (!Number.isNaN(online.getTime())) return online;
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn('Date service unavailable; falling back to local time.', e);
+      }
       return null;
     }
 
@@ -971,8 +975,14 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
         const currentSeq = getSeqForYear(yy);
         setSeqForYear(yy, currentSeq + 1);
 
-        onSave(patientData);
-        onClose();
+        (async () => {
+          try {
+            const ok = await onSave(patientData);
+            if (ok !== false) onClose();
+          } catch {
+            // Leave the modal open so the user can correct the form.
+          }
+        })();
       });
     }
 

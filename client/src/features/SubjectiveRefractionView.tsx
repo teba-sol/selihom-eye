@@ -1,5 +1,6 @@
 import React from 'react';
 import { useEncounterStore } from '../store/useEncounterStore';
+import { StepperCell } from '../components/StepperCell';
 
 type DistanceData = { sph: string; cyl: string; axis: string; va: string };
 type NearInterData = { add: string; va: string };
@@ -42,20 +43,34 @@ const InputCell = ({
   value,
   onChange,
   className = '',
+  step = 0.25,
+  decimals = 2,
+  min,
+  max,
+  ariaLabel,
 }: {
   value: string;
   onChange: (val: string) => void;
   className?: string;
+  step?: number;
+  decimals?: number;
+  min?: number;
+  max?: number;
+  ariaLabel?: string;
 }) => (
   <td className={`p-0 border-b border-slate-200 transition-colors bg-white ${className}`}>
-    <input
-      type="number"
-      step="0.25"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder="-"
-      className="w-full h-full py-4 px-2 text-center bg-transparent outline-none focus:ring-2 focus:ring-inset focus:ring-[#2957a4] text-slate-700 font-medium"
-    />
+    <div className="flex items-center justify-center px-2 py-0.5 h-full">
+      <StepperCell
+        value={value}
+        onChange={onChange}
+        step={step}
+        decimals={decimals}
+        min={min}
+        max={max}
+        ariaLabel={ariaLabel}
+        className="w-full"
+      />
+    </div>
   </td>
 );
 
@@ -179,6 +194,11 @@ export const SubjectiveRefractionView: React.FC = () => {
                     value={subjOd.dist.axis}
                     onChange={(v) => setSubjEye('subjOd', { dist: { ...subjOd.dist, axis: v } })}
                     className="border-r"
+                    step={1}
+                    decimals={0}
+                    min={1}
+                    max={180}
+                    ariaLabel="Right Eye Axis"
                   />
                   <SelectCell
                     value={subjOd.dist.va}
@@ -244,6 +264,11 @@ export const SubjectiveRefractionView: React.FC = () => {
                     value={subjOs.dist.axis}
                     onChange={(v) => setSubjEye('subjOs', { dist: { ...subjOs.dist, axis: v } })}
                     className="border-r"
+                    step={1}
+                    decimals={0}
+                    min={1}
+                    max={180}
+                    ariaLabel="Left Eye Axis"
                   />
                   <SelectCell
                     value={subjOs.dist.va}
@@ -315,6 +340,11 @@ export const SubjectiveRefractionView: React.FC = () => {
                     value={objOd.axis}
                     onChange={(v) => setObjEye('objOd', { axis: v })}
                     className="border-r"
+                    step={1}
+                    decimals={0}
+                    min={1}
+                    max={180}
+                    ariaLabel="Right Eye Axis"
                   />
                   <SelectCell
                     value={objOd.va}
@@ -340,6 +370,11 @@ export const SubjectiveRefractionView: React.FC = () => {
                     value={objOs.axis}
                     onChange={(v) => setObjEye('objOs', { axis: v })}
                     className="border-r"
+                    step={1}
+                    decimals={0}
+                    min={1}
+                    max={180}
+                    ariaLabel="Left Eye Axis"
                   />
                   <SelectCell
                     value={objOs.va}

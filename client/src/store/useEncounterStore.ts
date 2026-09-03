@@ -198,6 +198,11 @@ interface EncounterState {
   // manage their own local state. Autosaved wholesale and restored on load.
   sectionData: Record<string, any>;
 
+  // True once persisted clinical data for the current encounter has been
+  // hydrated into the store. Autosave is suppressed until this is set so a
+  // freshly-started (empty) exam can never overwrite existing DB data.
+  dataLoaded: boolean;
+
   // Actions
   setActiveTab: (tab: string) => void;
   setConsent: (val: boolean) => void;
@@ -211,7 +216,8 @@ interface EncounterState {
     reasonForVisit: string;
   }) => void;
   loadEncounterFromDb: (data: any) => void;
-  saveEncounter: () => Promise<void>;
+  saveEncounter: (opts?: { toast?: boolean }) => Promise<void>;
+  markEncounterDataLoaded: () => void;
   markExamFinalized: (encounterId: string) => void;
   updateOcularCondition: (key: keyof OcularHistoryState['conditions'], data: Partial<OcularConditionDetail>) => void;
   setOcularGeneralRemarks: (remarks: string) => void;
@@ -258,6 +264,7 @@ export interface EncounterSnapshot {
   patient: EncounterState['patient'];
   consentObtained: boolean;
   activeTab: string;
+  dataLoaded: boolean;
   ocularHistory: OcularHistoryState;
   symptoms: SymptomItem[];
   visualAcuity: EncounterState['visualAcuity'];
@@ -285,7 +292,7 @@ export interface EncounterSnapshot {
 // real immutability.
 const META_KEYS = new Set([
   'isLocked', 'lockedAt', 'encounterId', 'appointmentId', 'activeTab',
-  'patient', 'consentObtained', 'encounterSnapshots',
+  'patient', 'consentObtained', 'encounterSnapshots', 'dataLoaded',
 ]);
 
 export const useEncounterStore = create<EncounterState>((rawSet, get) => {
@@ -316,6 +323,7 @@ export const useEncounterStore = create<EncounterState>((rawSet, get) => {
   isLocked: false,
   lockedAt: null,
   addendumNotes: null,
+  dataLoaded: false,
   patient: {
     id: '',
     mrn: '',
@@ -360,6 +368,7 @@ export const useEncounterStore = create<EncounterState>((rawSet, get) => {
         isLocked: false,
         lockedAt: null,
         addendumNotes: null,
+        dataLoaded: false,
         patient: { ...patient, reasonForVisit },
         consentObtained,
         activeTab: 'reason-for-visit',
@@ -370,10 +379,12 @@ export const useEncounterStore = create<EncounterState>((rawSet, get) => {
   loadEncounterFromDb: (data: any) =>
     set((state) => {
       if (!data) return state;
-      return apiEncounterToSnapshot(data, state as unknown as EncounterSnapshot);
+      return { ...apiEncounterToSnapshot(data, state as unknown as EncounterSnapshot), dataLoaded: true };
     }),
 
-  saveEncounter: async () => {
+  markEncounterDataLoaded: () => set({ dataLoaded: true }),
+
+  saveEncounter: async (opts?: { toast?: boolean }) => {
     const state = useEncounterStore.getState();
     if (state.isLocked) return;
     if (!state.encounterId || !state.patient.id) return;
@@ -441,7 +452,7 @@ export const useEncounterStore = create<EncounterState>((rawSet, get) => {
     if (canvas) payload.canvas = canvas;
     if (Object.keys(state.sectionData).length > 0) payload.sectionData = state.sectionData;
 
-    await api.post('/clinical/encounter', payload);
+    await api.post('/clinical/encounter', payload, { toast: opts?.toast });
 
     if (state.appointmentId && state.consentObtained !== undefined) {
       await api.patch(`/appointments/${state.appointmentId}/consent`, { consentObtained: state.consentObtained }).catch(() => {});

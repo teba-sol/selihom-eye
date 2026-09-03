@@ -245,19 +245,40 @@ export const AsiraSidebar: React.FC = () => {
       case 'symptomatic-history':
         return encounterState.symptoms.length > 0;
       case 'ocular-history':
-        return Object.values(encounterState.ocularHistory.conditions).some(c => c.active);
+        return (
+          Object.values(encounterState.ocularHistory.conditions).some(c => c.active) ||
+          !!encounterState.ocularHistory.noHistoryReported
+        );
       case 'systemic-history':
-        return Object.values(encounterState.systemicHistory.conditions).some((c: any) => c.active);
+        return (
+          Object.values(encounterState.systemicHistory.conditions).some((c: any) => c.active) ||
+          !!encounterState.systemicHistory.noHistoryReported
+        );
       case 'medication':
-        return encounterState.patientMedications.length > 0;
+        return (
+          encounterState.patientMedications.length > 0 ||
+          !!encounterState.sectionData['medication']?.none
+        );
       case 'family-ocular-history':
-        return encounterState.familyOcularHistory.length > 0;
+        return (
+          encounterState.familyOcularHistory.length > 0 ||
+          !!encounterState.sectionData['family-ocular-history']?.noHistory
+        );
       case 'family-systemic-history':
-        return encounterState.familySystemicHistory.length > 0;
+        return (
+          encounterState.familySystemicHistory.length > 0 ||
+          !!encounterState.sectionData['family-systemic-history']?.noHistory
+        );
       case 'spectacles':
-        return encounterState.spectaclesHistory.currentlyWears === true;
+        return (
+          encounterState.spectaclesHistory.currentlyWears === true ||
+          !!encounterState.sectionData['spectacles']?.none
+        );
       case 'contact-lens':
-        return encounterState.contactLensHistory.currentWearer === true;
+        return (
+          encounterState.contactLensHistory.currentWearer === true ||
+          !!encounterState.sectionData['contact-lens']?.none
+        );
       case 'lifestyle': {
         const l = encounterState.lifestyleDemands;
         return l.occupation.trim() !== '' || l.hobbies.trim() !== '' || l.outdoorActivities.trim() !== '';
@@ -330,6 +351,11 @@ export const AsiraSidebar: React.FC = () => {
         return sectionHasData(sectionId);
       case 'action-and-advice':
         return sectionHasData('action-and-advice');
+      case 'final-spectacle-prescription':
+      case 'final-contact-lens-specification':
+      case 'spectacle-dispensing':
+      case 'discharge-summary':
+        return sectionHasData(sectionId);
       default:
         return false;
     }

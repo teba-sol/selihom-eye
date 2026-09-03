@@ -144,7 +144,6 @@ interface AppState {
   cancelAppointment: (id: string) => Promise<void>;
   getPatientById: (id: string) => Patient | undefined;
   getAppointmentsForPatient: (patientId: string) => Appointment[];
-  createWalkInAppointment: (patientId: string, reason?: string) => Promise<Appointment>;
   getAppointmentsForRange: (from: Date, to: Date) => Appointment[];
 }
 
@@ -285,31 +284,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     get()
       .appointments.filter((a) => a.patientId === patientId && a.status !== 'cancelled')
       .sort((a, b) => `${b.date}${b.startTime}`.localeCompare(`${a.date}${a.startTime}`)),
-
-  createWalkInAppointment: async (patientId, reason) => {
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const hours = String(now.getHours()).padStart(2, '0');
-    const mins = String(now.getMinutes()).padStart(2, '0');
-    const startTime = `${hours}:${mins}`;
-
-    const created = await api.post<ApiAppointment>('/appointments', {
-      patientId,
-      scheduledDate: today,
-      startTime,
-      reason: reason || 'Routine Eye Examination',
-      consentObtained: true,
-    });
-
-    // Mark status as IN_EXAM immediately
-    await api.patch(`/appointments/${created.id}/status`, { status: 'IN_EXAM' });
-
-    const mapped = mapAppointment(created);
-    mapped.status = 'in_exam';
-    mapped.consentObtained = true;
-    set((s) => ({ appointments: [...s.appointments, mapped] }));
-    return mapped;
-  },
 
   getAppointmentsForRange: (from, to) => {
     const fromStr = from.toISOString().split('T')[0];

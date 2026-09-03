@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEncounterStore } from '../store/useEncounterStore';
 import { formatAge, patientFullName } from '../lib/formatters';
@@ -38,9 +38,10 @@ export function useExamLoader() {
   const { encounterId } = useParams<{ encounterId: string }>();
   const navigate = useNavigate();
   const storeEncounterId = useEncounterStore((s) => s.encounterId);
-  const patientName = useEncounterStore((s) => s.patient.name);
+  const dataLoaded = useEncounterStore((s) => s.dataLoaded);
   const startExam = useEncounterStore((s) => s.startExam);
   const loadEncounterFromDb = useEncounterStore((s) => s.loadEncounterFromDb);
+  const inFlight = useRef(false);
 
   useEffect(() => {
     if (!encounterId) {
@@ -48,9 +49,11 @@ export function useExamLoader() {
       return;
     }
 
-    // Already loaded (fresh eager-create or previously fetched) with patient
-    // details — don't clobber unsaved edits.
-    if (storeEncounterId === encounterId && patientName) return;
+    // Already hydrated for THIS encounter — nothing to do.
+    if (storeEncounterId === encounterId && dataLoaded) return;
+
+    if (inFlight.current) return;
+    inFlight.current = true;
 
     const load = async () => {
       try {
@@ -74,13 +77,15 @@ export function useExamLoader() {
         }
       } catch {
         navigate('/patients', { replace: true });
+      } finally {
+        inFlight.current = false;
       }
     };
     load();
   }, [
     encounterId,
     storeEncounterId,
-    patientName,
+    dataLoaded,
     navigate,
     startExam,
     loadEncounterFromDb,

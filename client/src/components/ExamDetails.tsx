@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Eye, Activity, FileText, Pill, Heart, Users, Glasses, Briefcase, ChevronDown, ChevronRight } from 'lucide-react';
-import type { EncounterSnapshot } from '../store/useEncounterStore';
+import type { EncounterSnapshot, RefractionGridValues, VisualAcuityState } from '../store/useEncounterStore';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 export function SectionHeader({ title, icon, expanded, onToggle, count }: {
@@ -28,7 +28,7 @@ export function Field({ label, value, wide }: { label: string; value?: string | 
   );
 }
 
-export function RefTable({ label, data }: { label: string; data: any }) {
+export function RefTable({ label, data }: { label: string; data?: RefractionGridValues | null }) {
   if (!data?.odSph && !data?.osSph && !data?.odVa && !data?.osVa) return null;
   return (
     <div>
@@ -45,11 +45,11 @@ export function RefTable({ label, data }: { label: string; data: any }) {
         <tbody>
           <tr className="border-b border-slate-100">
             <td className="px-2 py-1.5 font-bold text-slate-700">OD</td>
-            {['odSph','odCyl','odAxis','odVa','odAdd'].map(k => <td key={k} className="px-2 py-1.5 text-center">{data[k]||'—'}</td>)}
+            {(['odSph','odCyl','odAxis','odVa','odAdd'] as const).map(k => <td key={k} className="px-2 py-1.5 text-center">{data[k]||'—'}</td>)}
           </tr>
           <tr>
             <td className="px-2 py-1.5 font-bold text-slate-700">OS</td>
-            {['osSph','osCyl','osAxis','osVa','osAdd'].map(k => <td key={k} className="px-2 py-1.5 text-center">{data[k]||'—'}</td>)}
+            {(['osSph','osCyl','osAxis','osVa','osAdd'] as const).map(k => <td key={k} className="px-2 py-1.5 text-center">{data[k]||'—'}</td>)}
           </tr>
         </tbody>
       </table>
@@ -66,20 +66,25 @@ type VaEyeKey = 'od' | 'os' | 'ou';
 type VaScopeKey = 'dist' | 'near';
 type VaCellKey = 'unaided' | 'aided' | 'pinhole';
 
-export function vaVal(va: any, eye: VaEyeKey, scope: VaScopeKey, key: VaCellKey): string {
+type VaData = VisualAcuityState | null | undefined;
+
+export function vaVal(va: VaData, eye: VaEyeKey, scope: VaScopeKey, key: VaCellKey): string {
   if (!va) return '';
   const e = va[eye];
   if (e && e[scope] && typeof e[scope][key] === 'string') return e[scope][key] || '';
   if (scope === 'dist') {
+    const flat = va as unknown as Record<string, string>;
     const suffix = eye === 'od' ? 'Od' : eye === 'os' ? 'Os' : '';
-    return va[`${key}${suffix}`] || '';
+    const flatKey = `${key}${suffix}`;
+    return typeof flat[flatKey] === 'string' ? flat[flatKey] : '';
   }
   return '';
 }
 
-export function vaHasData(va: any): boolean {
+export function vaHasData(va: VaData): boolean {
   if (!va) return false;
-  if (['unaidedOd', 'unaidedOs', 'aidedOd', 'aidedOs', 'pinholeOd', 'pinholeOs'].some((k) => va[k])) return true;
+  const flat = va as unknown as Record<string, unknown>;
+  if (['unaidedOd', 'unaidedOs', 'aidedOd', 'aidedOs', 'pinholeOd', 'pinholeOs'].some((k) => flat[k])) return true;
   return (['od', 'os', 'ou'] as const).some((eye) =>
     (['dist', 'near'] as const).some((scope) =>
       (['unaided', 'aided', 'pinhole'] as const).some((key) => vaVal(va, eye, scope, key)),
@@ -109,7 +114,7 @@ export function ExamDetails({ snap }: { snap: EncounterSnapshot }) {
   const hasSymptoms = snap.symptoms?.length > 0;
   const hasMeds = snap.patientMedications?.length > 0;
   const hasOcular = snap.ocularHistory && Object.values(snap.ocularHistory.conditions).some(c => c.active);
-  const hasSystemic = snap.systemicHistory && Object.values(snap.systemicHistory.conditions).some(c => (c as any).active);
+  const hasSystemic = snap.systemicHistory && Object.values(snap.systemicHistory.conditions).some(c => c.active);
   const hasFamilyOcular = snap.familyOcularHistory?.length > 0;
   const hasFamilySystemic = snap.familySystemicHistory?.length > 0;
   const hasSpec = spec && spec.currentlyWears;
@@ -226,12 +231,12 @@ export function ExamDetails({ snap }: { snap: EncounterSnapshot }) {
         <SectionHeader title="Systemic History" icon={<Heart className="w-4 h-4 text-red-500"/>} expanded={s.systemicHx} onToggle={() => tog('systemicHx')}/>
         {s.systemicHx && <div className="px-4 py-3 space-y-1.5">
           {snap.systemicHistory.generalRemarks && <p className="text-xs text-slate-500 italic mb-2">{snap.systemicHistory.generalRemarks}</p>}
-          {Object.entries(snap.systemicHistory.conditions).filter(([,v]) => (v as any).active).map(([k,v]: any) => (
+          {Object.entries(snap.systemicHistory.conditions).filter(([,v]) => v.active).map(([k, v]) => (
             <div key={k} className="text-xs bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
               <span className="font-bold text-slate-800 capitalize">{k.replace(/([A-Z])/g,' $1')}</span>
               <span className="text-slate-500 ml-2">{v.type}</span>
               <span className="text-slate-500 ml-2">· {v.durationValue} {v.durationUnit}</span>
-              <Badge text={v.controlStatus} color={v.controlStatus==='Well Controlled' ? 'bg-green-100 text-green-700' : v.controlStatus==='Uncontrolled' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}/>
+              <Badge text={v.controlStatus || ''} color={v.controlStatus==='Well Controlled' ? 'bg-green-100 text-green-700' : v.controlStatus==='Uncontrolled' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}/>
               {v.remarks && <span className="text-slate-400 ml-2">· {v.remarks}</span>}
             </div>
           ))}

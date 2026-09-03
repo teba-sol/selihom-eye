@@ -6,6 +6,7 @@ import { EthiopianDatePicker } from '../components/EthiopianDatePicker';
 import { useAppStore } from '../store/useAppStore';
 import { useEncounterStore } from '../store/useEncounterStore';
 import { formatAge, formatDisplayDate } from '../lib/formatters';
+import { useToast } from '../lib/toast';
 import { buildAppointmentTime } from '../lib/encounterDefaults';
 import type { Appointment, Patient } from '../store/useAppStore';
 
@@ -74,7 +75,7 @@ export const AppointmentsPage: React.FC = () => {
   const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
   const [showBookModal, setShowBookModal] = useState(false);
   const [consentChecked, setConsentChecked] = useState(true);
-  const [toast, setToast] = useState<string | null>(null);
+  const toast = useToast();
 
   const preselectedPatientId = searchParams.get('patientId') || '';
 
@@ -110,11 +111,6 @@ export const AppointmentsPage: React.FC = () => {
     () => getAppointmentsForRange(weekStart, weekEnd),
     [appointments, weekStart, weekEnd, getAppointmentsForRange],
   );
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  };
 
   const goToday = () => setWeekStart(getMonday(new Date()));
   const goPrev = () => setWeekStart((w) => addDays(w, view === 'month' ? -28 : view === 'day' ? -1 : -7));
@@ -182,7 +178,7 @@ export const AppointmentsPage: React.FC = () => {
     if (window.confirm('Cancel this booking?')) {
       cancelAppointment(selectedApt.id);
       setSelectedApt(null);
-      showToast('Appointment cancelled.');
+      toast.success('Appointment cancelled.');
     }
   };
 
@@ -198,9 +194,8 @@ export const AppointmentsPage: React.FC = () => {
         consentObtained: false,
       });
       setShowBookModal(false);
-      showToast('Appointment booked.');
     } catch {
-      showToast('Failed to book appointment.');
+      toast.error('Failed to book appointment.');
     }
   };
 
@@ -482,11 +477,6 @@ export const AppointmentsPage: React.FC = () => {
         </div>
       )}
 
-      {toast && (
-        <div className="fixed bottom-6 right-6 bg-slate-800 text-white px-4 py-3 rounded-lg shadow-lg text-sm z-50">
-          {toast}
-        </div>
-      )}
     </DashboardLayout>
   );
 };

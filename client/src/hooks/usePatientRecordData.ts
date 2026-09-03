@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EncounterSnapshot } from '../store/useEncounterStore';
 import { useEncounterStore } from '../store/useEncounterStore';
 import { apiEncounterToSnapshot, buildSnapshotBase } from '../lib/encounterMappers';
@@ -30,6 +30,16 @@ const EMPTY_PATIENT = {
   reasonForVisit: '',
 };
 
+export interface PatientAppointment {
+  id: string;
+  patientId: string;
+  scheduledDate: string;
+  startTime: string | null;
+  reason: string | null;
+  status: string | null;
+  consentObtained: boolean | null;
+}
+
 // DB-backed patient record data:
 // - history: exam summaries for the patient (true patient.id relationship)
 // - getEncounter: lazily fetches + caches the full encounter for a visit
@@ -41,6 +51,7 @@ export function usePatientRecordData(patientId: string | null) {
   const [error, setError] = useState<string | null>(null);
   const [encounters, setEncounters] = useState<Record<string, EncounterSnapshot>>({});
   const [encounterLoading, setEncounterLoading] = useState<Record<string, boolean>>({});
+  const [appointments, setAppointments] = useState<PatientAppointment[]>([]);
 
   const refresh = useCallback(async () => {
     if (!patientId) return;
@@ -61,9 +72,31 @@ export function usePatientRecordData(patientId: string | null) {
     refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    if (!patientId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { api } = await import('../lib/api');
+        const data = await api.get<PatientAppointment[]>(`/appointments/patient/${patientId}`);
+        if (!cancelled) setAppointments(data ?? []);
+      } catch {
+        // ignore — appointments are optional context
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [patientId]);
+
+  // Keeps the latest cache available between renders without forcing the
+  // getEncounter callback to be recreated (and thus re-triggering effects).
+  const getEncounterRef = useRef<Record<string, EncounterSnapshot | null>>({});
+
   const getEncounter = useCallback(
     async (encounterId: string): Promise<EncounterSnapshot | null> => {
-      if (encounters[encounterId]) return encounters[encounterId];
+      const cached = getEncounterRef.current[encounterId];
+      if (cached) return cached;
       setEncounterLoading((prev) => ({ ...prev, [encounterId]: true }));
       try {
         const { api } = await import('../lib/api');
@@ -71,6 +104,7 @@ export function usePatientRecordData(patientId: string | null) {
         if (!data) return null;
         const base = buildSnapshotBase(EMPTY_PATIENT);
         const snapshot: EncounterSnapshot = { ...base, ...apiEncounterToSnapshot(data, base) };
+        getEncounterRef.current[encounterId] = snapshot;
         setEncounters((prev) => ({ ...prev, [encounterId]: snapshot }));
         return snapshot;
       } catch {
@@ -79,8 +113,15 @@ export function usePatientRecordData(patientId: string | null) {
         setEncounterLoading((prev) => ({ ...prev, [encounterId]: false }));
       }
     },
-    [encounters],
+    [],
   );
+
+  // Eagerly fetch full snapshots for every history entry so a Patient Record
+  // view can render each visit's prescriptions/medications/surgeries without
+  // per-row lazy expansion. Snapshots are cached in `encounters`.
+  const preloadSnapshots = useCallback(async () => {
+    await Promise.all(history.map((h) => getEncounter(h.id).catch(() => null)));
+  }, [history, getEncounter]);
 
   // Prefers the live in-memory snapshot (current session, possibly unsaved
   // edits) and falls back to the DB-backed lazy fetch.
@@ -93,14 +134,30 @@ export function usePatientRecordData(patientId: string | null) {
     [getEncounter],
   );
 
-  return {
-    history,
-    loading,
-    error,
-    refresh,
-    getEncounter,
-    getSnapshot,
-    encounterLoading,
-    encounters,
-  };
+  return useMemo(
+    () => ({
+      history,
+      loading,
+      error,
+      refresh,
+      getEncounter,
+      getSnapshot,
+      preloadSnapshots,
+      encounterLoading,
+      encounters,
+      appointments,
+    }),
+    [
+      history,
+      loading,
+      error,
+      refresh,
+      getEncounter,
+      getSnapshot,
+      preloadSnapshots,
+      encounterLoading,
+      encounters,
+      appointments,
+    ],
+  );
 }
