@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { X, Calendar, User, FileText, Phone, Building2, ShieldCheck, ChevronDown, UserCheck, MapPin } from 'lucide-react';
 import type { Patient } from '../store/useAppStore';
 import { REGION_DATA, SW_REGION_KEY, SW_KEBELE_DATA } from '../data/regionData';
@@ -12,8 +12,6 @@ interface AddPatientModalProps {
 }
 
 export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose, onSave }) => {
-  const [statusMsg, setStatusMsg] = useState<{ show: boolean; success: boolean; message: string }>({ show: false, success: false, message: '' });
-
   useEffect(() => {
     if (!open) return;
 
@@ -69,18 +67,6 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
 
     function isEthiopianLeap(year: number) {
       return (year % 4) === 3;
-    }
-
-    function daysInGregorianMonth(year: number, month: number) {
-      return new Date(year, month, 0).getDate();
-    }
-
-    function isValidDate(d: number, m: number, y: number) {
-      if (!d || !m || !y) return false;
-      if (m < 1 || m > 12) return false;
-      if (y < 1900 || y > 2100) return false;
-      if (d < 1 || d > daysInGregorianMonth(y, m)) return false;
-      return true;
     }
 
     function isValidEthDate(d: number, m: number, y: number) {
@@ -674,7 +660,7 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
     }
 
     // Auto-calculate birth year/month/day from age
-    function tryCalculateYearFromAge(e?: Event) {
+    function tryCalculateYearFromAge(_e?: Event) {
       lastEditedField = 'age';
       const ageEl = document.getElementById('age') as HTMLInputElement;
       const unitEl = document.getElementById('ageUnit') as HTMLSelectElement;
@@ -855,10 +841,6 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
       form.addEventListener('submit', function(e) {
         e.preventDefault();
 
-        const isReferred = (document.getElementById('isReferred') as HTMLInputElement)?.checked;
-        const referralSourceVal = (document.getElementById('referralSource') as HTMLInputElement)?.value;
-
-        const regEth = readGroup('regEthD', 'regEthM', 'regEthY');
         const dobEth = readGroup('ethDobD', 'ethDobM', 'ethDobY');
 
         saveKebeleName(currentWoredaName(), (document.getElementById('kebele') as HTMLInputElement)?.value.trim() || '');
@@ -877,7 +859,6 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
         const woreda = currentWoredaName();
         const kebele = (document.getElementById('kebele') as HTMLInputElement)?.value.trim() || '';
         const ketena = (document.getElementById('ketena') as HTMLInputElement)?.value.trim() || '';
-        const houseNumber = (document.getElementById('houseNumber') as HTMLInputElement)?.value || '';
 
         // Validation: Date of birth
         const dobGroup = document.getElementById('ethDobGroup');

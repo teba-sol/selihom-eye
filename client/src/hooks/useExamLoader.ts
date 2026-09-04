@@ -28,7 +28,7 @@ type EncounterPatient = {
   id: string;
   mrn: string;
   name: string;
-  age: number;
+  age: string | number;
   gender: string;
   appointmentTime: string;
   reasonForVisit: string;

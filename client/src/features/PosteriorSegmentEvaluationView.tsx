@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 import { MultiSelect } from '../components/MultiSelect';
 import { useEncounterStore } from '../store/useEncounterStore';
-import { MousePointer2, Pencil, Eraser, Type, Circle, ArrowUpRight, MoreHorizontal, Upload } from 'lucide-react';
+import { MousePointer2, Pencil, Eraser, Type, Circle, ArrowUpRight, Upload } from 'lucide-react';
 
 const MYDRIATIC_OPTIONS = [
   'None', 'Tropicamide 0.5%', 'Tropicamide 0.8%', 'Tropicamide 1%',
@@ -281,14 +281,17 @@ export const PosteriorSegmentEvaluationView: React.FC = () => {
   const sectionData = useEncounterStore((s) => s.sectionData);
   const setSectionData = useEncounterStore((s) => s.setSectionData);
   const raw = Object.assign({}, DEFAULT_POSTERIOR_SEGMENT, sectionData['posterior-segment'] ?? {}) as PosteriorSegmentData;
-  const structures: Record<StructureKey, StructureState> = Object.fromEntries(
-    SEGMENT_STRUCTURES.map((s) => [s, { od: [], os: [], same: false, ...(raw.structures?.[s] ?? {}) }]),
-  );
+  const structures = Object.fromEntries(
+    SEGMENT_STRUCTURES.map((s) => {
+      const b = raw.structures?.[s] ?? {};
+      return [s, { od: b.od ?? [], os: b.os ?? [], same: b.same ?? false }];
+    }),
+  ) as Record<StructureKey, StructureState>;
   const f: PosteriorSegmentData = {
     ...raw,
     structures,
-    cdr: { od: '0', os: '0', ...(raw.cdr ?? {}) },
-    av: { od: 'None', os: 'None', ...(raw.av ?? {}) },
+    cdr: { od: raw.cdr?.od ?? '0', os: raw.cdr?.os ?? '0' },
+    av: { od: raw.av?.od ?? 'None', os: raw.av?.os ?? 'None' },
   };
   const patch = (p: Partial<PosteriorSegmentData>) => setSectionData('posterior-segment', { ...f, ...p });
   const { activeTab, mydriaticDrug, instrument, cdr, av, remarks, showInDischarge } = f;

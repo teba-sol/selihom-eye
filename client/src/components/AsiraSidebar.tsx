@@ -287,7 +287,7 @@ export const AsiraSidebar: React.FC = () => {
       case 'visual-acuity': {
         const va = encounterState.visualAcuity;
         return [va.od, va.os, va.ou].some((eye) =>
-          Object.values(eye).some((scope) => Object.values(scope).some((v) => v.trim() !== '')),
+          Object.values(eye).some((scope) => Object.values(scope).some((v) => String(v).trim() !== '')),
         );
       }
       case 'refraction':

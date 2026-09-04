@@ -142,10 +142,10 @@ export const CrystallineLensView: React.FC = () => {
   const setSectionData = useEncounterStore((s) => s.setSectionData);
   const raw = Object.assign({}, DEFAULT_CRYSTALLINE, sectionData['crystalline-lens'] ?? {}) as CrystallineLensData;
   const locs: LocsState = {
-    no: { od: 0, os: 0, ...(raw.locs?.no ?? {}) },
-    nc: { od: 0, os: 0, ...(raw.locs?.nc ?? {}) },
-    c: { od: 0, os: 0, ...(raw.locs?.c ?? {}) },
-    p: { od: 0, os: 0, ...(raw.locs?.p ?? {}) },
+    no: { od: raw.locs?.no?.od ?? 0, os: raw.locs?.no?.os ?? 0 },
+    nc: { od: raw.locs?.nc?.od ?? 0, os: raw.locs?.nc?.os ?? 0 },
+    c: { od: raw.locs?.c?.od ?? 0, os: raw.locs?.c?.os ?? 0 },
+    p: { od: raw.locs?.p?.od ?? 0, os: raw.locs?.p?.os ?? 0 },
   };
   const f: CrystallineLensData = { ...raw, locs };
   const patch = (p: Partial<CrystallineLensData>) => setSectionData('crystalline-lens', { ...f, ...p });

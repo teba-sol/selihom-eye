@@ -91,15 +91,15 @@ export const ClPreFitView: React.FC = () => {
   const setSectionData = useEncounterStore((s) => s.setSectionData);
   const raw = Object.assign({}, DEFAULT_CL_PRE_FIT, sectionData['cl-pre-fit'] ?? {}) as ClPreFitData;
   const biom: ClPreFitData['biom'] = {
-    eyelids: { od: [], os: [], ...(raw.biom?.eyelids ?? {}) },
-    conj: { od: [], os: [], ...(raw.biom?.conj ?? {}) },
-    cornea: { od: [], os: [], ...(raw.biom?.cornea ?? {}) },
+    eyelids: { od: raw.biom?.eyelids?.od ?? [], os: raw.biom?.eyelids?.os ?? [] },
+    conj: { od: raw.biom?.conj?.od ?? [], os: raw.biom?.conj?.os ?? [] },
+    cornea: { od: raw.biom?.cornea?.od ?? [], os: raw.biom?.cornea?.os ?? [] },
   };
   const k: ClPreFitData['k'] = {
-    od: { k1: '', k2: '', axis: '', ...(raw.k?.od ?? {}) },
-    os: { k1: '', k2: '', axis: '', ...(raw.k?.os ?? {}) },
+    od: { k1: raw.k?.od?.k1 ?? '', k2: raw.k?.od?.k2 ?? '', axis: raw.k?.od?.axis ?? '' },
+    os: { k1: raw.k?.os?.k1 ?? '', k2: raw.k?.os?.k2 ?? '', axis: raw.k?.os?.axis ?? '' },
   };
-  const hvd = { od: '', os: '', ...(raw.hvd ?? {}) };
+  const hvd = { od: raw.hvd?.od ?? '', os: raw.hvd?.os ?? '' };
   const f: ClPreFitData = { ...raw, biom, k, hvd };
   const patch = (p: Partial<ClPreFitData>) => setSectionData('cl-pre-fit', { ...f, ...p });
   const { indication, motivation, previousCL, cornealShape, tearQuality, pupilSize, remarks, showInDischarge } = f;

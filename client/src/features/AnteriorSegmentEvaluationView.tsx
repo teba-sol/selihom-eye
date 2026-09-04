@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
-import { Upload, MousePointer2, Pencil, Eraser, Type, Circle, ArrowUpRight, MoreHorizontal, ChevronDown, X } from 'lucide-react';
+import { Upload, MousePointer2, Pencil, Eraser, Type, Circle, ArrowUpRight, MoreHorizontal } from 'lucide-react';
 import { MultiSelect } from '../components/MultiSelect';
 import { useEncounterStore } from '../store/useEncounterStore';
 
@@ -72,11 +72,10 @@ function EyeAnatomy() {
 }
 
 // ── Drawing canvas for one eye ────────────────────────────────────────────────
-function DrawingCanvas({ tool, color, brushSize, canvasRef, fabricRef, eyeLabel }: {
+function DrawingCanvas({ tool, color, brushSize, canvasRef, fabricRef }: {
   tool: string; color: string; brushSize: number;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   fabricRef: React.MutableRefObject<fabric.Canvas | null>;
-  eyeLabel: string;
 }) {
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -228,7 +227,10 @@ export const AnteriorSegmentEvaluationView: React.FC = () => {
   const setSectionData = useEncounterStore((s) => s.setSectionData);
   const raw = Object.assign({}, DEFAULT_ANTERIOR_SEGMENT, sectionData['anterior-segment-eval'] ?? {}) as AnteriorSegmentData;
   const multiObs: Record<string, StructureObs> = Object.fromEntries(
-    STRUCTURES.map((s) => [s, { od: [], os: [], sameForOS: false, ...(raw.multiObs?.[s] ?? {}) }]),
+    STRUCTURES.map((s) => {
+      const b = raw.multiObs?.[s] ?? {};
+      return [s, { od: b.od ?? [], os: b.os ?? [], sameForOS: b.sameForOS ?? false }];
+    }),
   );
   const f: AnteriorSegmentData = { ...raw, multiObs };
   const patch = (p: Partial<AnteriorSegmentData>) => setSectionData('anterior-segment-eval', { ...f, ...p });
@@ -406,12 +408,12 @@ export const AnteriorSegmentEvaluationView: React.FC = () => {
               <div className="flex flex-col items-center gap-2">
                 <span className="text-sm font-bold text-slate-400 tracking-widest uppercase">RIGHT</span>
                 <DrawingCanvas tool={activeTool} color={activeColor} brushSize={3}
-                  canvasRef={odCanvasRef} fabricRef={odFabricRef} eyeLabel="OD"/>
+                  canvasRef={odCanvasRef} fabricRef={odFabricRef} />
               </div>
               <div className="flex flex-col items-center gap-2">
                 <span className="text-sm font-bold text-slate-400 tracking-widest uppercase">LEFT</span>
                 <DrawingCanvas tool={activeTool} color={activeColor} brushSize={3}
-                  canvasRef={osCanvasRef} fabricRef={osFabricRef} eyeLabel="OS"/>
+                  canvasRef={osCanvasRef} fabricRef={osFabricRef} />
               </div>
             </div>
           </div>

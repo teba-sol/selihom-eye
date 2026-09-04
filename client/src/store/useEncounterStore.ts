@@ -136,11 +136,11 @@ interface EncounterState {
   isLocked: boolean;
   lockedAt: string | null;
   addendumNotes: string | null;
-  patient: {
-    id: string;
-    mrn: string;
-    name: string;
-    age: number;
+    patient: {
+      id: string;
+      mrn: string;
+      name: string;
+      age: string | number;
     gender: string;
     appointmentTime: string;
     reasonForVisit: string;
