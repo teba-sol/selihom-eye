@@ -1,7 +1,7 @@
 import { toastSuccess } from './toast';
 import { notifySessionExpired } from './authExpired';
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 function postSuccessMessage(url: string): string {
   if (url.includes('/auth/login')) return '';
