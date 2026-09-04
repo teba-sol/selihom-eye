@@ -10,6 +10,7 @@ export const users = pgTable('users', {
   lastName: varchar('last_name', { length: 100 }).notNull(),
   role: userRoleEnum('role').notNull(), // RECEPTIONIST or DOCTOR
   licenseNumber: varchar('license_number', { length: 100 }),
+  refreshToken: text('refresh_token'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

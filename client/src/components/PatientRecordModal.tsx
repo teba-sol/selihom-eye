@@ -7,7 +7,7 @@ import {
 import type { Patient } from '../store/useAppStore';
 import type { EncounterSnapshot } from '../store/useEncounterStore';
 import { Field } from './ExamDetails';
-import { formatDobEthiopian, formatAge } from '../lib/formatters';
+import { formatDobEthiopian, formatAge, formatEthiopianDate } from '../lib/formatters';
 import { usePatientRecordData, type ExamHistoryEntry } from '../hooks/usePatientRecordData';
 import { fmtDate, humanize, StatusBadge, SummaryChips, doctorName, parseAddendums, statusLabel } from '../lib/examHistory';
 import {
@@ -58,7 +58,7 @@ function VisitCard({ entry, snap, onViewExam }: {
         className="w-full flex items-start justify-between px-4 py-3 hover:bg-slate-50 transition-colors text-left">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-bold text-slate-800">{fmtDate(entry.appointmentDate ?? entry.createdAt)}</span>
+            <span className="text-sm font-bold text-slate-800">{formatEthiopianDate(entry.appointmentDate ?? entry.createdAt)}</span>
             <span className="text-[10px] font-bold text-[#2563eb] bg-blue-50 rounded-full px-2 py-0.5 uppercase tracking-wide">{entry.appointmentReason || 'Examination'}</span>
             <StatusBadge entry={entry}/>
           </div>
@@ -278,18 +278,29 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
     navigate(`/exam/${id}`);
   }, [navigate, onClose]);
 
-  // Only visits that actually contain clinical data are part of the record.
+  // An exam is "in progress" while it is open (not locked / not completed).
+  // The backend guarantees at most one active exam per patient.
+  const inProgress = useMemo(
+    () =>
+      record.history
+        .filter((entry) => !entry.isLocked && entry.appointmentStatus !== 'COMPLETED')
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [record.history],
+  );
+  const inProgressIds = useMemo(() => new Set(inProgress.map((e) => e.id)), [inProgress]);
+
+  // Completed / data-bearing visits that are no longer in progress.
   const visits = useMemo(
     () =>
       record.history
-        .filter((entry) => visitHasData(entry, record.encounters[entry.id]))
+        .filter((entry) => !inProgressIds.has(entry.id) && visitHasData(entry, record.encounters[entry.id]))
         .map((entry) => ({ entry, snap: record.encounters[entry.id] })),
-    [record.history, record.encounters],
+    [record.history, record.encounters, inProgressIds],
   );
 
   const completedCount = visits.filter((v) => v.entry.isLocked || v.entry.appointmentStatus === 'COMPLETED').length;
   const lastVisit = visits.length > 0
-    ? fmtDate(visits[0].entry.appointmentDate ?? visits[0].entry.createdAt)
+    ? formatEthiopianDate(visits[0].entry.appointmentDate ?? visits[0].entry.createdAt)
     : 'First Visit';
 
   // Next appointment: first future non-cancelled/completed by date.
@@ -351,7 +362,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
     const examSections: string[] = [];
     for (const { entry } of visits) {
       const snap = await getSnapshot(entry.id);
-      const dateStr = fmtDate(entry.appointmentDate ?? entry.createdAt);
+      const dateStr = formatEthiopianDate(entry.appointmentDate ?? entry.createdAt);
       const tone: 'green' | 'purple' | 'gray' = entry.isLocked
         ? 'gray'
         : (STATUS_BADGE_TONE[entry.appointmentStatus ?? ''] ?? 'purple');
@@ -421,7 +432,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
                   <Field label="Date of Birth" value={formatDobEthiopian(patient.dateOfBirth)}/>
                   <Field label="Age" value={formatAge(patient.dateOfBirth)}/>
                   <Field label="Phone" value={patient.phone}/>
-                  <Field label="Registered" value={patient.createdAt ? fmtDate(patient.createdAt) : '-'}/>
+                  <Field label="Registered" value={patient.createdAt ? formatEthiopianDate(patient.createdAt) : '-'}/>
                   <Field label="Address" value={patient.address ?? '—'} wide/>
                   <Field label="Facility" value={FACILITY} wide/>
                 </div>
@@ -434,7 +445,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
                   <Field label="Patient Status" value={patient.isNew ? 'New Patient' : 'Returning Patient'}/>
                   <Field label="Total Completed Examinations" value={String(completedCount)}/>
                   <Field label="Last Visit" value={lastVisit}/>
-                  <Field label="Next Appointment" value={nextAppointment ? fmtDate(nextAppointment.scheduledDate) : '—'}/>
+                  <Field label="Next Appointment" value={nextAppointment ? formatEthiopianDate(nextAppointment.scheduledDate) : '—'}/>
                 </div>
               </section>
 
@@ -460,7 +471,28 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
                     Visit history <span className="text-slate-400">({visits.length})</span>
                   </p>
                 </div>
-                {visits.length === 0 ? (
+
+                {inProgress.length > 0 && (
+                  <div className="mb-3 flex items-center justify-between border border-amber-200 bg-amber-50 rounded-xl px-4 py-3">
+                    <div>
+                      <p className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
+                        <Activity className="w-3.5 h-3.5"/> Exam in progress
+                      </p>
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        {formatEthiopianDate(inProgress[0].appointmentDate ?? inProgress[0].createdAt)} ·{' '}
+                        {inProgress[0].appointmentReason || 'Examination'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => openExam(inProgress[0].id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-lg text-xs font-semibold transition-colors shrink-0"
+                    >
+                      <Eye className="w-3.5 h-3.5"/> Continue examination
+                    </button>
+                  </div>
+                )}
+
+                {visits.length === 0 && inProgress.length === 0 ? (
                   <div className="text-center py-8 text-slate-400">
                     <Calendar className="w-10 h-10 mx-auto mb-2 opacity-40"/>
                     <p className="text-sm font-semibold text-slate-500">No examinations recorded yet.</p>
@@ -492,7 +524,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
                     {nextAppointment && (
                       <div className="border border-emerald-200 bg-emerald-50 rounded-lg px-4 py-2.5 flex items-center justify-between">
                         <div>
-                          <p className="text-xs font-bold text-emerald-800">{fmtDate(nextAppointment.scheduledDate)}</p>
+                          <p className="text-xs font-bold text-emerald-800">{formatEthiopianDate(nextAppointment.scheduledDate)}</p>
                           <p className="text-xs text-emerald-700">{nextAppointment.reason || 'Routine Eye Examination'}</p>
                         </div>
                         <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 rounded-full px-2 py-0.5 uppercase tracking-wide">Next</span>
@@ -501,7 +533,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
                     {previousAppointments.map((a) => (
                       <div key={a.id} className="border border-slate-200 rounded-lg px-4 py-2.5 flex items-center justify-between">
                         <div>
-                          <p className="text-xs font-bold text-slate-700">{fmtDate(a.scheduledDate)}</p>
+                          <p className="text-xs font-bold text-slate-700">{formatEthiopianDate(a.scheduledDate)}</p>
                           <p className="text-xs text-slate-500">{a.reason || 'Routine Eye Examination'}</p>
                         </div>
                         <span className="text-[10px] font-bold text-slate-500 bg-slate-100 rounded-full px-2 py-0.5 uppercase tracking-wide">{humanize(a.status) || 'Recorded'}</span>

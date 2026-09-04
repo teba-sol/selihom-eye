@@ -12,9 +12,11 @@ interface AuthUser {
 interface AuthState {
   user: AuthUser | null;
   token: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; role?: string }>;
   logout: () => void;
+  setSession: (session: { token: string; refreshToken: string }) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -22,11 +24,12 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       token: null,
+      refreshToken: null,
       isAuthenticated: false,
 
       login: async (email, password) => {
         try {
-          const res = await api.post<{ accessToken: string; user: { id: string; email: string; firstName: string; lastName: string; role: string } }>('/auth/login', {
+          const res = await api.post<{ accessToken: string; refreshToken: string; user: { id: string; email: string; firstName: string; lastName: string; role: string } }>('/auth/login', {
             email: email.trim(),
             password: password.trim(),
           });
@@ -34,6 +37,7 @@ export const useAuthStore = create<AuthState>()(
           set({
             isAuthenticated: true,
             token: res.accessToken,
+            refreshToken: res.refreshToken,
             user: {
               id: res.user.id,
               name: `${res.user.firstName} ${res.user.lastName}`,
@@ -47,7 +51,9 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      logout: () => set({ user: null, token: null, isAuthenticated: false }),
+      logout: () => set({ user: null, token: null, refreshToken: null, isAuthenticated: false }),
+
+      setSession: (session) => set({ token: session.token, refreshToken: session.refreshToken }),
     }),
     { 
       name: 'asira-auth',

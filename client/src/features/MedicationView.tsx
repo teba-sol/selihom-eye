@@ -4,10 +4,10 @@ import type { MedicationEntry } from '../store/useEncounterStore';
 
 const DEFAULT_FLAGS = {
   none: false,
-  eyeDrops: true,
-  tablets: true,
+  eyeDrops: false,
+  tablets: false,
   injection: false,
-  remarks: 'Eye drops for dry eye',
+  remarks: '',
   showInDischarge: false,
 };
 

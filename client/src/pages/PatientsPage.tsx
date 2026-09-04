@@ -7,7 +7,7 @@ import { PatientRecordModal } from '../components/PatientRecordModal';
 import { ExamHistoryModal } from '../components/ExamHistoryModal';
 import { useAppStore } from '../store/useAppStore';
 import { useEncounterStore } from '../store/useEncounterStore';
-import { formatDobEthiopian, formatAge, patientFullName, formatDisplayDate } from '../lib/formatters';
+import { formatDobEthiopian, formatAge, patientFullName, formatEthiopianDate } from '../lib/formatters';
 import { useToast } from '../lib/toast';
 import type { Patient } from '../store/useAppStore';
 
@@ -17,16 +17,22 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 function openExamForPatient(
   patient: Patient,
-  encounter: { id: string },
-  reason: string,
+  encounter: Record<string, any>,
   startExam: ReturnType<typeof useEncounterStore.getState>['startExam'],
+  loadEncounterFromDb: ReturnType<typeof useEncounterStore.getState>['loadEncounterFromDb'],
   navigate: NavigateFunction,
-  freshCreate = false,
 ) {
   const encounterId = encounter.id;
+  // The POST /clinical/encounter response is the fully hydrated encounter, so
+  // hydrate the store directly here. The exam screen's useExamLoader then sees
+  // dataLoaded === true and skips its own GET — no second round-trip.
+  let reason = '';
+  if (typeof encounter.reasonForVisit === 'string') reason = encounter.reasonForVisit;
+  else reason = encounter.reasonForVisit?.selectedReason ?? '';
+
   startExam({
     encounterId,
-    appointmentId: null,
+    appointmentId: encounter.appointmentId ?? null,
     consentObtained: false,
     reasonForVisit: reason,
     patient: {
@@ -39,10 +45,7 @@ function openExamForPatient(
       reasonForVisit: reason,
     },
   });
-  if (freshCreate) {
-    // Brand-new empty encounter — mark hydrated so autosave may run.
-    useEncounterStore.getState().markEncounterDataLoaded();
-  }
+  loadEncounterFromDb(encounter);
   navigate(`/exam/${encounterId}`);
 }
 
@@ -116,30 +119,18 @@ export const PatientsPage: React.FC = () => {
   const handleOpenExam = async (patient: Patient) => {
     try {
       const { api } = await import('../lib/api');
+      const loadEncounterFromDb = useEncounterStore.getState().loadEncounterFromDb;
 
-      // Resume any existing in-progress encounter before creating a new one.
-      const history = await api.get<any[]>(`/clinical/patient/${patient.id}/history`);
-      const resumable = history
-        .filter((e: any) =>
-          !e.isLocked &&
-          (e.appointmentId ? e.appointmentStatus === 'IN_EXAM' : true),
-        )
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-
-      if (resumable) {
-        // Continue the existing exam — no POST, no duplicate. The exam screen's
-        // useExamLoader will hydrate the persisted clinical data.
-        openExamForPatient(patient, resumable, resumable.appointmentReason || 'Examination', startExam, navigate);
-        return;
-      }
-
-      // No resumable encounter — create exactly one new exam. No reason is
-      // pre-filled; the doctor chooses it from the Reason For Visit tab.
+      // Single round-trip: POST /clinical/encounter both resumes an existing
+      // in-progress (unlocked) encounter for this patient and otherwise creates
+      // one new exam — the backend's active-exam safety net guarantees at most
+      // one open encounter, and its response is the fully hydrated exam. The
+      // response hydrates the store directly, so the exam screen opens with no
+      // additional fetch (no delay) and preserves any existing reason/data.
       const encounter = await api.post<any>('/clinical/encounter', {
         patientId: patient.id,
-        reasonForVisit: { selectedReason: '', remarks: '', showInDischarge: false },
       });
-      openExamForPatient(patient, encounter, '', startExam, navigate, true);
+      openExamForPatient(patient, encounter, startExam, loadEncounterFromDb, navigate);
     } catch {
       toast.error('Failed to start examination.');
     }
@@ -215,7 +206,7 @@ export const PatientsPage: React.FC = () => {
                     <td className="px-4 py-3 text-slate-800">{p.firstName}</td>
                     <td className="px-4 py-3 text-slate-800">{p.lastName}</td>
                     <td className="px-4 py-3 text-slate-600">
-                      {p.createdAt ? formatDisplayDate(p.createdAt) : '-'}
+                      {p.createdAt ? formatEthiopianDate(p.createdAt) : '-'}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{p.gender}</td>
                     <td className="px-4 py-3 text-slate-600">

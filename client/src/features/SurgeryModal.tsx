@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { CataractSurgeryForm } from './CataractSurgeryForm';
 import { GenericSurgeryForm } from './GenericSurgeryForm';
 import {
   SURGERY_OPTIONS, SURGERY_STATUSES, SURGERY_STATUS_LABELS,
   newSurgeryEntry, freshCataractDetails, freshGenericDetails,
+  hasInProgressSurgery, validateSurgeryCompletion,
   type SurgeryEntry, type SurgeryStatus,
 } from '../lib/surgery';
 
@@ -27,23 +28,55 @@ export const SurgeryModal: React.FC<Props> = ({ open, surgeries, onChange, onClo
   const patchGeneric = (id: string, d: Parameters<typeof GenericSurgeryForm>[0]['data'], type: string) =>
     patchEntry(id, { genericDetails: d, otherName: type });
 
-  // When the surgery type changes, reset that entry's embedded details so the
-  // new type starts with fresh, empty data (no leakage across types).
+  // When the surgery type changes, preserve any previously entered detail data
+  // instead of wiping it. Both cataract and generic details are carried on the
+  // entry across switches, so nothing the doctor typed is lost when toggling
+  // between types or later switching back. Each detail object is only
+  // initialized to fresh defaults if it does not already exist.
   const changeType = (id: string, newType: string) => {
     onChange(surgeries.map((s) => {
       if (s.id !== id) return s;
-      const base = { ...s, type: newType };
-      if (newType === 'Cataract Surgery') {
-        return { ...base, cataractDetails: freshCataractDetails(), genericDetails: undefined };
-      }
-      return { ...base, genericDetails: freshGenericDetails(), cataractDetails: undefined };
+      return {
+        ...s,
+        type: newType,
+        cataractDetails: s.cataractDetails ?? freshCataractDetails(),
+        genericDetails: s.genericDetails ?? freshGenericDetails(),
+      };
     }));
   };
 
-  const add = () => onChange([...surgeries, newSurgeryEntry()]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Block adding a new surgery while an existing one in this exam is still in
+  // progress (not COMPLETED or CANCELLED) — one active surgery per exam.
+  const canAdd = !hasInProgressSurgery(surgeries);
+  const add = () => {
+    if (!canAdd) return;
+    onChange([...surgeries, newSurgeryEntry()]);
+  };
   const remove = (id: string) => onChange(surgeries.filter((s) => s.id !== id));
 
   const status = (s: SurgeryEntry): SurgeryStatus => s.status ?? 'PLANNED';
+
+  // Setting a surgery to COMPLETED requires all core basics to be filled.
+  const changeStatus = (s: SurgeryEntry, next: SurgeryStatus) => {
+    if (next === 'COMPLETED') {
+      const missing = validateSurgeryCompletion(s);
+      if (missing.length > 0) {
+        setErrors((prev) => ({
+          ...prev,
+          [s.id]: `Complete the following before marking as completed: ${missing.join(', ')}`,
+        }));
+        return;
+      }
+    }
+    setErrors((prev) => {
+      const nextErrors = { ...prev };
+      delete nextErrors[s.id];
+      return nextErrors;
+    });
+    patchEntry(s.id, { status: next });
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/50 p-4 overflow-y-auto">
@@ -82,7 +115,7 @@ export const SurgeryModal: React.FC<Props> = ({ open, surgeries, onChange, onClo
 
                 <select
                   value={status(s)}
-                  onChange={(e) => patchEntry(s.id, { status: e.target.value as SurgeryStatus })}
+                  onChange={(e) => changeStatus(s, e.target.value as SurgeryStatus)}
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
                 >
                   {SURGERY_STATUSES.map((st) => (
@@ -90,6 +123,12 @@ export const SurgeryModal: React.FC<Props> = ({ open, surgeries, onChange, onClo
                   ))}
                 </select>
               </div>
+
+              {errors[s.id] && (
+                <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700">
+                  {errors[s.id]}
+                </div>
+              )}
 
               {(status(s) === 'PLANNED' || status(s) === 'RE-SCHEDULED') && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -188,10 +227,16 @@ export const SurgeryModal: React.FC<Props> = ({ open, surgeries, onChange, onClo
           <button
             type="button"
             onClick={add}
-            className="px-3 py-2 text-xs font-semibold rounded-md border border-dashed border-slate-400 text-slate-600 hover:border-blue-500 hover:text-blue-600"
+            disabled={!canAdd}
+            className="px-3 py-2 text-xs font-semibold rounded-md border border-dashed border-slate-400 text-slate-600 hover:border-blue-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-400 disabled:hover:text-slate-600"
           >
             ＋ Add Surgery
           </button>
+          {!canAdd && (
+            <p className="text-xs text-amber-600">
+              Complete or cancel the current in-progress surgery before adding another.
+            </p>
+          )}
         </div>
 
         <div className="flex justify-end px-5 py-4 border-t border-slate-200">

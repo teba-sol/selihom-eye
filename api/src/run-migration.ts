@@ -29,7 +29,7 @@ async function migrate() {
   // The migration file to run. Defaults to the latest migration. Override with
   // MIGRATION_FILE=0002_add_appointment_fields.sql if you need to run an older
   // migration against an environment where the table was created differently.
-  const file = process.env.MIGRATION_FILE ?? '0007_drop_patient_documents.sql';
+  const file = process.env.MIGRATION_FILE ?? '0008_add_user_refresh_token.sql';
 
   const filePath = path.join(resolveDrizzleDir(), file);
   if (!fs.existsSync(filePath)) {
