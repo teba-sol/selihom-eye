@@ -296,21 +296,21 @@ export const AsiraSidebar: React.FC = () => {
         if (rf.odSph.trim() !== '' || rf.osSph.trim() !== '') return true;
         const f = encounterState.sectionData['objective-subjective'] as any;
         if (!f) return sectionId === 'objective-subjective' ? false : isSectionCompleted('objective-subjective');
+        const filled = (v: any) => {
+          const s = String(v ?? '').trim();
+          return s !== '' && s !== '-';
+        };
         const has = (o: any) =>
-          !!o &&
-          (String(o.sph ?? '').trim() !== '' ||
-            String(o.cyl ?? '').trim() !== '' ||
-            String(o.axis ?? '').trim() !== '' ||
-            String(o.va ?? '').trim() !== '');
+          !!o && (filled(o.sph) || filled(o.cyl) || filled(o.axis) || filled(o.va));
         return (
           has(f.subjOd?.dist) ||
           has(f.subjOs?.dist) ||
           has(f.objOd) ||
           has(f.objOs) ||
-          String(f.subjOd?.near?.add ?? '').trim() !== '' ||
-          String(f.subjOs?.near?.add ?? '').trim() !== '' ||
-          String(f.subjOd?.inter?.add ?? '').trim() !== '' ||
-          String(f.subjOs?.inter?.add ?? '').trim() !== ''
+          filled(f.subjOd?.near?.add) ||
+          filled(f.subjOs?.near?.add) ||
+          filled(f.subjOd?.inter?.add) ||
+          filled(f.subjOs?.inter?.add)
         );
       }
       case 'cycloplegic': {
