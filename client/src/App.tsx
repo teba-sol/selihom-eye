@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { LoginPage } from './pages/LoginPage';
-import { PatientsPage } from './pages/PatientsPage';
-import { AppointmentsPage } from './pages/AppointmentsPage';
-import { SurgeriesPage } from './pages/SurgeriesPage';
-import { ExamDashboard } from './pages/ExamDashboard';
-import { ReceptionistDashboard } from './pages/ReceptionistDashboard';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { PageLoader } from './components/LoadingSkeleton';
+
+const LoginPage = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
+const PatientsPage = lazy(() => import('./pages/PatientsPage').then((m) => ({ default: m.PatientsPage })));
+const AppointmentsPage = lazy(() => import('./pages/AppointmentsPage').then((m) => ({ default: m.AppointmentsPage })));
+const SurgeriesPage = lazy(() => import('./pages/SurgeriesPage').then((m) => ({ default: m.SurgeriesPage })));
+const ExamDashboard = lazy(() => import('./pages/ExamDashboard').then((m) => ({ default: m.ExamDashboard })));
+const ReceptionistDashboard = lazy(() => import('./pages/ReceptionistDashboard').then((m) => ({ default: m.ReceptionistDashboard })));
 
 // Error boundary to catch runtime crashes and clear bad localStorage
 class AppErrorBoundary extends React.Component<
@@ -65,20 +67,22 @@ export default function App() {
   return (
     <AppErrorBoundary>
       <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
 
-          <Route element={<ProtectedRoute />}>
-            <Route path="/patients" element={<PatientsPage />} />
-            <Route path="/appointments" element={<AppointmentsPage />} />
-            <Route path="/surgeries" element={<SurgeriesPage />} />
-            <Route path="/exam/:encounterId" element={<ExamDashboard />} />
-            <Route path="/receptionist/*" element={<ReceptionistDashboard />} />
-          </Route>
+            <Route element={<ProtectedRoute />}>
+              <Route path="/patients" element={<PatientsPage />} />
+              <Route path="/appointments" element={<AppointmentsPage />} />
+              <Route path="/surgeries" element={<SurgeriesPage />} />
+              <Route path="/exam/:encounterId" element={<ExamDashboard />} />
+              <Route path="/receptionist/*" element={<ReceptionistDashboard />} />
+            </Route>
 
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </AppErrorBoundary>
   );

@@ -9,6 +9,7 @@ import { formatAge, formatDisplayDate } from '../lib/formatters';
 import { useToast } from '../lib/toast';
 import { buildAppointmentTime } from '../lib/encounterDefaults';
 import type { Appointment, Patient } from '../store/useAppStore';
+import { TableSkeleton } from '../components/LoadingSkeleton';
 
 type CalendarView = 'day' | 'week' | 'month';
 
@@ -71,6 +72,7 @@ export const AppointmentsPage: React.FC = () => {
 
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
   const [view, setView] = useState<CalendarView>('week');
+  const [loading, setLoading] = useState(true);
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
   const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
   const [showBookModal, setShowBookModal] = useState(false);
@@ -87,8 +89,14 @@ export const AppointmentsPage: React.FC = () => {
   });
 
   useEffect(() => {
-    fetchPatients();
-    fetchAppointments();
+    let active = true;
+    setLoading(true);
+    Promise.all([fetchPatients(), fetchAppointments()]).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
   }, [fetchPatients, fetchAppointments]);
 
   useEffect(() => {
@@ -334,6 +342,12 @@ export const AppointmentsPage: React.FC = () => {
           </div>
         </div>
 
+        {loading ? (
+          <div className="flex-1 border border-slate-200 rounded-md overflow-hidden">
+            <TableSkeleton rows={7} cols={7} />
+          </div>
+        ) : (
+        <>
         {view === 'week' && renderWeekGrid()}
 
         {view === 'day' && (
@@ -377,6 +391,8 @@ export const AppointmentsPage: React.FC = () => {
             </div>
           </div>
         )}
+        </>
+      )}
       </div>
 
       {selectedApt && selectedPatient && (

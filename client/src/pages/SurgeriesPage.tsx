@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Eye, Search, Stethoscope, Loader2, Activity, FileText, AlertCircle, Printer } from 'lucide-react';
+import { Eye, Search, Stethoscope, Activity, FileText, AlertCircle, Printer } from 'lucide-react';
 import { api } from '../lib/api';
 import { downloadSurgeryDetailPdf } from '../lib/generatePdf';
 import { SURGERY_STATUSES, SURGERY_STATUS_LABELS } from '../lib/surgery';
+import { TableSkeleton } from '../components/LoadingSkeleton';
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 export interface SurgeryListItem {
   id: string;
@@ -256,6 +259,8 @@ export const SurgeriesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [viewing, setViewing] = useState<SurgeryListItem | null>(null);
 
   const fetchSurgeries = async () => {
@@ -297,6 +302,10 @@ export const SurgeriesPage: React.FC = () => {
       return true;
     });
   }, [surgeries, searchQuery, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const viewingClinical = viewing ? getClinicalData(viewing) : null;
   const viewingDetails = viewing ? getUnifiedDetails(viewing) : null;
@@ -347,14 +356,14 @@ export const SurgeriesPage: React.FC = () => {
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
             placeholder="Search by patient name, MRN, or surgery type..."
             className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all"
           />
         </div>
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           className="px-4 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all"
         >
           <option value="">All statuses</option>
@@ -366,6 +375,7 @@ export const SurgeriesPage: React.FC = () => {
           onClick={() => {
             setSearchQuery('');
             setStatusFilter('');
+            setPage(1);
           }}
           className="px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all"
         >
@@ -376,9 +386,7 @@ export const SurgeriesPage: React.FC = () => {
       {/* Table */}
       <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/50 border border-slate-200/60 overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-slate-400">
-            <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Loading surgeries...
-          </div>
+          <TableSkeleton rows={8} cols={10} />
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
             <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
@@ -405,7 +413,7 @@ export const SurgeriesPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map((s) => {
+                {paginated.map((s) => {
                   const cl = getClinicalData(s);
                   const displayEye = cl.eyeToBeOperated || s.eye || '—';
                   
@@ -442,6 +450,39 @@ export const SurgeriesPage: React.FC = () => {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+        {!loading && filtered.length > 0 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-white">
+            <div className="flex items-center gap-3 text-sm text-slate-600">
+              <span className="font-medium">{filtered.length} surgeries</span>
+              <select
+                value={pageSize}
+                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+                className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white"
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>{n} / Page</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50"
+              >
+                ‹
+              </button>
+              <span className="px-3 text-sm text-slate-600">{currentPage} / {totalPages}</span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50"
+              >
+                ›
+              </button>
+            </div>
           </div>
         )}
       </div>

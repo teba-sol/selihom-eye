@@ -9,6 +9,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useEncounterStore } from '../store/useEncounterStore';
 import { formatDobEthiopian, formatAge, patientFullName, formatEthiopianDate } from '../lib/formatters';
 import { useToast } from '../lib/toast';
+import { TableSkeleton } from '../components/LoadingSkeleton';
 import type { Patient } from '../store/useAppStore';
 
 import type { NavigateFunction } from 'react-router-dom';
@@ -52,6 +53,7 @@ function openExamForPatient(
 export const PatientsPage: React.FC = () => {
   const navigate = useNavigate();
   const patients = useAppStore((s) => s.patients);
+  const loading = useAppStore((s) => s.loading);
   const fetchPatients = useAppStore((s) => s.fetchPatients);
   const searchPatients = useAppStore((s) => s.searchPatients);
   const addPatient = useAppStore((s) => s.addPatient);
@@ -177,6 +179,10 @@ export const PatientsPage: React.FC = () => {
             {filtered.length} patients
           </div>
 
+          {loading ? (
+            <TableSkeleton rows={10} cols={8} />
+          ) : (
+          <>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -292,6 +298,8 @@ export const PatientsPage: React.FC = () => {
               </button>
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
 
