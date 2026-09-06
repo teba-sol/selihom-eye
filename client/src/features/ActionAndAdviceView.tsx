@@ -1,12 +1,8 @@
 import React, { useState } from 'react';
 import { useEncounterStore } from '../store/useEncounterStore';
 import { PlusCircle } from 'lucide-react';
-import { DEFAULT_CATARACT_DETAILS } from './CataractSurgeryForm';
-import type { CataractDetails } from './CataractSurgeryForm';
-import { DEFAULT_GENERIC_SURGERY_DETAILS } from './GenericSurgeryForm';
-import type { GenericSurgeryDetails } from './GenericSurgeryForm';
 import { SurgeryModal } from './SurgeryModal';
-import { surgeryTypeLabel, type SurgeryEntry } from '../lib/surgery';
+import { surgeryTypeLabel, freshUnifiedDetails, type SurgeryEntry } from '../lib/surgery';
 
 const REFERRAL_OPTIONS = [
   'None',
@@ -66,8 +62,6 @@ type ActionAndAdviceData = {
   surgeryOther: string;
   surgeryRemarks: string;
   surgeries?: SurgeryEntry[];
-  cataractDetails?: CataractDetails;
-  genericSurgeryDetails?: Record<string, GenericSurgeryDetails>;
   referral: string;
   urgency: string;
   medicationName: string;
@@ -83,8 +77,6 @@ const DEFAULT_ACTION_AND_ADVICE: ActionAndAdviceData = {
   surgeryOther: '',
   surgeryRemarks: '',
   surgeries: [],
-  cataractDetails: DEFAULT_CATARACT_DETAILS,
-  genericSurgeryDetails: {},
   referral: 'Referral to Ophthalmologist',
   urgency: 'Soon (2 - 4 weeks)',
   medicationName: '',
@@ -95,49 +87,36 @@ const DEFAULT_ACTION_AND_ADVICE: ActionAndAdviceData = {
   showInDischarge: false,
 };
 
-// Back-compat: old exams stored a single surgery in flat fields (surgeryType/surgeryOther/...).
-// If the new `surgeries` array is missing, derive one entry from the legacy fields.
+// Back-compat: very old exams stored a single surgery in flat fields (surgeryType/surgeryOther/...).
+// If the new `surgeries` array is missing, derive one entry from those fields.
 function legacyToSurgeries(f: ActionAndAdviceData): SurgeryEntry[] {
   if ((f.surgeries ?? []).length > 0) return f.surgeries as SurgeryEntry[];
   const type = f.surgeryType ?? '';
   if (!type) return [];
-  const entry: SurgeryEntry = {
-    id: crypto.randomUUID(),
-    type,
-    otherName: f.surgeryOther ?? '',
-    remarks: f.surgeryRemarks ?? '',
-    status: 'PLANNED',
-    plannedOn: '',
-    completedOn: '',
-    outcome: '',
-  };
-  if (type === 'Cataract Surgery') {
-    entry.cataractDetails = f.cataractDetails ?? { ...DEFAULT_CATARACT_DETAILS };
-  } else {
-    entry.genericDetails = f.genericSurgeryDetails?.[type] ?? { ...DEFAULT_GENERIC_SURGERY_DETAILS };
-  }
-  return [entry];
+  return [
+    {
+      id: crypto.randomUUID(),
+      type,
+      otherName: f.surgeryOther ?? '',
+      remarks: f.surgeryRemarks ?? '',
+      status: 'PLANNED',
+      plannedOn: '',
+      completedOn: '',
+      outcome: '',
+      cancelledReason: '',
+      unifiedDetails: freshUnifiedDetails(),
+    },
+  ];
 }
 
-// Mirror the first surgery back into the legacy flat fields so any other reader stays consistent.
+// Mirror surgeries back to the flat display fields, preserving the full array + unifiedDetails.
 function mirrorLegacy(list: SurgeryEntry[]): Partial<ActionAndAdviceData> {
   const first = list[0];
-  const genericSurgeryDetails: Record<string, GenericSurgeryDetails> = {};
-  for (const s of list) {
-    if (s.type && s.type !== 'Cataract Surgery' && s.type !== 'Other (Enter Manually)') {
-      genericSurgeryDetails[s.type] = s.genericDetails ?? { ...DEFAULT_GENERIC_SURGERY_DETAILS };
-    }
-    if (s.type === 'Other (Enter Manually)' && s.otherName.trim()) {
-      genericSurgeryDetails[s.otherName.trim()] = s.genericDetails ?? { ...DEFAULT_GENERIC_SURGERY_DETAILS };
-    }
-  }
   return {
     surgeryType: first?.type ?? '',
     surgeryOther: first?.otherName ?? '',
     surgeryRemarks: first?.remarks ?? '',
     surgeries: list,
-    cataractDetails: first?.cataractDetails,
-    genericSurgeryDetails,
   };
 }
 
@@ -145,9 +124,29 @@ export const ActionAndAdviceView: React.FC = () => {
   const sectionData = useEncounterStore((s) => s.sectionData);
   const setSectionData = useEncounterStore((s) => s.setSectionData);
   const f = Object.assign({}, DEFAULT_ACTION_AND_ADVICE, sectionData['action-and-advice'] ?? {}) as ActionAndAdviceData;
-  const patch = (p: Partial<ActionAndAdviceData>) => setSectionData('action-and-advice', { ...f, ...p });
+  
+  const patch = (p: Partial<ActionAndAdviceData>) => {
+    console.log('🟡 Patching ActionAndAdvice:', p);
+    setSectionData('action-and-advice', { ...f, ...p });
+  };
+  
+  // Load surgeries from the data
   const surgeries = legacyToSurgeries(f);
-  const onSurgeriesChange = (list: SurgeryEntry[]) => patch(mirrorLegacy(list));
+  
+  // Handle surgery changes - this is the key function that saves data
+  const onSurgeriesChange = (list: SurgeryEntry[]) => {
+    console.log('🟢 Surgeries changed in ActionAndAdvice:', list);
+    // Log the unifiedDetails to verify they're present
+    list.forEach((s, i) => {
+      console.log(`🟢 Surgery ${i} unifiedDetails:`, s.unifiedDetails);
+    });
+    
+    // Update the store with the new surgeries list
+    const legacyPatch = mirrorLegacy(list);
+    console.log('🟢 Legacy patch:', legacyPatch);
+    patch(legacyPatch);
+  };
+  
   const [surgeryOpen, setSurgeryOpen] = useState(false);
   const { referral, urgency, medicationName, medicationFreq, spectacleRecommendation, followUpPeriod, remarks, showInDischarge } = f;
 
@@ -310,6 +309,10 @@ export const ActionAndAdviceView: React.FC = () => {
         surgeries={surgeries}
         onChange={onSurgeriesChange}
         onClose={() => setSurgeryOpen(false)}
+        patientName={useEncounterStore((s) => s.patient?.name)}
+        patientMrn={useEncounterStore((s) => s.patient?.mrn)}
+        patientAge={String(useEncounterStore((s) => s.patient?.age ?? ''))}
+        patientSex={useEncounterStore((s) => s.patient?.gender ?? '')}
       />
     </div>
   );

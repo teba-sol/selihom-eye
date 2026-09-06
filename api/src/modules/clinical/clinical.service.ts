@@ -18,45 +18,61 @@ export class ClinicalService {
   constructor(@Inject(DRIZZLE_PROVIDER) private db: any) {}
 
   /**
-   * Project the encounter's surgery list (from sectionData['action-and-advice'],
-   * with a legacy flat-field fallback) into the normalized surgical_procedures
-   * table. Runs inside the caller's transaction so a failure rolls everything back.
+   * Project the encounter's surgery list (from sectionData['action-and-advice'])
+   * into the normalized surgical_procedures table using unifiedDetails.
    */
-  private async syncSurgeries(tx: any, encounterId: string, doctorUserId: string, patientId: string, appointmentId: string | null, dto: UpsertClinicalEncounterDto) {
+  private async syncSurgeries(
+    tx: any, 
+    encounterId: string, 
+    doctorUserId: string, 
+    patientId: string, 
+    appointmentId: string | null, 
+    dto: UpsertClinicalEncounterDto
+  ) {
     const aa: any = dto.sectionData?.['action-and-advice'] ?? {};
     let list: any[] = [];
 
+    // Get surgeries from sectionData
     if (Array.isArray(aa.surgeries) && aa.surgeries.length > 0) {
       list = aa.surgeries;
     } else if (aa.surgeryType) {
+      // Legacy flat-field fallback
       list = [
         {
           type: aa.surgeryType,
           otherName: aa.surgeryOther ?? '',
           remarks: aa.surgeryRemarks ?? '',
-          cataractDetails: aa.cataractDetails,
-          genericDetails:
-            aa.surgeryType === 'Other (Enter Manually)'
-              ? aa.genericSurgeryDetails?.['Other (Enter Manually)']
-              : aa.genericSurgeryDetails?.[aa.surgeryType],
+          status: aa.surgeryStatus ?? 'PLANNED',
+          plannedOn: aa.surgeryPlannedOn ?? '',
+          completedOn: aa.surgeryCompletedOn ?? '',
+          outcome: aa.surgeryOutcome ?? '',
+          cancelledReason: aa.surgeryCancelledReason ?? '',
+          showInDischarge: aa.surgeryShowInDischarge ?? false,
+          unifiedDetails: aa.unifiedDetails || null,
         },
       ];
     }
 
+    // Delete existing surgeries for this encounter
     await tx.delete(surgicalProcedures).where(eq(surgicalProcedures.encounterId, encounterId));
 
     if (list.length === 0) return;
 
+    // Build rows for insertion
     const rows = list.map((s: any, i: number) => {
       const type = String(s?.type ?? '').trim();
-      const cataract = s?.cataractDetails;
-      const generic = s?.genericDetails;
-      const eye = cataract?.eyeToBeOperated ?? generic?.eyeToBeOperated ?? '';
-      const dateOfSurgery = cataract?.dateOfSurgery ?? generic?.dateOfSurgery ?? '';
-      const surgeon = cataract?.surgeon ?? generic?.surgeon ?? '';
+      const unified = s?.unifiedDetails || {};
+      
+      // Extract data from unifiedDetails
+      const eye = unified?.eyeToBeOperated ?? '';
+      const dateOfSurgery = unified?.dateOfSurgery ?? '';
+      const surgeon = unified?.surgeon ?? '';
+      
+      // Determine status
       const status = SURGERY_STATUSES.has(String(s?.status ?? '').trim().toUpperCase())
         ? String(s.status).trim().toUpperCase()
         : 'PLANNED';
+      
       return {
         encounterId,
         patientId,
@@ -78,8 +94,8 @@ export class ClinicalService {
           plannedOn: s?.plannedOn ?? '',
           completedOn: s?.completedOn ?? '',
           outcome: s?.outcome ?? '',
-          cataractDetails: cataract ?? null,
-          genericDetails: generic ?? null,
+          cancelledReason: s?.cancelledReason ?? '',
+          unifiedDetails: unified,
         },
       };
     });
@@ -113,6 +129,13 @@ export class ClinicalService {
       .where(eq(patients.id, encounter.patientId))
       .limit(1);
 
+    // Get surgeries for this encounter
+    const surgeries = await this.db
+      .select()
+      .from(surgicalProcedures)
+      .where(eq(surgicalProcedures.encounterId, encounterId))
+      .orderBy(surgicalProcedures.index);
+
     return {
       ...encounter,
       refractions,
@@ -128,6 +151,7 @@ export class ClinicalService {
             dob: patient.dob,
           }
         : null,
+      surgeries,
     };
   }
 
@@ -147,8 +171,6 @@ export class ClinicalService {
   }
 
   async upsertEncounter(doctorUserId: string, dto: UpsertClinicalEncounterDto) {
-    // Eager-create: a walk-in exam may be created with only a patientId.
-    // The encounter is created immediately so the client always has an id.
     const appointmentId = dto.appointmentId ?? null;
     let existing: any = null;
 
@@ -168,9 +190,7 @@ export class ClinicalService {
       existing = byApt ?? null;
     }
 
-    // Walk-in safety net: if neither encounterId nor appointmentId was supplied,
-    // reuse the most recent unlocked encounter for this patient to prevent
-    // duplicate active exams (e.g. two browser tabs racing to create one).
+    // Walk-in safety net
     if (!existing && !dto.encounterId && !appointmentId) {
       const [active] = await this.db
         .select()
@@ -188,7 +208,6 @@ export class ClinicalService {
       throw new BadRequestException('Encounter is locked and finalized. Use addendum to record further clinical updates.');
     }
 
-    // When an appointment is provided, verify it exists and enforce a 1:1 map.
     if (appointmentId && !existing) {
       const [appointment] = await this.db
         .select()
@@ -210,9 +229,6 @@ export class ClinicalService {
       };
     }
 
-    // All write operations (encounter + refractions + canvas) run inside a
-    // single transaction so a failure at any step rolls the whole upsert
-    // back — no partial/ inconsistent clinical state.
     const encounterId = await this.db.transaction(async (tx) => {
       let id = existing?.id;
 
@@ -221,7 +237,6 @@ export class ClinicalService {
           .update(clinicalEncounters)
           .set({
             doctorUserId,
-            // History & Symptoms
             reasonForVisit: dto.reasonForVisit ?? existing.reasonForVisit,
             chiefComplaints: dto.chiefComplaints ?? existing.chiefComplaints,
             symptomaticHistory: dto.symptomaticHistory ?? existing.symptomaticHistory,
@@ -235,19 +250,14 @@ export class ClinicalService {
             contactLensHistory: dto.contactLensHistory ?? existing.contactLensHistory,
             lifestyleDemands: dto.lifestyleDemands ?? existing.lifestyleDemands,
             lifestyleAndDemands: dto.lifestyleAndDemands ?? existing.lifestyleAndDemands,
-            // Vision
             visualAcuity: dto.visualAcuity ?? existing.visualAcuity,
-            // Binocular
             binocularVision: dto.binocularVision ?? existing.binocularVision,
             pupilReflexes: dto.pupilReflexes ?? existing.pupilReflexes,
-            // Segments
             slitLampFindings: dto.slitLampFindings ?? existing.slitLampFindings,
             posteriorSegment: dto.posteriorSegment ?? existing.posteriorSegment,
-            // Tests
             tonometry: tonometryPayload ?? existing.tonometry,
             tearFilmWorkup: dto.tearFilmWorkup ?? existing.tearFilmWorkup,
             biometry: dto.biometry ?? existing.biometry,
-            // Assessment
             diagnoses: dto.diagnoses ?? existing.diagnoses,
             treatmentPlanPathway: dto.treatmentPlanPathway ?? existing.treatmentPlanPathway,
             counselingAdviceGiven: dto.counselingAdviceGiven ?? existing.counselingAdviceGiven,
@@ -303,9 +313,7 @@ export class ClinicalService {
         }
       }
 
-      // Upsert Refraction Records (single delete + single batched insert,
-      // atomic within the transaction). Delete-then-insert is correct here:
-      // refraction_records has no unique key on (encounter_id, type).
+      // Upsert Refraction Records
       if (dto.refractions && dto.refractions.length > 0) {
         await tx.delete(refractionRecords).where(eq(refractionRecords.encounterId, id));
         await tx.insert(refractionRecords).values(
@@ -363,7 +371,7 @@ export class ClinicalService {
         }
       }
 
-      // Project the encounter's surgery list into surgical_procedures.
+      // Sync surgeries with unifiedDetails
       await this.syncSurgeries(tx, id, doctorUserId, dto.patientId, appointmentId, dto);
 
       return id;
@@ -416,8 +424,10 @@ export class ClinicalService {
       throw new BadRequestException('Finalized encounters cannot be deleted.');
     }
 
+    // Delete all related records
     await this.db.delete(refractionRecords).where(eq(refractionRecords.encounterId, id));
     await this.db.delete(ocularCanvases).where(eq(ocularCanvases.encounterId, id));
+    await this.db.delete(surgicalProcedures).where(eq(surgicalProcedures.encounterId, id));
     await this.db.delete(clinicalEncounters).where(eq(clinicalEncounters.id, id));
 
     return { id };
@@ -426,7 +436,6 @@ export class ClinicalService {
   async getCompletedCountsByPatient(patientIds: string[]) {
     if (!patientIds.length) return [];
 
-    // Defensive cap so a very long query can't balloon into a huge read.
     const ids = patientIds.slice(0, 200);
 
     const rows = await this.db
@@ -524,8 +533,7 @@ export class ClinicalService {
   }
 
   /**
-   * List all recorded surgeries (normalized projection), joined with the
-   * patient, doctor and encounter date for the doctor-side Surgeries page.
+   * List all recorded surgeries using unifiedDetails.
    */
   async getSurgeries(filters: { status?: string; patientId?: string; from?: string; to?: string } = {}) {
     const conds: any[] = [];

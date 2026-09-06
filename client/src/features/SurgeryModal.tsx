@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
-import { X } from 'lucide-react';
-import { CataractSurgeryForm } from './CataractSurgeryForm';
-import { GenericSurgeryForm } from './GenericSurgeryForm';
+import { X, Clock } from 'lucide-react';
+import { UnifiedSurgeryForm } from './UnifiedSurgeryForm';
 import {
   SURGERY_OPTIONS, SURGERY_STATUSES, SURGERY_STATUS_LABELS,
-  newSurgeryEntry, freshCataractDetails, freshGenericDetails,
-  hasInProgressSurgery, validateSurgeryCompletion,
+  newSurgeryEntry, freshUnifiedDetails,
   type SurgeryEntry, type SurgeryStatus,
 } from '../lib/surgery';
 
@@ -14,236 +12,282 @@ interface Props {
   surgeries: SurgeryEntry[];
   onChange: (list: SurgeryEntry[]) => void;
   onClose: () => void;
+  patientName?: string;
+  patientMrn?: string;
+  patientAge?: string;
+  patientSex?: string;
 }
 
-export const SurgeryModal: React.FC<Props> = ({ open, surgeries, onChange, onClose }) => {
+export const SurgeryModal: React.FC<Props> = ({ 
+  open, 
+  surgeries, 
+  onChange, 
+  onClose,
+  patientName,
+  patientMrn,
+  patientAge,
+  patientSex
+}) => {
   if (!open) return null;
 
+  const [activeSurgeryId, setActiveSurgeryId] = useState<string | null>(
+    surgeries.length > 0 ? surgeries[0].id : null
+  );
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+
   const patchEntry = (id: string, p: Partial<SurgeryEntry>) => {
-    onChange(surgeries.map((s) => (s.id === id ? { ...s, ...p, status: (p.status ?? s.status ?? 'PLANNED') } : s)));
+    onChange(
+      surgeries.map((s) => {
+        if (s.id === id) {
+          if (p.unifiedDetails) {
+            return {
+              ...s,
+              ...p,
+              unifiedDetails: {
+                ...(s.unifiedDetails || {}),
+                ...p.unifiedDetails,
+              },
+              status: (p.status ?? s.status ?? 'PLANNED'),
+            };
+          }
+          return { ...s, ...p, status: (p.status ?? s.status ?? 'PLANNED') };
+        }
+        return s;
+      })
+    );
+    setSaveStatus('saving');
+    setTimeout(() => setSaveStatus('saved'), 500);
   };
 
-  const patchCataract = (id: string, d: Parameters<typeof CataractSurgeryForm>[0]['data']) =>
-    patchEntry(id, { cataractDetails: d });
-  const patchGeneric = (id: string, d: Parameters<typeof GenericSurgeryForm>[0]['data'], type: string) =>
-    patchEntry(id, { genericDetails: d, otherName: type });
-
-  // When the surgery type changes, preserve any previously entered detail data
-  // instead of wiping it. Both cataract and generic details are carried on the
-  // entry across switches, so nothing the doctor typed is lost when toggling
-  // between types or later switching back. Each detail object is only
-  // initialized to fresh defaults if it does not already exist.
   const changeType = (id: string, newType: string) => {
-    onChange(surgeries.map((s) => {
-      if (s.id !== id) return s;
-      return {
-        ...s,
-        type: newType,
-        cataractDetails: s.cataractDetails ?? freshCataractDetails(),
-        genericDetails: s.genericDetails ?? freshGenericDetails(),
-      };
-    }));
+    onChange(
+      surgeries.map((s) => {
+        if (s.id !== id) return s;
+        return {
+          ...s,
+          type: newType,
+          unifiedDetails: s.unifiedDetails ?? freshUnifiedDetails(),
+        };
+      })
+    );
   };
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Block adding a new surgery while an existing one in this exam is still in
-  // progress (not COMPLETED or CANCELLED) — one active surgery per exam.
-  const canAdd = !hasInProgressSurgery(surgeries);
   const add = () => {
-    if (!canAdd) return;
-    onChange([...surgeries, newSurgeryEntry()]);
+    const newSurgery = newSurgeryEntry();
+    onChange([...surgeries, newSurgery]);
+    setActiveSurgeryId(newSurgery.id);
   };
-  const remove = (id: string) => onChange(surgeries.filter((s) => s.id !== id));
+
+  const remove = (id: string) => {
+    onChange(surgeries.filter((s) => s.id !== id));
+    if (activeSurgeryId === id) {
+      setActiveSurgeryId(surgeries.length > 1 ? surgeries[0].id : null);
+    }
+  };
 
   const status = (s: SurgeryEntry): SurgeryStatus => s.status ?? 'PLANNED';
 
-  // Setting a surgery to COMPLETED requires all core basics to be filled.
-  const changeStatus = (s: SurgeryEntry, next: SurgeryStatus) => {
-    if (next === 'COMPLETED') {
-      const missing = validateSurgeryCompletion(s);
-      if (missing.length > 0) {
-        setErrors((prev) => ({
-          ...prev,
-          [s.id]: `Complete the following before marking as completed: ${missing.join(', ')}`,
-        }));
-        return;
-      }
+  const getStatusColor = (status: SurgeryStatus) => {
+    switch (status) {
+      case 'PLANNED': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'COMPLETED': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'CANCELLED': return 'bg-red-100 text-red-700 border-red-200';
+      default: return 'bg-slate-100 text-slate-700 border-slate-200';
     }
-    setErrors((prev) => {
-      const nextErrors = { ...prev };
-      delete nextErrors[s.id];
-      return nextErrors;
-    });
-    patchEntry(s.id, { status: next });
   };
 
+  const getActiveSurgery = () => {
+    return surgeries.find(s => s.id === activeSurgeryId) || surgeries[0] || null;
+  };
+
+  const activeSurgery = getActiveSurgery();
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl my-8">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-bold text-[#1E3A8A]">Surgery</h2>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="px-5 py-4 space-y-3">
-          {surgeries.length === 0 && (
-            <p className="text-xs text-slate-400 italic">No surgeries added yet.</p>
-          )}
-
-          {surgeries.map((s, i) => (
-            <div key={s.id} className="border border-slate-200 rounded-lg p-4 bg-white space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Surgery #{i + 1}</span>
-                <button type="button" onClick={() => remove(s.id)} className="text-xs text-red-500 hover:text-red-700 font-semibold">
-                  Remove
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <select
-                  value={s.type}
-                  onChange={(e) => changeType(s.id, e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
-                >
-                  {SURGERY_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt === 'None' ? '' : opt}>{opt}</option>
-                  ))}
-                </select>
-
-                <select
-                  value={status(s)}
-                  onChange={(e) => changeStatus(s, e.target.value as SurgeryStatus)}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md font-medium text-slate-900 bg-white focus:outline-none focus:border-blue-600"
-                >
-                  {SURGERY_STATUSES.map((st) => (
-                    <option key={st} value={st}>{SURGERY_STATUS_LABELS[st]}</option>
-                  ))}
-                </select>
-              </div>
-
-              {errors[s.id] && (
-                <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700">
-                  {errors[s.id]}
-                </div>
-              )}
-
-              {(status(s) === 'PLANNED' || status(s) === 'RE-SCHEDULED') && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold">
-                    <span className="whitespace-nowrap">{status(s) === 'RE-SCHEDULED' ? 'Re-scheduled Date:' : 'Planned Date:'}</span>
-                    <input
-                      type="text"
-                      value={s.plannedOn ?? ''}
-                      onChange={(e) => patchEntry(s.id, { plannedOn: e.target.value })}
-                      placeholder="e.g. 2026-09-10"
-                      className="flex-1 border-b border-slate-300 focus:border-blue-600 outline-none px-1 py-0.5"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {status(s) === 'COMPLETED' && (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="flex items-center gap-2 text-xs font-semibold">
-                      <span className="whitespace-nowrap">Completion Date:</span>
-                      <input
-                        type="text"
-                        value={s.completedOn ?? ''}
-                        onChange={(e) => patchEntry(s.id, { completedOn: e.target.value })}
-                        placeholder="e.g. 2026-09-10"
-                        className="flex-1 border-b border-slate-300 focus:border-blue-600 outline-none px-1 py-0.5"
-                      />
-                    </div>
-                  </div>
-                  <textarea
-                    rows={2}
-                    value={s.outcome ?? ''}
-                    onChange={(e) => patchEntry(s.id, { outcome: e.target.value })}
-                    placeholder="Outcome / post-op notes..."
-                    className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 placeholder:text-slate-400"
-                  />
-                </>
-              )}
-
-              {status(s) === 'CANCELLED' && (
-                <input
-                  type="text"
-                  value={s.cancelledReason ?? ''}
-                  onChange={(e) => patchEntry(s.id, { cancelledReason: e.target.value })}
-                  placeholder="Reason for cancellation..."
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:border-blue-600 placeholder:text-slate-400"
-                />
-              )}
-
-              {s.type === 'Other (Enter Manually)' && (
-                <input
-                  type="text"
-                  value={s.otherName}
-                  onChange={(e) => patchEntry(s.id, { otherName: e.target.value })}
-                  placeholder="Enter surgery name..."
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:border-blue-600 placeholder:text-slate-400"
-                />
-              )}
-
-              {s.type === 'Other (Enter Manually)' && s.otherName.trim() && (
-                <GenericSurgeryForm
-                  surgeryType={s.otherName.trim() || 'Custom Surgery'}
-                  data={s.genericDetails ?? freshGenericDetails()}
-                  onChange={(d) => patchGeneric(s.id, d, s.otherName)}
-                />
-              )}
-
-              {s.type === 'Cataract Surgery' && status(s) !== 'CANCELLED' && (
-                <CataractSurgeryForm
-                  data={s.cataractDetails ?? freshCataractDetails()}
-                  onChange={(d) => patchCataract(s.id, d)}
-                />
-              )}
-
-              {s.type && s.type !== 'None' && s.type !== 'Cataract Surgery' && s.type !== 'Other (Enter Manually)' && status(s) !== 'CANCELLED' && (
-                <GenericSurgeryForm
-                  surgeryType={s.type}
-                  data={s.genericDetails ?? freshGenericDetails()}
-                  onChange={(d) => patchGeneric(s.id, d, s.type)}
-                />
-              )}
-
-              {s.type && s.type !== 'None' && (
-                <textarea
-                  rows={2}
-                  value={s.remarks}
-                  onChange={(e) => patchEntry(s.id, { remarks: e.target.value })}
-                  placeholder="Surgery remarks / details..."
-                  className="w-full p-3 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-blue-600 placeholder:text-slate-400"
-                />
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl my-8 flex flex-col max-h-[90vh]">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-blue-50 to-white rounded-t-2xl flex-shrink-0">
+          <div>
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-bold text-slate-800">Surgery Form</h2>
+              {patientName && (
+                <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
+                  {patientName} · MRN: {patientMrn || 'N/A'}
+                </span>
               )}
             </div>
-          ))}
-
-          <button
-            type="button"
-            onClick={add}
-            disabled={!canAdd}
-            className="px-3 py-2 text-xs font-semibold rounded-md border border-dashed border-slate-400 text-slate-600 hover:border-blue-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-400 disabled:hover:text-slate-600"
+            <div className="flex items-center gap-4 mt-1 text-sm text-slate-500">
+              <span className="flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5" />
+                {new Date().toLocaleDateString('en-US', { 
+                  weekday: 'short', 
+                  year: 'numeric', 
+                  month: 'short', 
+                  day: 'numeric' 
+                })}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className={`w-2 h-2 rounded-full ${
+                  saveStatus === 'saved' ? 'bg-emerald-500' : 
+                  saveStatus === 'saving' ? 'bg-amber-500' : 'bg-slate-300'
+                }`}></span>
+                {saveStatus === 'saved' ? 'Auto-saved' : 
+                 saveStatus === 'saving' ? 'Saving...' : 'Ready'}
+              </span>
+            </div>
+          </div>
+          <button 
+            onClick={onClose}
+            className="p-2 hover:bg-slate-100 rounded-full transition-colors"
           >
-            ＋ Add Surgery
+            <X className="w-5 h-5 text-slate-500" />
           </button>
-          {!canAdd && (
-            <p className="text-xs text-amber-600">
-              Complete or cancel the current in-progress surgery before adding another.
-            </p>
-          )}
         </div>
 
-        <div className="flex justify-end px-5 py-4 border-t border-slate-200">
+        {/* Main Content - 2 Column Layout (simplified) */}
+        <div className="flex-1 overflow-hidden flex">
+          
+          {/* Left Sidebar - Surgery List */}
+          <div className="w-48 border-r border-slate-200 bg-slate-50/50 p-4 overflow-y-auto flex-shrink-0">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Surgeries</span>
+              <button
+                onClick={add}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+              >
+                + Add
+              </button>
+            </div>
+            
+            {surgeries.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-xs text-slate-400">No surgeries</p>
+                <button
+                  onClick={add}
+                  className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  + Create one
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {surgeries.map((s, idx) => {
+                  const isActive = activeSurgeryId === s.id;
+                  const sStatus = status(s);
+                  const statusColor = getStatusColor(sStatus);
+                  
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => setActiveSurgeryId(s.id)}
+                      className={`w-full text-left p-2 rounded-lg transition-all ${
+                        isActive 
+                          ? 'bg-blue-50 border border-blue-200' 
+                          : 'hover:bg-slate-100 border border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-slate-700 truncate">
+                          #{idx + 1} {s.type !== 'None' ? s.type : 'Untitled'}
+                        </span>
+                        <span className={`text-[8px] font-bold px-2 py-0.5 rounded-full ${statusColor}`}>
+                          {SURGERY_STATUS_LABELS[sStatus]}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Right - Main Content Area */}
+          <div className="flex-1 overflow-y-auto p-5 bg-white">
+            {activeSurgery ? (
+              <>
+                {/* Surgery Header */}
+                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={activeSurgery.type}
+                      onChange={(e) => changeType(activeSurgery.id, e.target.value)}
+                      className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    >
+                      {SURGERY_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt === 'None' ? '' : opt}>{opt}</option>
+                      ))}
+                    </select>
+                    
+                    <select
+                      value={status(activeSurgery)}
+                      onChange={(e) => patchEntry(activeSurgery.id, { status: e.target.value as SurgeryStatus })}
+                      className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    >
+                      {SURGERY_STATUSES.map((st) => (
+                        <option key={st} value={st}>{SURGERY_STATUS_LABELS[st]}</option>
+                      ))}
+                    </select>
+                    
+                    <button
+                      onClick={() => remove(activeSurgery.id)}
+                      className="text-xs text-red-500 hover:text-red-700"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+
+                {/* Surgery Form */}
+                {activeSurgery.type && activeSurgery.type !== 'None' ? (
+                  <>
+                    {activeSurgery.type === 'Other (Enter Manually)' && (
+                      <input
+                        type="text"
+                        value={activeSurgery.otherName}
+                        onChange={(e) => patchEntry(activeSurgery.id, { otherName: e.target.value })}
+                        placeholder="Enter surgery name..."
+                        className="w-full mb-4 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      />
+                    )}
+                    
+                    <UnifiedSurgeryForm
+                      surgeryType={activeSurgery.type === 'Other (Enter Manually)' 
+                        ? activeSurgery.otherName.trim() || 'Custom Surgery' 
+                        : activeSurgery.type}
+                      data={{ ...freshUnifiedDetails(), ...(activeSurgery.unifiedDetails ?? {}) }}
+                      onChange={(d) => patchEntry(activeSurgery.id, { unifiedDetails: d })}
+                      patientInfo={{
+                        name: patientName || '',
+                        age: patientAge || '',
+                        sex: patientSex || '',
+                        mrn: patientMrn || ''
+                      }}
+                    />
+                    
+                    <textarea
+                      rows={2}
+                      value={activeSurgery.remarks}
+                      onChange={(e) => patchEntry(activeSurgery.id, { remarks: e.target.value })}
+                      placeholder="Surgery remarks / notes..."
+                      className="w-full mt-4 p-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    />
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-400 text-center py-8">Select a surgery type to begin</p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-slate-400 text-center py-8">No surgery selected</p>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end px-6 py-3 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex-shrink-0">
           <button
-            type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-semibold rounded-md bg-[#1e3a5f] text-white hover:bg-[#2a4a78]"
+            className="px-6 py-2 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 transition-all"
           >
             Done
           </button>

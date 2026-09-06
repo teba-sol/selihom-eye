@@ -7,8 +7,7 @@ export interface SurgeryEntryRecord {
   type: string;
   otherName: string;
   remarks: string;
-  cataractDetails?: any;
-  genericDetails?: any;
+  unifiedDetails?: any;
   eye?: string;
 }
 
@@ -61,7 +60,7 @@ export function visitHasData(entry: ExamHistoryEntry, snap: EncounterSnapshot | 
   return false;
 }
 
-/** Normalize a visit's surgery list from the new `surgeries` array or legacy flat fields. */
+/** Normalize a visit's surgery list from the `surgeries` array (flat-field fallback for very old visits). */
 export function resolveSurgeries(snap: EncounterSnapshot | null | undefined): SurgeryEntryRecord[] {
   const a: any = snap?.sectionData?.['action-and-advice'] ?? {};
   if (Array.isArray(a?.surgeries) && a.surgeries.length > 0) {
@@ -70,9 +69,8 @@ export function resolveSurgeries(snap: EncounterSnapshot | null | undefined): Su
       type: s.type ?? '',
       otherName: s.otherName ?? '',
       remarks: s.remarks ?? '',
-      cataractDetails: s.cataractDetails,
-      genericDetails: s.genericDetails,
-      eye: s.cataractDetails?.eyeToBeOperated ?? s.genericDetails?.eyeToBeOperated ?? '',
+      unifiedDetails: s.unifiedDetails,
+      eye: s.unifiedDetails?.eyeToBeOperated ?? '',
     }));
   }
   const type = a?.surgeryType ?? '';
@@ -82,9 +80,8 @@ export function resolveSurgeries(snap: EncounterSnapshot | null | undefined): Su
       type,
       otherName: a?.surgeryOther ?? '',
       remarks: a?.surgeryRemarks ?? '',
-      cataractDetails: a?.cataractDetails,
-      genericDetails: type === 'Other (Enter Manually)' ? a?.genericSurgeryDetails?.['Other (Enter Manually)'] : a?.genericSurgeryDetails?.[type],
-      eye: a?.cataractDetails?.eyeToBeOperated ?? '',
+      unifiedDetails: undefined,
+      eye: '',
     },
   ];
 }

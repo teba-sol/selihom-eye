@@ -43,7 +43,7 @@ function KV({ label, value }: { label: string; value: any }) {
   return <Row label={label} value={d} />;
 }
 
-// Normalize surgery list from either the new `surgeries` array or legacy flat fields
+// Normalize surgery list from the `surgeries` array (flat-field fallback for very old visits)
 function resolveSurgeryList(a: any): any[] {
   if (Array.isArray(a?.surgeries) && a.surgeries.length > 0) return a.surgeries;
   const type = a?.surgeryType || '';
@@ -52,10 +52,6 @@ function resolveSurgeryList(a: any): any[] {
     type,
     otherName: a?.surgeryOther ?? '',
     remarks: a?.surgeryRemarks ?? '',
-    cataractDetails: a?.cataractDetails,
-    genericDetails: type === 'Other (Enter Manually)'
-      ? a?.genericSurgeryDetails?.['Other (Enter Manually)']
-      : a?.genericSurgeryDetails?.[type],
   }];
 }
 
@@ -90,50 +86,34 @@ function SurgeryRows({ e }: { e: any }) {
   const remarks = (e.remarks || '').trim();
   add('Surgery', name ? `${name}${remarks ? ` — ${remarks}` : ''}` : '');
 
-  const cat = e.cataractDetails;
-  const gen = e.genericDetails;
+  const d = e.unifiedDetails;
 
-  if (cat) {
-    add('Diagnosis', cat.diagnosis);
-    add('Eye To Be Operated', cat.eyeToBeOperated);
-    addEye('Pre-Op VA', cat.preOpVaOd, cat.preOpVaOs);
-    addEye('Pre-Op IOP', cat.preOpIopOd, cat.preOpIopOs);
-    addEye('Biometry — K1', cat.biometryOd?.k1, cat.biometryOs?.k1);
-    addEye('Biometry — K2', cat.biometryOd?.k2, cat.biometryOs?.k2);
-    addEye('Biometry — AXL', cat.biometryOd?.axl, cat.biometryOs?.axl);
-    addEye('Biometry — IOL', cat.biometryOd?.iol, cat.biometryOs?.iol);
-    add('Date Of Surgery', cat.dateOfSurgery);
-    add('Surgeon', cat.surgeon);
-    addEye('IOL — PC', cat.iolPcOd, cat.iolPcOs);
-    addEye('IOL — AC', cat.iolAcOd, cat.iolAcOs);
-    addEye('IOL — NO', cat.iolNoOd, cat.iolNoOs);
-    addRec(cat.intraOpComplications);
-    add('Complication Management', cat.intraOpComplicationAction);
-    add('Documented By', cat.documentedBy);
-    add('Surgeon (Post-Op)', cat.surgeonPostOp);
-    addEye('1st Post-Op Day VA', cat.postOpDay1VaOd, cat.postOpDay1VaOs);
-    addRec(cat.postOpDay1Complications);
-    add('Assessment', cat.assessment);
-    add('Plan', cat.plan);
-  } else if (gen) {
-    add('Diagnosis', gen.diagnosis);
-    add('Eye To Be Operated', gen.eyeToBeOperated);
-    addEye('Pre-Op VA', gen.preOpVaOd, gen.preOpVaOs);
-    addEye('Pre-Op IOP', gen.preOpIopOd, gen.preOpIopOs);
-    addRec(gen.preOpFindings);
-    add('Pre-Op Notes', gen.preOpNotes);
-    add('Date Of Surgery', gen.dateOfSurgery);
-    add('Surgeon', gen.surgeon);
-    addStrRec(gen.surgicalFields);
-    addRec(gen.intraOpComplications);
-    add('Complication Management', gen.intraOpAction);
-    add('Documented By', gen.documentedBy);
-    addEye('1st Post-Op Day VA', gen.postOpDay1VaOd, gen.postOpDay1VaOs);
-    addEye('1st Post-Op Day IOP', gen.postOpDay1IopOd, gen.postOpDay1IopOs);
-    addRec(gen.postOpFindings);
-    add('Post-Op Notes', gen.postOpNotes);
-    add('Assessment', gen.assessment);
-    add('Plan', gen.plan);
+  if (d) {
+    add('Diagnosis', d.diagnosis);
+    add('Eye To Be Operated', d.eyeToBeOperated);
+    addEye('Pre-Op VA', d.preOpVaOd, d.preOpVaOs);
+    addEye('Pre-Op IOP', d.preOpIopOd, d.preOpIopOs);
+    addRec(d.preOpFindings);
+    add('Pre-Op Notes', d.preOpNotes);
+    addEye('Biometry — K1', d.biometryOd?.k1, d.biometryOs?.k1);
+    addEye('Biometry — K2', d.biometryOd?.k2, d.biometryOs?.k2);
+    addEye('Biometry — AXL', d.biometryOd?.axl, d.biometryOs?.axl);
+    addEye('Biometry — IOL', d.biometryOd?.iol, d.biometryOs?.iol);
+    add('Date Of Surgery', d.dateOfSurgery);
+    add('Surgeon', d.surgeon);
+    addStrRec(d.surgicalFields);
+    addEye('IOL — PC', d.iolPcOd, d.iolPcOs);
+    addEye('IOL — AC', d.iolAcOd, d.iolAcOs);
+    addEye('IOL — NO', d.iolNoOd, d.iolNoOs);
+    addRec(d.intraOpComplications);
+    add('Complication Management', d.intraOpAction);
+    add('Documented By', d.documentedBy);
+    addEye('1st Post-Op Day VA', d.postOpDay1VaOd, d.postOpDay1VaOs);
+    addEye('1st Post-Op Day IOP', d.postOpDay1IopOd, d.postOpDay1IopOs);
+    addRec(d.postOpFindings);
+    add('Post-Op Notes', d.postOpNotes);
+    add('Assessment', d.assessment);
+    add('Plan', d.plan);
   } else if (!name) {
     return null;
   }

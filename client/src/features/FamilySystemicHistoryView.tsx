@@ -3,7 +3,7 @@ import { useEncounterStore } from '../store/useEncounterStore';
 import type { FamilyHistoryItem } from '../store/useEncounterStore';
 
 const DEFAULT_FLAGS = {
-  noHistory: true,
+  noHistory: false,
   parent: false,
   sibling: false,
   grandparent: false,

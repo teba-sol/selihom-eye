@@ -1,6 +1,6 @@
 import {
   IsUUID, IsNotEmpty, IsOptional, IsString, IsBoolean,
-  IsArray, IsObject, IsNumber, MaxLength,
+  IsArray, IsObject, IsNumber, MaxLength, IsIn, IsEnum,
 } from 'class-validator';
 import type {
   ReasonForVisitData, SymptomaticHistoryData, OcularHistoryData,
@@ -9,6 +9,88 @@ import type {
   VisualAcuityData, BinocularVisionData,
   SlitLampPayload, PosteriorSegmentPayload, BiometryCalculationPayload,
 } from '../../../database/schema';
+
+// ── Surgery DTOs ──────────────────────────────────────────────────────
+
+export class UnifiedSurgeryDetailsDto {
+  // Patient Info
+  @IsString() @IsOptional() patientType?: 'inpatient' | 'outpatient';
+  @IsString() @IsOptional() phone?: string;
+  @IsString() @IsOptional() addressZone?: string;
+  @IsString() @IsOptional() addressDistrict?: string;
+  @IsString() @IsOptional() addressKebele?: string;
+  @IsString() @IsOptional() addressVillage?: string;
+  
+  // Diagnosis
+  @IsString() @IsOptional() diagnosis?: string;
+  @IsString() @IsOptional() diagnosisOther?: string;
+  
+  // Pre-Operative
+  @IsString() @IsOptional() preOpVaOd?: string;
+  @IsString() @IsOptional() preOpVaOs?: string;
+  @IsString() @IsOptional() preOpIopOd?: string;
+  @IsString() @IsOptional() preOpIopOs?: string;
+  @IsString() @IsOptional() eyeToBeOperated?: string;
+  @IsObject() @IsOptional() preOpFindings?: Record<string, { od: string; os: string }>;
+  @IsString() @IsOptional() preOpFindingsOther?: string;
+  @IsString() @IsOptional() preOpNotes?: string;
+  
+  // Biometry
+  @IsObject() @IsOptional() biometryOd?: { k1: string; k2: string; axl: string; iol: string };
+  @IsObject() @IsOptional() biometryOs?: { k1: string; k2: string; axl: string; iol: string };
+  
+  // BP
+  @IsArray() @IsOptional() bp?: string[];
+  
+  // Surgical Information
+  @IsString() @IsOptional() dateOfSurgery?: string;
+  @IsString() @IsOptional() surgeon?: string;
+  @IsObject() @IsOptional() surgicalFields?: Record<string, string>;
+  
+  // IOL
+  @IsString() @IsOptional() iolPcOd?: string;
+  @IsString() @IsOptional() iolPcOs?: string;
+  @IsString() @IsOptional() iolAcOd?: string;
+  @IsString() @IsOptional() iolAcOs?: string;
+  @IsString() @IsOptional() iolNoOd?: string;
+  @IsString() @IsOptional() iolNoOs?: string;
+  
+  // Intra-Op
+  @IsObject() @IsOptional() intraOpComplications?: Record<string, { od: string; os: string }>;
+  @IsString() @IsOptional() intraOpAction?: string;
+  @IsString() @IsOptional() documentedBy?: string;
+  
+  // Post-Op
+  @IsString() @IsOptional() postOpDay1VaOd?: string;
+  @IsString() @IsOptional() postOpDay1VaOs?: string;
+  @IsString() @IsOptional() postOpDay1IopOd?: string;
+  @IsString() @IsOptional() postOpDay1IopOs?: string;
+  @IsObject() @IsOptional() postOpFindings?: Record<string, { od: string; os: string }>;
+  @IsString() @IsOptional() postOpNotes?: string;
+  @IsString() @IsOptional() assessment?: string;
+  @IsString() @IsOptional() plan?: string;
+  
+  // Custom fields
+  @IsArray() @IsOptional() customPreOpLabels?: string[];
+  @IsArray() @IsOptional() customPostOpLabels?: string[];
+  @IsArray() @IsOptional() customIntraOpLabels?: string[];
+  @IsArray() @IsOptional() customSurgicalFieldLabels?: string[];
+  @IsArray() @IsOptional() customBiometryLabels?: string[];
+}
+
+export class SurgeryDto {
+  @IsString() @IsNotEmpty() type!: string;
+  @IsString() @IsOptional() otherName?: string;
+  @IsString() @IsOptional() remarks?: string;
+  @IsString() @IsOptional() @IsIn(['PLANNED', 'COMPLETED', 'CANCELLED', 'RE-SCHEDULED']) 
+  status?: 'PLANNED' | 'COMPLETED' | 'CANCELLED' | 'RE-SCHEDULED';
+  @IsString() @IsOptional() plannedOn?: string;
+  @IsString() @IsOptional() completedOn?: string;
+  @IsString() @IsOptional() outcome?: string;
+  @IsString() @IsOptional() cancelledReason?: string;
+  @IsBoolean() @IsOptional() showInDischarge?: boolean;
+  @IsObject() @IsOptional() unifiedDetails?: UnifiedSurgeryDetailsDto;
+}
 
 // ── Refraction sub-DTOs ─────────────────────────────────────────────────
 
@@ -100,6 +182,7 @@ export class UpsertClinicalEncounterDto {
   @IsString() @IsOptional() counselingAdviceGiven?: string;
 
   // ── Section data (keyed by ASIRA exam section id) ──────────────────
+  // Contains surgery data under 'action-and-advice.surgeries'
 
   @IsObject() @IsOptional() sectionData?: Record<string, any>;
 }
