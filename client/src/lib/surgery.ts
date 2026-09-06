@@ -3,6 +3,36 @@ import { DEFAULT_UNIFIED_SURGERY_DETAILS } from '../features/UnifiedSurgeryForm'
 
 export type SurgeryStatus = 'PLANNED' | 'COMPLETED' | 'CANCELLED';
 
+export interface SurgeryListItem {
+  id: string;
+  encounterId: string;
+  patientId: string;
+  index: number;
+  type: string;
+  otherName: string;
+  eye: string;
+  dateOfSurgery: string;
+  surgeon: string;
+  status: SurgeryStatus;
+  remarks: string | null;
+  showInDischarge: boolean;
+  details: {
+    type?: string;
+    otherName?: string;
+    status?: string;
+    plannedOn?: string;
+    completedOn?: string;
+    outcome?: string;
+    cancelledReason?: string;
+    unifiedDetails?: Record<string, unknown> | null;
+  } | null;
+  createdAt: string;
+  encounterDate: string;
+  patientName: string;
+  mrn: string;
+  doctorName: string;
+}
+
 export interface SurgeryEntry {
   id: string;
   type: string;

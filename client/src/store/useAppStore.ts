@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import type { SurgeryListItem } from '../lib/surgery';
+
+const STALE_MS = 60_000;
 
 // ── Backend data shapes ────────────────────────────────────────────────
 
@@ -132,10 +135,18 @@ function mapStatusToFrontend(frontend: string): string {
 interface AppState {
   patients: Patient[];
   appointments: Appointment[];
+  surgeries: SurgeryListItem[];
   loading: boolean;
+  patientsLoaded: boolean;
+  appointmentsLoaded: boolean;
+  surgeriesLoaded: boolean;
+  patientsFetchedAt: number | null;
+  appointmentsFetchedAt: number | null;
+  surgeriesFetchedAt: number | null;
 
-  fetchPatients: (query?: string) => Promise<void>;
-  fetchAppointments: (from?: string, to?: string) => Promise<void>;
+  fetchPatients: (query?: string, force?: boolean) => Promise<void>;
+  fetchAppointments: (from?: string, to?: string, force?: boolean) => Promise<void>;
+  fetchSurgeries: (force?: boolean) => Promise<void>;
 
   addPatient: (patient: Omit<Patient, 'id'>) => Promise<void>;
   searchPatients: (query: string) => Patient[];
@@ -150,13 +161,49 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   patients: [],
   appointments: [],
+  surgeries: [],
   loading: false,
+  patientsLoaded: false,
+  appointmentsLoaded: false,
+  surgeriesLoaded: false,
+  patientsFetchedAt: null,
+  appointmentsFetchedAt: null,
+  surgeriesFetchedAt: null,
 
-  fetchPatients: async (query?: string) => {
+  fetchPatients: async (query?: string, force = false) => {
+    if (query) {
+      set({ loading: true });
+      try {
+        const data = await api.get<ApiPatient[]>(`/patients?q=${encodeURIComponent(query)}`);
+        const patients = data.map(mapPatient);
+
+        // Determine isNew: patient has no completed appointments
+        const appointments = get().appointments;
+        const enriched = patients.map((p) => {
+          const hasCompleted = appointments.some(
+            (a) => a.patientId === p.id && a.status === 'completed',
+          );
+          return { ...p, isNew: !hasCompleted };
+        });
+
+        set({ patients: enriched, loading: false });
+      } catch {
+        set({ loading: false });
+      }
+      return;
+    }
+
+    const { patients, patientsFetchedAt } = get();
+    const cached =
+      patients.length > 0 &&
+      patientsFetchedAt !== null &&
+      !force &&
+      Date.now() - patientsFetchedAt < STALE_MS;
+    if (cached) return;
+
     set({ loading: true });
     try {
-      const url = query ? `/patients?q=${encodeURIComponent(query)}` : '/patients';
-      const data = await api.get<ApiPatient[]>(url);
+      const data = await api.get<ApiPatient[]>('/patients');
       const patients = data.map(mapPatient);
 
       // Determine isNew: patient has no completed appointments
@@ -168,21 +215,71 @@ export const useAppStore = create<AppState>((set, get) => ({
         return { ...p, isNew: !hasCompleted };
       });
 
-      set({ patients: enriched, loading: false });
+      set({
+        patients: enriched,
+        patientsLoaded: true,
+        patientsFetchedAt: Date.now(),
+        loading: false,
+      });
     } catch {
       set({ loading: false });
     }
   },
 
-  fetchAppointments: async (from?: string, to?: string) => {
+  fetchAppointments: async (from?: string, to?: string, force = false) => {
+    if (from || to) {
+      try {
+        let url = '/appointments?';
+        if (from) url += `from=${from}&`;
+        if (to) url += `to=${to}`;
+        const data = await api.get<ApiAppointment[]>(url);
+        set({ appointments: data.map(mapAppointment) });
+      } catch {
+        // silent
+      }
+      return;
+    }
+
+    const { appointments, appointmentsFetchedAt } = get();
+    const cached =
+      appointments.length > 0 &&
+      appointmentsFetchedAt !== null &&
+      !force &&
+      Date.now() - appointmentsFetchedAt < STALE_MS;
+    if (cached) return;
+
     try {
-      let url = '/appointments?';
-      if (from) url += `from=${from}&`;
-      if (to) url += `to=${to}`;
-      const data = await api.get<ApiAppointment[]>(url);
-      set({ appointments: data.map(mapAppointment) });
+      const data = await api.get<ApiAppointment[]>('/appointments');
+      set({
+        appointments: data.map(mapAppointment),
+        appointmentsLoaded: true,
+        appointmentsFetchedAt: Date.now(),
+      });
     } catch {
       // silent
+    }
+  },
+
+  fetchSurgeries: async (force = false) => {
+    const { surgeries, surgeriesFetchedAt } = get();
+    const cached =
+      surgeries.length > 0 &&
+      surgeriesFetchedAt !== null &&
+      !force &&
+      Date.now() - surgeriesFetchedAt < STALE_MS;
+    if (cached) return;
+
+    set({ loading: true });
+    try {
+      const data = await api.get<SurgeryListItem[]>('/clinical/surgeries');
+      set({
+        surgeries: data ?? [],
+        surgeriesLoaded: true,
+        surgeriesFetchedAt: Date.now(),
+        loading: false,
+      });
+    } catch {
+      set({ loading: false });
     }
   },
 

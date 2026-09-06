@@ -61,6 +61,8 @@ export const AppointmentsPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const appointments = useAppStore((s) => s.appointments);
   const patients = useAppStore((s) => s.patients);
+  const patientsLoaded = useAppStore((s) => s.patientsLoaded);
+  const appointmentsLoaded = useAppStore((s) => s.appointmentsLoaded);
   const fetchPatients = useAppStore((s) => s.fetchPatients);
   const fetchAppointments = useAppStore((s) => s.fetchAppointments);
   const getPatientById = useAppStore((s) => s.getPatientById);
@@ -72,7 +74,9 @@ export const AppointmentsPage: React.FC = () => {
 
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
   const [view, setView] = useState<CalendarView>('week');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(
+    () => !(patientsLoaded && appointmentsLoaded),
+  );
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
   const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
   const [showBookModal, setShowBookModal] = useState(false);
@@ -90,14 +94,14 @@ export const AppointmentsPage: React.FC = () => {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
+    if (!(patientsLoaded && appointmentsLoaded)) setLoading(true);
     Promise.all([fetchPatients(), fetchAppointments()]).finally(() => {
       if (active) setLoading(false);
     });
     return () => {
       active = false;
     };
-  }, [fetchPatients, fetchAppointments]);
+  }, [fetchPatients, fetchAppointments, patientsLoaded, appointmentsLoaded]);
 
   useEffect(() => {
     if (preselectedPatientId && patients.length > 0) {

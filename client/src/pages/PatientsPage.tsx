@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, History, FileText, UserPlus, X } from 'lucide-react';
+import { Users, History, FileText, UserPlus, X, RefreshCw } from 'lucide-react';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { AddPatientModal } from '../components/AddPatientModal';
 import { PatientRecordModal } from '../components/PatientRecordModal';
@@ -54,6 +54,7 @@ export const PatientsPage: React.FC = () => {
   const navigate = useNavigate();
   const patients = useAppStore((s) => s.patients);
   const loading = useAppStore((s) => s.loading);
+  const patientsLoaded = useAppStore((s) => s.patientsLoaded);
   const fetchPatients = useAppStore((s) => s.fetchPatients);
   const searchPatients = useAppStore((s) => s.searchPatients);
   const addPatient = useAppStore((s) => s.addPatient);
@@ -160,6 +161,13 @@ export const PatientsPage: React.FC = () => {
               className="w-72 px-4 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-500 bg-white"
             />
             <button
+              onClick={() => fetchPatients(undefined, true)}
+              title="Refresh patients"
+              className="inline-flex items-center justify-center w-9 h-9 bg-white border border-[#2563eb] text-[#2563eb] hover:bg-blue-50 rounded-md transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            <button
               onClick={() => setShowAddModal(true)}
               className="px-5 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm font-medium rounded-md transition-colors"
             >
@@ -179,7 +187,7 @@ export const PatientsPage: React.FC = () => {
             {filtered.length} patients
           </div>
 
-          {loading ? (
+          {loading || !patientsLoaded ? (
             <TableSkeleton rows={10} cols={8} />
           ) : (
           <>

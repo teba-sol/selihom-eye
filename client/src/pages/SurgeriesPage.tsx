@@ -1,41 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Eye, Search, Stethoscope, Activity, FileText, AlertCircle, Printer } from 'lucide-react';
-import { api } from '../lib/api';
+import { Eye, Search, Stethoscope, Activity, FileText, AlertCircle, Printer, RefreshCw } from 'lucide-react';
 import { downloadSurgeryDetailPdf } from '../lib/generatePdf';
-import { SURGERY_STATUSES, SURGERY_STATUS_LABELS } from '../lib/surgery';
+import { SURGERY_STATUSES, SURGERY_STATUS_LABELS, type SurgeryListItem } from '../lib/surgery';
 import { TableSkeleton } from '../components/LoadingSkeleton';
+import { useAppStore } from '../store/useAppStore';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
-
-export interface SurgeryListItem {
-  id: string;
-  encounterId: string;
-  patientId: string;
-  index: number;
-  type: string;
-  otherName: string;
-  eye: string;
-  dateOfSurgery: string;
-  surgeon: string;
-  status: 'PLANNED' | 'COMPLETED' | 'CANCELLED';
-  remarks: string | null;
-  showInDischarge: boolean;
-  details: {
-    type?: string;
-    otherName?: string;
-    status?: string;
-    plannedOn?: string;
-    completedOn?: string;
-    outcome?: string;
-    cancelledReason?: string;
-    unifiedDetails?: Record<string, unknown> | null;
-  } | null;
-  createdAt: string;
-  encounterDate: string;
-  patientName: string;
-  mrn: string;
-  doctorName: string;
-}
 
 const STATUS_COLORS: Record<SurgeryListItem['status'], string> = {
   PLANNED: 'bg-blue-100 text-blue-700',
@@ -255,44 +225,19 @@ function KeyMeasure({ label, value }: { label: string; value: string }) {
 }
 
 export const SurgeriesPage: React.FC = () => {
-  const [surgeries, setSurgeries] = useState<SurgeryListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const surgeries = useAppStore((s) => s.surgeries);
+  const surgeriesLoaded = useAppStore((s) => s.surgeriesLoaded);
+  const loading = useAppStore((s) => s.loading);
+  const fetchSurgeries = useAppStore((s) => s.fetchSurgeries);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [viewing, setViewing] = useState<SurgeryListItem | null>(null);
 
-  const fetchSurgeries = async () => {
-    try {
-      setLoading(true);
-      const data = await api.get<SurgeryListItem[]>('/clinical/surgeries');
-      console.log('Fetched surgeries:', data);
-      
-      // Log each surgery's details to debug
-      data?.forEach(s => {
-        console.log(`Surgery ${s.id}:`, {
-          type: s.type,
-          eye: s.eye,
-          surgeon: s.surgeon,
-          dateOfSurgery: s.dateOfSurgery,
-          details: s.details,
-          unifiedDetails: s.details?.unifiedDetails,
-        });
-      });
-      
-      setSurgeries(data ?? []);
-    } catch (error) {
-      console.error('Error fetching surgeries:', error);
-      setSurgeries([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     fetchSurgeries();
-  }, []);
+  }, [fetchSurgeries]);
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -381,11 +326,18 @@ export const SurgeriesPage: React.FC = () => {
         >
           Clear filters
         </button>
+        <button
+          onClick={() => fetchSurgeries(true)}
+          title="Refresh surgeries"
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-xl transition-all"
+        >
+          <RefreshCw className="w-4 h-4" /> Refresh
+        </button>
       </div>
 
       {/* Table */}
       <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/50 border border-slate-200/60 overflow-hidden">
-        {loading ? (
+        {loading || !surgeriesLoaded ? (
           <TableSkeleton rows={8} cols={10} />
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
