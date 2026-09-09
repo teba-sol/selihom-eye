@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, History, FileText, UserPlus, X, RefreshCw } from 'lucide-react';
+import { Users, History, FileText, UserPlus, X, RefreshCw, Loader2 } from 'lucide-react';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { AddPatientModal } from '../components/AddPatientModal';
 import { PatientRecordModal } from '../components/PatientRecordModal';
@@ -10,6 +10,7 @@ import { useEncounterStore } from '../store/useEncounterStore';
 import { formatDobEthiopian, formatAge, patientFullName, formatEthiopianDate } from '../lib/formatters';
 import { useToast } from '../lib/toast';
 import { TableSkeleton } from '../components/LoadingSkeleton';
+import { DraftResumeModal } from '../components/DraftResumeModal';
 import type { Patient } from '../store/useAppStore';
 
 import type { NavigateFunction } from 'react-router-dom';
@@ -59,10 +60,17 @@ export const PatientsPage: React.FC = () => {
   const searchPatients = useAppStore((s) => s.searchPatients);
   const addPatient = useAppStore((s) => s.addPatient);
   const startExam = useEncounterStore((s) => s.startExam);
+  const completedExamCounts = useAppStore((s) => s.completedExamCounts);
+  const completedCountsLoaded = useAppStore((s) => s.completedCountsLoaded);
+  const fetchCompletedExamCounts = useAppStore((s) => s.fetchCompletedExamCounts);
 
   useEffect(() => {
     fetchPatients();
   }, [fetchPatients]);
+
+  useEffect(() => {
+    fetchCompletedExamCounts();
+  }, [patients, fetchCompletedExamCounts]);
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -72,6 +80,9 @@ export const PatientsPage: React.FC = () => {
   const [paperRecordPatient, setPaperRecordPatient] = useState<Patient | null>(null);
   const [examHistoryPatient, setExamHistoryPatient] = useState<Patient | null>(null);
   const toast = useToast();
+
+  const [startingExamId, setStartingExamId] = useState<string | null>(null);
+  const [resumeDraft, setResumeDraft] = useState<{ patient: Patient; encounter: Record<string, any> } | null>(null);
 
   const filtered = useMemo(() => searchPatients(search), [search, searchPatients, patients]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -94,32 +105,8 @@ export const PatientsPage: React.FC = () => {
     toast.success('Import feature will connect to your file system.');
   };
 
-  const [completedExamCounts, setCompletedExamCounts] = useState<Map<string, number>>(new Map());
-
-  useEffect(() => {
-    if (!patients.length) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const { api } = await import('../lib/api');
-        const ids = patients.map((p) => p.id).join(',');
-        const rows = await api.get<Array<{ patientId: string; count: number }>>(
-          `/clinical/encounters/completed-counts?patientIds=${encodeURIComponent(ids)}`,
-        );
-        if (cancelled) return;
-        const counts = new Map<string, number>();
-        (rows ?? []).forEach((r) => counts.set(r.patientId, r.count));
-        setCompletedExamCounts(counts);
-      } catch {
-        if (!cancelled) setCompletedExamCounts(new Map());
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [patients]);
-
   const handleOpenExam = async (patient: Patient) => {
+    setStartingExamId(patient.id);
     try {
       const { api } = await import('../lib/api');
       const loadEncounterFromDb = useEncounterStore.getState().loadEncounterFromDb;
@@ -133,9 +120,15 @@ export const PatientsPage: React.FC = () => {
       const encounter = await api.post<any>('/clinical/encounter', {
         patientId: patient.id,
       });
+      if (encounter.resumed) {
+        setResumeDraft({ patient, encounter });
+        return;
+      }
       openExamForPatient(patient, encounter, startExam, loadEncounterFromDb, navigate);
     } catch {
       toast.error('Failed to start examination.');
+    } finally {
+      setStartingExamId(null);
     }
   };
 
@@ -161,7 +154,7 @@ export const PatientsPage: React.FC = () => {
               className="w-72 px-4 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-500 bg-white"
             />
             <button
-              onClick={() => fetchPatients(undefined, true)}
+              onClick={() => { fetchPatients(undefined, true); fetchCompletedExamCounts(true); }}
               title="Refresh patients"
               className="inline-flex items-center justify-center w-9 h-9 bg-white border border-[#2563eb] text-[#2563eb] hover:bg-blue-50 rounded-md transition-colors"
             >
@@ -207,8 +200,8 @@ export const PatientsPage: React.FC = () => {
               </thead>
               <tbody>
                 {paginated.map((p, idx) => {
-                    const completedExamCount = completedExamCounts.get(p.id) ?? 0;
-                    const isNewPatient = completedExamCount === 0;
+                    const completedExamCount = completedExamCounts[p.id] ?? 0;
+                    const isNewPatient = completedCountsLoaded ? completedExamCount === 0 : false;
                     return (
                   <tr
                     key={p.id}
@@ -237,7 +230,7 @@ export const PatientsPage: React.FC = () => {
                           className="flex items-center gap-1.5 text-[#2563eb] hover:underline text-xs"
                         >
                           <History className="w-3.5 h-3.5" />
-                          Past exams ({completedExamCount})
+                          Past exams
                         </button>
                         <button
                           onClick={() => setPaperRecordPatient(p)}
@@ -248,10 +241,15 @@ export const PatientsPage: React.FC = () => {
                         </button>
                         <button
                           onClick={() => handleOpenExam(p)}
-                          className="text-[#2563eb] hover:text-[#1d4ed8]"
+                          disabled={startingExamId !== null}
+                          className="text-[#2563eb] hover:text-[#1d4ed8] disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Start examination"
                         >
-                          <UserPlus className="w-4 h-4" />
+                          {startingExamId === p.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <UserPlus className="w-4 h-4" />
+                          )}
                         </button>
                       </div>
 </td>
@@ -346,6 +344,18 @@ export const PatientsPage: React.FC = () => {
           patient={examHistoryPatient}
           onClose={() => setExamHistoryPatient(null)}
           onCreateExam={() => { setExamHistoryPatient(null); handleOpenExam(examHistoryPatient); }}
+        />
+      )}
+
+      {resumeDraft && (
+        <DraftResumeModal
+          patientName={patientFullName(resumeDraft.patient)}
+          onCancel={() => setResumeDraft(null)}
+          onContinue={() => {
+            const loadEncounterFromDb = useEncounterStore.getState().loadEncounterFromDb;
+            openExamForPatient(resumeDraft.patient, resumeDraft.encounter, startExam, loadEncounterFromDb, navigate);
+            setResumeDraft(null);
+          }}
         />
       )}
     </DashboardLayout>

@@ -143,10 +143,14 @@ interface AppState {
   patientsFetchedAt: number | null;
   appointmentsFetchedAt: number | null;
   surgeriesFetchedAt: number | null;
+  completedExamCounts: Record<string, number>;
+  completedCountsFetchedAt: number | null;
+  completedCountsLoaded: boolean;
 
   fetchPatients: (query?: string, force?: boolean) => Promise<void>;
   fetchAppointments: (from?: string, to?: string, force?: boolean) => Promise<void>;
   fetchSurgeries: (force?: boolean) => Promise<void>;
+  fetchCompletedExamCounts: (force?: boolean) => Promise<void>;
 
   addPatient: (patient: Omit<Patient, 'id'>) => Promise<void>;
   searchPatients: (query: string) => Patient[];
@@ -169,6 +173,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   patientsFetchedAt: null,
   appointmentsFetchedAt: null,
   surgeriesFetchedAt: null,
+  completedExamCounts: {},
+  completedCountsFetchedAt: null,
+  completedCountsLoaded: false,
 
   fetchPatients: async (query?: string, force = false) => {
     if (query) {
@@ -193,15 +200,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
 
-    const { patients, patientsFetchedAt } = get();
+    const { patients, patientsFetchedAt, patientsLoaded } = get();
+    const hasFullList = patients.length > 0 && patientsLoaded;
     const cached =
-      patients.length > 0 &&
+      hasFullList &&
       patientsFetchedAt !== null &&
       !force &&
       Date.now() - patientsFetchedAt < STALE_MS;
     if (cached) return;
 
-    set({ loading: true });
+    // Revalidate in the background once a full list already exists so revisits
+    // don't flash a skeleton; only a true first load shows one.
+    if (!hasFullList) set({ loading: true });
     try {
       const data = await api.get<ApiPatient[]>('/patients');
       const patients = data.map(mapPatient);
@@ -223,6 +233,36 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
     } catch {
       set({ loading: false });
+    }
+  },
+
+  fetchCompletedExamCounts: async (force = false) => {
+    const { patients, completedCountsFetchedAt, completedCountsLoaded } = get();
+    if (!patients.length) return;
+
+    const cached =
+      completedCountsLoaded &&
+      !force &&
+      completedCountsFetchedAt !== null &&
+      Date.now() - completedCountsFetchedAt < STALE_MS;
+    if (cached) return;
+
+    try {
+      const ids = patients.map((p) => p.id).join(',');
+      const rows = await api.get<Array<{ patientId: string; count: number }>>(
+        `/clinical/encounters/completed-counts?patientIds=${encodeURIComponent(ids)}`,
+      );
+      const counts: Record<string, number> = {};
+      (rows ?? []).forEach((r) => {
+        counts[r.patientId] = r.count;
+      });
+      set({
+        completedExamCounts: counts,
+        completedCountsLoaded: true,
+        completedCountsFetchedAt: Date.now(),
+      });
+    } catch {
+      // Keep the previous map — counts can be revalidated on a later visit.
     }
   },
 

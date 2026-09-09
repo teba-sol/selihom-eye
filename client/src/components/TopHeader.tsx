@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEncounterStore } from '../store/useEncounterStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { ShieldCheck, LogOut, Download } from 'lucide-react';
+import { ShieldCheck, LogOut, Download, ArrowLeft } from 'lucide-react';
 import { downloadEncounterPdf } from '../lib/generatePdf';
 
 export const TopHeader: React.FC = () => {
@@ -25,6 +25,14 @@ export const TopHeader: React.FC = () => {
       {/* Top Navbar */}
       <div className="flex items-center justify-between px-6 py-2.5 border-b border-slate-700/60">
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/patients')}
+            title="Back to patients"
+            className="flex items-center gap-1.5 bg-slate-800/80 hover:bg-slate-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md transition-colors border border-slate-700"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Patients
+          </button>
           <span className="text-xl font-black tracking-wider text-teal-400 font-mono">SELIHOME</span>
           <span className="text-xs bg-teal-900/80 text-teal-200 px-2 py-0.5 rounded-full border border-teal-500/40">
             EMR Clinic Engine

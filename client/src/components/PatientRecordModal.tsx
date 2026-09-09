@@ -1,7 +1,7 @@
 import React, { useEffect, useCallback, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  X, Eye, Calendar, Printer, Plus, Loader2, ChevronDown, ChevronRight,
+  X, Eye, Calendar, Printer, Plus, Loader2, ChevronDown, ChevronRight, Trash2,
   Stethoscope, Glasses, Pill, Activity, AlertTriangle, CalendarDays,
 } from 'lucide-react';
 import type { Patient } from '../store/useAppStore';
@@ -10,6 +10,7 @@ import { Field } from './ExamDetails';
 import { formatDobEthiopian, formatAge, formatEthiopianDate } from '../lib/formatters';
 import { usePatientRecordData, type ExamHistoryEntry } from '../hooks/usePatientRecordData';
 import { fmtDate, humanize, StatusBadge, SummaryChips, doctorName, parseAddendums, statusLabel } from '../lib/examHistory';
+import { useToast } from '../lib/toast';
 import {
   bestDistVa, resolveSurgeries, getMedications, getActiveAllergies, opticalSummary, visitHasData,
 } from '../lib/patientRecordSummary';
@@ -268,6 +269,23 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
   const navigate = useNavigate();
   const record = usePatientRecordData(patient.id);
   const getSnapshot = record.getSnapshot;
+  const toast = useToast();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDeleteDraft = async (entry: ExamHistoryEntry) => {
+    if (!window.confirm('Delete this draft examination? This cannot be undone.')) return;
+    setDeletingId(entry.id);
+    try {
+      const { api } = await import('../lib/api');
+      await api.delete(`/clinical/encounter/${entry.id}`);
+      toast.success('Draft examination deleted.');
+      record.refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Failed to delete the draft examination.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   useEffect(() => {
     if (!record.loading) record.preloadSnapshots();
@@ -483,12 +501,22 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
                         {inProgress[0].appointmentReason || 'Examination'}
                       </p>
                     </div>
-                    <button
-                      onClick={() => openExam(inProgress[0].id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-lg text-xs font-semibold transition-colors shrink-0"
-                    >
-                      <Eye className="w-3.5 h-3.5"/> Continue examination
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleDeleteDraft(inProgress[0])}
+                        disabled={deletingId === inProgress[0].id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 border border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-semibold transition-colors shrink-0 disabled:opacity-50"
+                      >
+                        {deletingId === inProgress[0].id ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Trash2 className="w-3.5 h-3.5"/>}
+                        Delete draft
+                      </button>
+                      <button
+                        onClick={() => openExam(inProgress[0].id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-lg text-xs font-semibold transition-colors shrink-0"
+                      >
+                        <Eye className="w-3.5 h-3.5"/> Continue examination
+                      </button>
+                    </div>
                   </div>
                 )}
 

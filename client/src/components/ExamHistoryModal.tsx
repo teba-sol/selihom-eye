@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, History, Plus, Loader2, ExternalLink, Pencil } from 'lucide-react';
+import { X, History, Plus, Loader2, ExternalLink, Pencil, Trash2 } from 'lucide-react';
 import type { Patient } from '../store/useAppStore';
 import { formatAge } from '../lib/formatters';
 import { usePatientRecordData, type ExamHistoryEntry } from '../hooks/usePatientRecordData';
 import { fmtDate, StatusBadge, SummaryChips, doctorName, parseAddendums } from '../lib/examHistory';
+import { useToast } from '../lib/toast';
 
 interface ExamHistoryModalProps {
   patient: Patient;
@@ -16,10 +17,12 @@ export function isCompletedExam(entry: ExamHistoryEntry): boolean {
   return entry.isLocked || entry.appointmentStatus === 'COMPLETED';
 }
 
-function ExamRow({ entry, action, onAction }: {
+function ExamRow({ entry, action, onAction, onDelete, deleting }: {
   entry: ExamHistoryEntry;
   action: 'view' | 'continue';
   onAction: () => void;
+  onDelete?: () => void;
+  deleting?: boolean;
 }) {
   return (
     <div className="border border-slate-200 rounded-xl overflow-hidden mb-3 hover:border-slate-300 transition-colors">
@@ -43,20 +46,29 @@ function ExamRow({ entry, action, onAction }: {
           </p>
           <SummaryChips entry={entry}/>
         </div>
-        <button onClick={onAction}
-          className="ml-3 mt-0.5 shrink-0 flex items-center gap-1.5 text-xs font-semibold text-[#2563eb] hover:underline">
-          {action === 'view' ? (
-            <>
-              View exam
-              <ExternalLink className="w-3.5 h-3.5"/>
-            </>
-          ) : (
-            <>
-              Continue examination
-              <Pencil className="w-3.5 h-3.5"/>
-            </>
+        <div className="ml-3 mt-0.5 shrink-0 flex items-center gap-3">
+          {onDelete && (
+            <button onClick={onDelete}
+              className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:underline">
+              {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Trash2 className="w-3.5 h-3.5"/>}
+              {deleting ? 'Deleting…' : 'Delete draft'}
+            </button>
           )}
-        </button>
+          <button onClick={onAction}
+            className="flex items-center gap-1.5 text-xs font-semibold text-[#2563eb] hover:underline">
+            {action === 'view' ? (
+              <>
+                View exam
+                <ExternalLink className="w-3.5 h-3.5"/>
+              </>
+            ) : (
+              <>
+                Continue examination
+                <Pencil className="w-3.5 h-3.5"/>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -65,9 +77,26 @@ function ExamRow({ entry, action, onAction }: {
 export const ExamHistoryModal: React.FC<ExamHistoryModalProps> = ({ patient, onClose, onCreateExam }) => {
   const navigate = useNavigate();
   const record = usePatientRecordData(patient.id);
+  const toast = useToast();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const completed = record.history.filter(isCompletedExam);
   const current = record.history.filter((e) => !isCompletedExam(e));
+
+  const handleDelete = async (entry: ExamHistoryEntry) => {
+    if (!window.confirm('Delete this draft examination? This cannot be undone.')) return;
+    setDeletingId(entry.id);
+    try {
+      const { api } = await import('../lib/api');
+      await api.delete(`/clinical/encounter/${entry.id}`);
+      toast.success('Draft examination deleted.');
+      record.refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Failed to delete the draft examination.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -133,6 +162,8 @@ export const ExamHistoryModal: React.FC<ExamHistoryModalProps> = ({ patient, onC
                       entry={entry}
                       action="continue"
                       onAction={() => navigate(`/exam/${entry.id}`)}
+                      onDelete={() => handleDelete(entry)}
+                      deleting={deletingId === entry.id}
                     />
                   ))}
                 </div>

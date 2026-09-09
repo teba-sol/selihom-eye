@@ -5,7 +5,7 @@ const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
 function postSuccessMessage(url: string): string {
   if (url.includes('/auth/login')) return '';
-  if (url.includes('/clinical/encounter')) return 'Examination saved successfully';
+  if (url.includes('/clinical/encounter')) return 'Examination started successfully';
   if (url.includes('/optical-orders')) return 'Order placed successfully';
   if (url.includes('/patients')) return 'Patient registered successfully';
   if (url.includes('/appointments')) return 'Appointment booked successfully';

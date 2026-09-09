@@ -191,6 +191,7 @@ export class ClinicalService {
     }
 
     // Walk-in safety net
+    let resumed = false;
     if (!existing && !dto.encounterId && !appointmentId) {
       const [active] = await this.db
         .select()
@@ -201,7 +202,10 @@ export class ClinicalService {
         ))
         .orderBy(desc(clinicalEncounters.createdAt))
         .limit(1);
-      if (active) existing = active;
+      if (active) {
+        existing = active;
+        resumed = true;
+      }
     }
 
     if (existing && existing.isLocked) {
@@ -377,7 +381,8 @@ export class ClinicalService {
       return id;
     });
 
-    return this.hydrate(encounterId);
+    const hydrated = await this.hydrate(encounterId);
+    return hydrated ? { ...hydrated, resumed } : null;
   }
 
   async lockEncounter(id: string) {

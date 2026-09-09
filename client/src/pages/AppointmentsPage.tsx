@@ -10,6 +10,7 @@ import { useToast } from '../lib/toast';
 import { buildAppointmentTime } from '../lib/encounterDefaults';
 import type { Appointment, Patient } from '../store/useAppStore';
 import { TableSkeleton } from '../components/LoadingSkeleton';
+import { DraftResumeModal } from '../components/DraftResumeModal';
 
 type CalendarView = 'day' | 'week' | 'month';
 
@@ -83,6 +84,16 @@ export const AppointmentsPage: React.FC = () => {
   const [consentChecked, setConsentChecked] = useState(true);
   const toast = useToast();
 
+  const [starting, setStarting] = useState(false);
+  const [resumeDraft, setResumeDraft] = useState<{
+    patient: Patient;
+    encounter: Record<string, any>;
+    appointmentId: string;
+    appointmentTime: string;
+    reason: string;
+    consent: boolean;
+  } | null>(null);
+
   const preselectedPatientId = searchParams.get('patientId') || '';
 
   const [bookForm, setBookForm] = useState({
@@ -142,6 +153,7 @@ export const AppointmentsPage: React.FC = () => {
 
     updateAppointment(selectedApt.id, { consentObtained: consentChecked, status: 'in_exam' });
 
+    setStarting(true);
     try {
       const { api } = await import('../lib/api');
       const encounter = await api.post<any>('/clinical/encounter', {
@@ -150,19 +162,34 @@ export const AppointmentsPage: React.FC = () => {
         reasonForVisit: { selectedReason: selectedApt.reason || '', remarks: '', showInDischarge: false },
       });
 
+      const appointmentTime = buildAppointmentTime(selectedApt.date, selectedApt.startTime);
+      const reason = selectedApt.reason || '';
+
+      if (encounter.resumed) {
+        setResumeDraft({
+          patient,
+          encounter,
+          appointmentId: selectedApt.id,
+          appointmentTime,
+          reason,
+          consent: consentChecked,
+        });
+        return;
+      }
+
       startExam({
         encounterId: encounter.id,
         appointmentId: selectedApt.id,
         consentObtained: consentChecked,
-        reasonForVisit: selectedApt.reason || '',
+        reasonForVisit: reason,
         patient: {
           id: patient.id,
           mrn: patient.mrn || patient.id,
           name: `${patient.firstName} ${patient.lastName}`,
           age: formatAge(patient.dateOfBirth),
           gender: patient.gender || '',
-          appointmentTime: buildAppointmentTime(selectedApt.date, selectedApt.startTime),
-          reasonForVisit: selectedApt.reason || '',
+          appointmentTime,
+          reasonForVisit: reason,
         },
       });
 
@@ -170,6 +197,8 @@ export const AppointmentsPage: React.FC = () => {
       navigate(`/exam/${encounter.id}`);
     } catch {
       setSelectedApt(null);
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -438,10 +467,10 @@ export const AppointmentsPage: React.FC = () => {
             <div className="space-y-2">
               <button
                 onClick={handleStartTest}
-                disabled={!consentChecked}
+                disabled={!consentChecked || starting}
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-md transition-colors"
               >
-                Start test
+                {starting ? 'Starting…' : 'Start test'}
               </button>
               <button
                 onClick={handleReschedule}
@@ -458,6 +487,34 @@ export const AppointmentsPage: React.FC = () => {
             </div>
           </div>
         </>
+      )}
+
+      {resumeDraft && (
+        <DraftResumeModal
+          patientName={`${resumeDraft.patient.firstName} ${resumeDraft.patient.lastName}`.trim()}
+          onCancel={() => setResumeDraft(null)}
+          onContinue={() => {
+            const rd = resumeDraft;
+            startExam({
+              encounterId: rd.encounter.id,
+              appointmentId: rd.appointmentId,
+              consentObtained: rd.consent,
+              reasonForVisit: rd.reason,
+              patient: {
+                id: rd.patient.id,
+                mrn: rd.patient.mrn || rd.patient.id,
+                name: `${rd.patient.firstName} ${rd.patient.lastName}`,
+                age: formatAge(rd.patient.dateOfBirth),
+                gender: rd.patient.gender || '',
+                appointmentTime: rd.appointmentTime,
+                reasonForVisit: rd.reason,
+              },
+            });
+            setResumeDraft(null);
+            setSelectedApt(null);
+            navigate(`/exam/${rd.encounter.id}`);
+          }}
+        />
       )}
 
       {showBookModal && (
