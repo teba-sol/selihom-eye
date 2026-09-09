@@ -157,11 +157,15 @@ export const AppointmentsPage: React.FC = () => {
     setStarting(true);
     try {
       const { api } = await import('../lib/api');
-      const encounter = await api.post<any>('/clinical/encounter', {
-        patientId: patient.id,
-        appointmentId: selectedApt.id,
-        reasonForVisit: { selectedReason: selectedApt.reason || '', remarks: '', showInDischarge: false },
-      });
+      const encounter = await api.post<any>(
+        '/clinical/encounter',
+        {
+          patientId: patient.id,
+          appointmentId: selectedApt.id,
+          reasonForVisit: { selectedReason: selectedApt.reason || '', remarks: '', showInDischarge: false },
+        },
+        { toast: false },
+      );
 
       const appointmentTime = buildAppointmentTime(selectedApt.date, selectedApt.startTime);
       const reason = selectedApt.reason || '';
@@ -177,6 +181,8 @@ export const AppointmentsPage: React.FC = () => {
         });
         return;
       }
+
+      toast.success('Examination started successfully.');
 
       startExam({
         encounterId: encounter.id,

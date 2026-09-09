@@ -53,10 +53,10 @@ export class ClinicalService {
       ];
     }
 
+    if (list.length === 0) return;
+
     // Delete existing surgeries for this encounter
     await tx.delete(surgicalProcedures).where(eq(surgicalProcedures.encounterId, encounterId));
-
-    if (list.length === 0) return;
 
     // Build rows for insertion
     const rows = list.map((s: any, i: number) => {
@@ -112,29 +112,30 @@ export class ClinicalService {
 
     if (!encounter) return null;
 
-    const refractions = await this.db
-      .select()
-      .from(refractionRecords)
-      .where(eq(refractionRecords.encounterId, encounter.id));
+    const [refractions, canvasArr, patientArr, surgeries] = await Promise.all([
+      this.db
+        .select()
+        .from(refractionRecords)
+        .where(eq(refractionRecords.encounterId, encounter.id)),
+      this.db
+        .select()
+        .from(ocularCanvases)
+        .where(eq(ocularCanvases.encounterId, encounter.id))
+        .limit(1),
+      this.db
+        .select()
+        .from(patients)
+        .where(eq(patients.id, encounter.patientId))
+        .limit(1),
+      this.db
+        .select()
+        .from(surgicalProcedures)
+        .where(eq(surgicalProcedures.encounterId, encounterId))
+        .orderBy(surgicalProcedures.index),
+    ]);
 
-    const [canvas] = await this.db
-      .select()
-      .from(ocularCanvases)
-      .where(eq(ocularCanvases.encounterId, encounter.id))
-      .limit(1);
-
-    const [patient] = await this.db
-      .select()
-      .from(patients)
-      .where(eq(patients.id, encounter.patientId))
-      .limit(1);
-
-    // Get surgeries for this encounter
-    const surgeries = await this.db
-      .select()
-      .from(surgicalProcedures)
-      .where(eq(surgicalProcedures.encounterId, encounterId))
-      .orderBy(surgicalProcedures.index);
+    const canvas = canvasArr[0] ?? null;
+    const patient = patientArr[0] ?? null;
 
     return {
       ...encounter,
@@ -233,6 +234,7 @@ export class ClinicalService {
       };
     }
 
+    let inserted = false;
     const encounterId = await this.db.transaction(async (tx) => {
       let id = existing?.id;
 
@@ -273,7 +275,7 @@ export class ClinicalService {
 
         id = updated.id;
       } else {
-        const [inserted] = await tx
+        const [insertedRow] = await tx
           .insert(clinicalEncounters)
           .values({
             appointmentId: dto.appointmentId,
@@ -307,7 +309,8 @@ export class ClinicalService {
           })
           .returning();
 
-        id = inserted.id;
+        id = insertedRow.id;
+        inserted = true;
 
         if (appointmentId) {
           await tx
@@ -378,10 +381,50 @@ export class ClinicalService {
       // Sync surgeries with unifiedDetails
       await this.syncSurgeries(tx, id, doctorUserId, dto.patientId, appointmentId, dto);
 
-      return id;
+      return { id, inserted };
     });
 
-    const hydrated = await this.hydrate(encounterId);
+    // Fast paths: a brand-new encounter or an autosave/update needs no hydrate —
+    // there is nothing to load yet, and [EncounterStore.saveEncounter] discards
+    // the response body for touched-path saves. Only resume paths (existing
+    // draft picked up via patientId/appointmentId) must return the full payload.
+    if (inserted) {
+      const [patient] = await this.db
+        .select()
+        .from(patients)
+        .where(eq(patients.id, dto.patientId))
+        .limit(1);
+      return {
+        id: encounterId.id,
+        patient: patient
+          ? {
+              id: patient.id,
+              mrn: patient.mrn,
+              firstName: patient.firstName,
+              lastName: patient.lastName,
+              grandfatherName: patient.grandfatherName,
+              gender: patient.gender,
+              dob: patient.dob,
+            }
+          : null,
+        refractions: [],
+        canvas: null,
+        surgeries: [],
+        resumed: false,
+      };
+    }
+
+    if (dto.encounterId && existing) {
+      return {
+        id: encounterId.id,
+        resumed: false,
+        refractions: [],
+        canvas: null,
+        surgeries: [],
+      };
+    }
+
+    const hydrated = await this.hydrate(encounterId.id);
     return hydrated ? { ...hydrated, resumed } : null;
   }
 

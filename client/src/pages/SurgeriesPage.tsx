@@ -4,6 +4,7 @@ import { downloadSurgeryDetailPdf } from '../lib/generatePdf';
 import { SURGERY_STATUSES, SURGERY_STATUS_LABELS, type SurgeryListItem } from '../lib/surgery';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import { useAppStore } from '../store/useAppStore';
+import { DashboardLayout } from '../components/layout/DashboardLayout';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
@@ -279,6 +280,7 @@ export const SurgeriesPage: React.FC = () => {
   };
 
   return (
+    <DashboardLayout>
     <div className="p-6 bg-gradient-to-br from-slate-50 to-white min-h-full">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
@@ -550,5 +552,6 @@ export const SurgeriesPage: React.FC = () => {
         </div>
       )}
     </div>
+    </DashboardLayout>
   );
 };

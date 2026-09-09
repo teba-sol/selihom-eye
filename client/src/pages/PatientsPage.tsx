@@ -118,13 +118,16 @@ export const PatientsPage: React.FC = () => {
       // one open encounter, and its response is the fully hydrated exam. The
       // response hydrates the store directly, so the exam screen opens with no
       // additional fetch (no delay) and preserves any existing reason/data.
-      const encounter = await api.post<any>('/clinical/encounter', {
-        patientId: patient.id,
-      });
+      const encounter = await api.post<any>(
+        '/clinical/encounter',
+        { patientId: patient.id },
+        { toast: false },
+      );
       if (isResumedDraft(encounter)) {
         setResumeDraft({ patient, encounter });
         return;
       }
+      toast.success('Examination started successfully.');
       openExamForPatient(patient, encounter, startExam, loadEncounterFromDb, navigate);
     } catch {
       toast.error('Failed to start examination.');
