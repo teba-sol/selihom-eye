@@ -6,6 +6,7 @@ import { formatAge } from '../lib/formatters';
 import { usePatientRecordData, type ExamHistoryEntry } from '../hooks/usePatientRecordData';
 import { fmtDate, StatusBadge, SummaryChips, doctorName, parseAddendums } from '../lib/examHistory';
 import { useToast } from '../lib/toast';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface ExamHistoryModalProps {
   patient: Patient;
@@ -79,12 +80,12 @@ export const ExamHistoryModal: React.FC<ExamHistoryModalProps> = ({ patient, onC
   const record = usePatientRecordData(patient.id);
   const toast = useToast();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<ExamHistoryEntry | null>(null);
 
   const completed = record.history.filter(isCompletedExam);
   const current = record.history.filter((e) => !isCompletedExam(e));
 
   const handleDelete = async (entry: ExamHistoryEntry) => {
-    if (!window.confirm('Delete this draft examination? This cannot be undone.')) return;
     setDeletingId(entry.id);
     try {
       const { api } = await import('../lib/api');
@@ -95,6 +96,7 @@ export const ExamHistoryModal: React.FC<ExamHistoryModalProps> = ({ patient, onC
       toast.error(e?.message ?? 'Failed to delete the draft examination.');
     } finally {
       setDeletingId(null);
+      setConfirmDelete(null);
     }
   };
 
@@ -162,7 +164,7 @@ export const ExamHistoryModal: React.FC<ExamHistoryModalProps> = ({ patient, onC
                       entry={entry}
                       action="continue"
                       onAction={() => navigate(`/exam/${entry.id}`)}
-                      onDelete={() => handleDelete(entry)}
+                      onDelete={() => setConfirmDelete(entry)}
                       deleting={deletingId === entry.id}
                     />
                   ))}
@@ -172,6 +174,25 @@ export const ExamHistoryModal: React.FC<ExamHistoryModalProps> = ({ patient, onC
           )}
         </div>
       </div>
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Delete draft examination?"
+          message={
+            <>
+              This will permanently remove the draft examination for{' '}
+              <span className="font-semibold">
+                {patient.firstName} {patient.lastName}
+              </span>{' '}
+              dated {fmtDate(confirmDelete.appointmentDate ?? confirmDelete.createdAt)}.
+              This cannot be undone.
+            </>
+          }
+          busy={deletingId === confirmDelete.id}
+          onConfirm={() => handleDelete(confirmDelete)}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
     </div>
   );
 };

@@ -11,6 +11,7 @@ import { buildAppointmentTime } from '../lib/encounterDefaults';
 import type { Appointment, Patient } from '../store/useAppStore';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import { DraftResumeModal } from '../components/DraftResumeModal';
+import { isResumedDraft } from '../lib/draftResume';
 
 type CalendarView = 'day' | 'week' | 'month';
 
@@ -165,7 +166,7 @@ export const AppointmentsPage: React.FC = () => {
       const appointmentTime = buildAppointmentTime(selectedApt.date, selectedApt.startTime);
       const reason = selectedApt.reason || '';
 
-      if (encounter.resumed) {
+      if (isResumedDraft(encounter)) {
         setResumeDraft({
           patient,
           encounter,

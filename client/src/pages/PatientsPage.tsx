@@ -11,6 +11,7 @@ import { formatDobEthiopian, formatAge, patientFullName, formatEthiopianDate } f
 import { useToast } from '../lib/toast';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import { DraftResumeModal } from '../components/DraftResumeModal';
+import { isResumedDraft } from '../lib/draftResume';
 import type { Patient } from '../store/useAppStore';
 
 import type { NavigateFunction } from 'react-router-dom';
@@ -120,7 +121,7 @@ export const PatientsPage: React.FC = () => {
       const encounter = await api.post<any>('/clinical/encounter', {
         patientId: patient.id,
       });
-      if (encounter.resumed) {
+      if (isResumedDraft(encounter)) {
         setResumeDraft({ patient, encounter });
         return;
       }

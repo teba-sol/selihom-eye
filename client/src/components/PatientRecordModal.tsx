@@ -11,6 +11,7 @@ import { formatDobEthiopian, formatAge, formatEthiopianDate } from '../lib/forma
 import { usePatientRecordData, type ExamHistoryEntry } from '../hooks/usePatientRecordData';
 import { fmtDate, humanize, StatusBadge, SummaryChips, doctorName, parseAddendums, statusLabel } from '../lib/examHistory';
 import { useToast } from '../lib/toast';
+import { ConfirmDialog } from './ConfirmDialog';
 import {
   bestDistVa, resolveSurgeries, getMedications, getActiveAllergies, opticalSummary, visitHasData,
 } from '../lib/patientRecordSummary';
@@ -271,9 +272,9 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
   const getSnapshot = record.getSnapshot;
   const toast = useToast();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<ExamHistoryEntry | null>(null);
 
   const handleDeleteDraft = async (entry: ExamHistoryEntry) => {
-    if (!window.confirm('Delete this draft examination? This cannot be undone.')) return;
     setDeletingId(entry.id);
     try {
       const { api } = await import('../lib/api');
@@ -284,6 +285,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
       toast.error(e?.message ?? 'Failed to delete the draft examination.');
     } finally {
       setDeletingId(null);
+      setConfirmDelete(null);
     }
   };
 
@@ -503,7 +505,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
-                        onClick={() => handleDeleteDraft(inProgress[0])}
+                        onClick={() => setConfirmDelete(inProgress[0])}
                         disabled={deletingId === inProgress[0].id}
                         className="flex items-center gap-1.5 px-3 py-1.5 border border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-semibold transition-colors shrink-0 disabled:opacity-50"
                       >
@@ -574,6 +576,24 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
           )}
         </div>
       </div>
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Delete draft examination?"
+          message={
+            <>
+              This will permanently remove the in-progress examination for{' '}
+              <span className="font-semibold">
+                {patient.firstName} {patient.lastName}
+              </span>
+              . This cannot be undone.
+            </>
+          }
+          busy={deletingId === confirmDelete.id}
+          onConfirm={() => handleDeleteDraft(confirmDelete)}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
     </div>
   );
 };
