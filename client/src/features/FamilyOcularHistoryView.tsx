@@ -8,7 +8,7 @@ const DEFAULT_FLAGS = {
   sibling: false,
   grandparent: false,
   remarks: '',
-  showInDischarge: false,
+  showInDischarge: true,
 };
 
 export const FamilyOcularHistoryView: React.FC = () => {

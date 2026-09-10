@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEncounterStore } from '../store/useEncounterStore';
+import { readDraft } from '../lib/draft';
 import { formatAge, patientFullName } from '../lib/formatters';
 
 function makePatient(data: any): EncounterPatient {
@@ -41,6 +42,7 @@ export function useExamLoader() {
   const dataLoaded = useEncounterStore((s) => s.dataLoaded);
   const startExam = useEncounterStore((s) => s.startExam);
   const loadEncounterFromDb = useEncounterStore((s) => s.loadEncounterFromDb);
+  const loadDraftData = useEncounterStore((s) => s.loadDraftData);
   const inFlight = useRef(false);
 
   useEffect(() => {
@@ -56,6 +58,7 @@ export function useExamLoader() {
     inFlight.current = true;
 
     const load = async () => {
+      const store = () => useEncounterStore.getState();
       try {
         const { api } = await import('../lib/api');
         const data = await api.get<any>(`/clinical/encounter/${encounterId}`);
@@ -64,16 +67,27 @@ export function useExamLoader() {
           return;
         }
         const patient = makePatient(data);
-        startExam({
+        store().startExam({
           encounterId,
           appointmentId: data.appointmentId ?? null,
           consentObtained: false,
           reasonForVisit: patient.reasonForVisit,
           patient,
         });
-        loadEncounterFromDb(data);
+
+        // Locked encounters are read-only: never let a local draft override them.
         if (data.isLocked) {
-          useEncounterStore.getState().markExamFinalized(encounterId);
+          store().loadEncounterFromDb(data);
+          store().markExamFinalized(encounterId);
+          return;
+        }
+
+        const draft = readDraft(encounterId);
+        const backendTs = data.updatedAt ? new Date(data.updatedAt).getTime() : 0;
+        if (draft && draft.savedAt > backendTs) {
+          store().loadDraftData(draft.data, draft.savedAt);
+        } else {
+          store().loadEncounterFromDb(data);
         }
       } catch {
         navigate('/patients', { replace: true });
@@ -89,5 +103,6 @@ export function useExamLoader() {
     navigate,
     startExam,
     loadEncounterFromDb,
+    loadDraftData,
   ]);
 }

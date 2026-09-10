@@ -76,7 +76,7 @@ const defaultRx = (): Record<string, RxRow> => ({
 });
 
 const DEFAULT_FSP: FspData = {
-  vaType: 'Snellan', ipd: '', bvd: '', remarks: '', showInDischarge: false,
+  vaType: 'Snellan', ipd: '', bvd: '', remarks: '', showInDischarge: true,
   rx: defaultRx(),
 };
 

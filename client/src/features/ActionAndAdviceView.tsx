@@ -77,14 +77,14 @@ const DEFAULT_ACTION_AND_ADVICE: ActionAndAdviceData = {
   surgeryOther: '',
   surgeryRemarks: '',
   surgeries: [],
-  referral: 'Referral to Ophthalmologist',
+  referral: 'None',
   urgency: 'Soon (2 - 4 weeks)',
   medicationName: '',
   medicationFreq: 'None',
-  spectacleRecommendation: 'Not Recommended / Trial Frame Only',
-  followUpPeriod: '6 months',
+  spectacleRecommendation: 'Select...',
+  followUpPeriod: 'Select...',
   remarks: '',
-  showInDischarge: false,
+  showInDischarge: true,
 };
 
 // Back-compat: very old exams stored a single surgery in flat fields (surgeryType/surgeryOther/...).
@@ -126,7 +126,6 @@ export const ActionAndAdviceView: React.FC = () => {
   const f = Object.assign({}, DEFAULT_ACTION_AND_ADVICE, sectionData['action-and-advice'] ?? {}) as ActionAndAdviceData;
   
   const patch = (p: Partial<ActionAndAdviceData>) => {
-    console.log('🟡 Patching ActionAndAdvice:', p);
     setSectionData('action-and-advice', { ...f, ...p });
   };
   
@@ -135,15 +134,8 @@ export const ActionAndAdviceView: React.FC = () => {
   
   // Handle surgery changes - this is the key function that saves data
   const onSurgeriesChange = (list: SurgeryEntry[]) => {
-    console.log('🟢 Surgeries changed in ActionAndAdvice:', list);
-    // Log the unifiedDetails to verify they're present
-    list.forEach((s, i) => {
-      console.log(`🟢 Surgery ${i} unifiedDetails:`, s.unifiedDetails);
-    });
-    
     // Update the store with the new surgeries list
     const legacyPatch = mirrorLegacy(list);
-    console.log('🟢 Legacy patch:', legacyPatch);
     patch(legacyPatch);
   };
   

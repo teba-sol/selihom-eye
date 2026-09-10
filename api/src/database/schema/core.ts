@@ -1,5 +1,6 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, boolean, integer } from 'drizzle-orm/pg-core';
 import { userRoleEnum, appointmentStatusEnum } from './enums';
+import { clinicalEncounters } from './clinical';
 
 // 1. Staff Accounts (Receptionist and Doctor)
 export const users = pgTable('users', {
@@ -48,11 +49,17 @@ export const appointments = pgTable('appointments', {
   startTime: varchar('start_time', { length: 10 }),
   endTime: varchar('end_time', { length: 10 }),
   reason: varchar('reason', { length: 255 }),
-  status: appointmentStatusEnum('status').default('CHECKED_IN').notNull(),
+  status: appointmentStatusEnum('status').default('SCHEDULED').notNull(),
 
-  // Informed Consent Verification
-  consentObtained: boolean('consent_obtained').default(false).notNull(),
-  consentTimestamp: timestamp('consent_timestamp', { withTimezone: true }),
+  // Cancellation audit trail
+  cancelledBy: uuid('cancelled_by').references(() => users.id),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  cancellationReason: text('cancellation_reason'),
+
+  // Optional metadata
+  notes: text('notes'),
+  estimatedDuration: integer('estimated_duration').default(30),
+  sourceEncounterId: uuid('source_encounter_id').references(() => clinicalEncounters.id),
 
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

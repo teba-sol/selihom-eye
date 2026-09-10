@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Clock } from 'lucide-react';
 import { UnifiedSurgeryForm } from './UnifiedSurgeryForm';
+import { formatEthiopianDate } from '../lib/formatters';
 import {
   SURGERY_OPTIONS, SURGERY_STATUSES, SURGERY_STATUS_LABELS,
   newSurgeryEntry, freshUnifiedDetails,
@@ -28,12 +29,20 @@ export const SurgeryModal: React.FC<Props> = ({
   patientAge,
   patientSex
 }) => {
-  if (!open) return null;
-
   const [activeSurgeryId, setActiveSurgeryId] = useState<string | null>(
     surgeries.length > 0 ? surgeries[0].id : null
   );
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+
+  useEffect(() => {
+    if (open) {
+      setActiveSurgeryId(surgeries.length > 0 ? surgeries[0].id : null);
+      setSaveStatus('idle');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  if (!open) return null;
 
   const patchEntry = (id: string, p: Partial<SurgeryEntry>) => {
     onChange(
@@ -120,19 +129,14 @@ export const SurgeryModal: React.FC<Props> = ({
             <div className="flex items-center gap-4 mt-1 text-sm text-slate-500">
               <span className="flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" />
-                {new Date().toLocaleDateString('en-US', { 
-                  weekday: 'short', 
-                  year: 'numeric', 
-                  month: 'short', 
-                  day: 'numeric' 
-                })}
+                {formatEthiopianDate(new Date())}
               </span>
               <span className="flex items-center gap-1">
                 <span className={`w-2 h-2 rounded-full ${
                   saveStatus === 'saved' ? 'bg-emerald-500' : 
                   saveStatus === 'saving' ? 'bg-amber-500' : 'bg-slate-300'
                 }`}></span>
-                {saveStatus === 'saved' ? 'Auto-saved' : 
+                {saveStatus === 'saved' ? 'Saved locally' : 
                  saveStatus === 'saving' ? 'Saving...' : 'Ready'}
               </span>
             </div>

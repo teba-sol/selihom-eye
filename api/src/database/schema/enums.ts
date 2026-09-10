@@ -14,8 +14,5 @@ export const appointmentStatusEnum = pgEnum('appointment_status', [
 ]);
 
 export const surgeryStatusEnum = pgEnum('surgery_status', [
-  'PLANNED',
-  'COMPLETED',
-  'CANCELLED',
-  'RE-SCHEDULED',
+  'PLANNED', 'COMPLETED', 'CANCELLED'
 ]);

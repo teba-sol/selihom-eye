@@ -89,7 +89,7 @@ export const VisitContextBanner: React.FC<VisitContextBannerProps> = ({
               className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#2563eb] hover:bg-[#1d4ed8] rounded-md disabled:opacity-60"
             >
               {finalizing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              {finalizing ? 'Finalizing…' : 'Finalize examination'}
+              {finalizing ? 'Saving…' : 'Save & Exit'}
             </button>
           )}
         </div>

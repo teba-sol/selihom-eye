@@ -36,7 +36,7 @@ const DEFAULT_OBJ_SUB: SubjectiveRefractionData = {
   objOd: emptyObjEye(),
   objOs: emptyObjEye(),
   remarks: '',
-  showInDischarge: false,
+  showInDischarge: true,
 };
 
 const InputCell = ({

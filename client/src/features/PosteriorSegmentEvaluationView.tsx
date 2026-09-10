@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 import { MultiSelect } from '../components/MultiSelect';
 import { useEncounterStore } from '../store/useEncounterStore';
-import { MousePointer2, Pencil, Eraser, Type, Circle, ArrowUpRight, Upload } from 'lucide-react';
+import { MousePointer2, Pencil, Eraser, Type, Circle, ArrowUpRight } from 'lucide-react';
+import { disposeFabricCanvas, isFabricCanvasLive, flushCanvasJson } from '../lib/fabricGuard';
 
 const MYDRIATIC_OPTIONS = [
   'None', 'Tropicamide 0.5%', 'Tropicamide 0.8%', 'Tropicamide 1%',
@@ -67,7 +68,7 @@ const PERIPHERAL_OPTIONS = [
   'Choroidal nevus', 'Ora serrata changes',
 ];
 
-// ── Fundus Drawing Canvas ─────────────────────────────────────────────────────
+// â”€â”€ Fundus Drawing Canvas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const FUNDUS_TOOLS = [
   { id: 'cursor', label: 'Cursor', icon: <MousePointer2 className="w-5 h-5"/> },
   { id: 'pen', label: 'Pen', icon: <Pencil className="w-5 h-5"/> },
@@ -105,45 +106,216 @@ function FundusEyeSVG() {
   );
 }
 
-function FundusCanvas({ canvasRef, fabricRef, tool, color }: {
+function FundusCanvas({ canvasRef, fabricRef, tool, color, savedJson, onSave }: {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   fabricRef: React.MutableRefObject<fabric.Canvas | null>;
   tool: string;
   color: string;
+  savedJson?: string | null;
+  onSave?: (json: string) => void;
 }) {
+  const savedJsonRef = useRef(savedJson);
+  savedJsonRef.current = savedJson;
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+  const shapeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const previewRef = useRef<fabric.Object | null>(null);
+
   useEffect(() => {
     if (!canvasRef.current) return;
-    if (fabricRef.current) fabricRef.current.dispose();
+    if (fabricRef.current) disposeFabricCanvas(fabricRef);
     const canvas = new fabric.Canvas(canvasRef.current, { width: 300, height: 300, backgroundColor: 'transparent' });
     fabricRef.current = canvas;
-    return () => { canvas.dispose(); };
+
+    let persistTimer: ReturnType<typeof setTimeout> | null = null;
+    const schedulePersist = () => {
+      if (persistTimer) clearTimeout(persistTimer);
+      persistTimer = setTimeout(() => {
+        const json = flushCanvasJson(canvas);
+        if (json) onSaveRef.current?.(json);
+      }, 400);
+    };
+    canvas.on('after:render', schedulePersist);
+
+    // Deferred JSON restore. loadFromJSON resolves asynchronously and, on
+    // resolve, internally calls clear() on the canvas. If we dispose the
+    // canvas before that promise settles, clear() runs on a destroyed canvas
+    // (elements.lower.ctx is null) and throws. So we abort the load on
+    // teardown and defer dispose() until the load has settled.
+    const controller = new AbortController();
+    let loadPromise: Promise<fabric.Canvas> | null = null;
+    if (savedJsonRef.current) {
+      loadPromise = canvas
+        .loadFromJSON(savedJsonRef.current, undefined, { signal: controller.signal })
+        .then((c) => {
+          if (c === fabricRef.current) {
+            c.renderAll();
+            c.requestRenderAll();
+          }
+          return c;
+        })
+        .catch(() => canvas);
+    }
+
+    return () => {
+      controller.abort();
+      if (persistTimer) clearTimeout(persistTimer);
+      const json = flushCanvasJson(canvas);
+      if (json) onSaveRef.current?.(json);
+      canvas.off('after:render', schedulePersist);
+      fabricRef.current = null;
+      const teardown = () => {
+        try { canvas.dispose().catch(() => {}); } catch { /* noop */ }
+      };
+      if (loadPromise) loadPromise.finally(teardown);
+      else teardown();
+    };
   }, []);
 
   useEffect(() => {
     const canvas = fabricRef.current;
     if (!canvas) return;
+
+    if (previewRef.current) { canvas.remove(previewRef.current); previewRef.current = null; }
+    canvas.isDrawingMode = false;
+    canvas.selection = tool === 'cursor';
+    canvas.skipTargetFind = false;
+
     if (tool === 'pen') {
       canvas.isDrawingMode = true;
       const brush = new fabric.PencilBrush(canvas);
       brush.color = color;
       brush.width = 2;
       canvas.freeDrawingBrush = brush;
+      canvas.selection = false;
     } else if (tool === 'eraser') {
       canvas.isDrawingMode = true;
       const brush = new fabric.PencilBrush(canvas);
       brush.color = 'white';
       brush.width = 14;
       canvas.freeDrawingBrush = brush;
-    } else {
-      canvas.isDrawingMode = false;
-      canvas.selection = tool === 'cursor';
+      canvas.selection = false;
+    }
+
+    canvas.off('mouse:down');
+    canvas.off('mouse:move');
+    canvas.off('mouse:up');
+
+    if (tool === 'cursor') {
+      const onKey = (e: KeyboardEvent) => {
+        if ((e.key === 'Delete' || e.key === 'Backspace') && canvas === fabricRef.current && canvas.getActiveObjects().length) {
+          e.preventDefault();
+          canvas.remove(...canvas.getActiveObjects());
+          canvas.discardActiveObject();
+          canvas.requestRenderAll();
+        }
+      };
+      window.addEventListener('keydown', onKey);
+      return () => window.removeEventListener('keydown', onKey);
+    }
+
+    if (tool === 'annotate') {
+      canvas.on('mouse:down', (e: any) => {
+        const opt = canvas.getScenePoint(e.e);
+        const text = new fabric.IText('', { left: opt.x, top: opt.y, fill: color, fontSize: 14, fontFamily: 'Arial' });
+        canvas.add(text);
+        canvas.setActiveObject(text);
+        text.enterEditing();
+        text.hiddenTextarea?.focus();
+      });
+      return;
+    }
+
+    if (tool === 'circle') {
+      canvas.on('mouse:down', (e: any) => { shapeStartRef.current = canvas.getScenePoint(e.e); });
+      canvas.on('mouse:move', (e: any) => {
+        if (!shapeStartRef.current || canvas !== fabricRef.current) return;
+        const p = canvas.getScenePoint(e.e);
+        if (!previewRef.current) {
+          const circle = new fabric.Circle({
+            left: shapeStartRef.current.x, top: shapeStartRef.current.y, radius: 0,
+            stroke: color, strokeWidth: 2, fill: 'transparent',
+            originX: 'center', originY: 'center', selectable: false, evented: false,
+          });
+          canvas.add(circle);
+          previewRef.current = circle;
+        }
+        (previewRef.current as fabric.Circle).set({ radius: Math.hypot(p.x - shapeStartRef.current.x, p.y - shapeStartRef.current.y) });
+        canvas.requestRenderAll();
+      });
+      canvas.on('mouse:up', (e: any) => {
+        if (!shapeStartRef.current || !previewRef.current) return;
+        const p = canvas.getScenePoint(e.e);
+        const r = Math.hypot(p.x - shapeStartRef.current.x, p.y - shapeStartRef.current.y);
+        if (canvas === fabricRef.current) canvas.remove(previewRef.current);
+        if (r > 2 && canvas === fabricRef.current) {
+          canvas.add(new fabric.Circle({
+            left: shapeStartRef.current.x, top: shapeStartRef.current.y, radius: r,
+            stroke: color, strokeWidth: 2, fill: 'transparent',
+            originX: 'center', originY: 'center', selectable: true, evented: true,
+          }));
+        }
+        previewRef.current = null;
+        shapeStartRef.current = null;
+      });
+      return;
+    }
+
+    if (tool === 'arrow') {
+      canvas.on('mouse:down', (e: any) => { shapeStartRef.current = canvas.getScenePoint(e.e); });
+      canvas.on('mouse:move', (e: any) => {
+        if (!shapeStartRef.current || canvas !== fabricRef.current) return;
+        const p = canvas.getScenePoint(e.e);
+        if (!previewRef.current) {
+          const line = new fabric.Line(
+            [shapeStartRef.current.x, shapeStartRef.current.y, p.x, p.y],
+            { stroke: color, strokeWidth: 2, selectable: false, evented: false },
+          );
+          canvas.add(line);
+          previewRef.current = line;
+        } else {
+          (previewRef.current as fabric.Line).set({ x2: p.x, y2: p.y });
+        }
+        canvas.requestRenderAll();
+      });
+      canvas.on('mouse:up', (e: any) => {
+        if (!shapeStartRef.current || !previewRef.current) return;
+        const p = canvas.getScenePoint(e.e);
+        const len = Math.hypot(p.x - shapeStartRef.current.x, p.y - shapeStartRef.current.y);
+        if (canvas === fabricRef.current) canvas.remove(previewRef.current);
+        if (len > 2 && canvas === fabricRef.current) {
+          const arrow = makeArrow(shapeStartRef.current, p, color);
+          canvas.add(arrow);
+        }
+        previewRef.current = null;
+        shapeStartRef.current = null;
+      });
+      return;
     }
   }, [tool, color]);
 
   return <canvas ref={canvasRef as React.RefObject<HTMLCanvasElement>} className="absolute inset-0"/>;
 }
 
-function PosteriorDiagram() {
+function makeArrow(from: { x: number; y: number }, to: { x: number; y: number }, color: string) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const line = new fabric.Line([from.x, from.y, to.x, to.y], {
+    stroke: color, strokeWidth: 2, selectable: false, evented: false,
+  });
+  const triangle = new fabric.Triangle({
+    left: to.x, top: to.y, width: 12, height: 12, fill: color,
+    originX: 'center', originY: 'center',
+    angle: (Math.atan2(dy, dx) * 180) / Math.PI + 90,
+    selectable: false, evented: false,
+  });
+  return new fabric.Group([line, triangle], { selectable: true, evented: true });
+}
+
+function PosteriorDiagram({ savedJson, onSave }: {
+  savedJson: { od: string; os: string };
+  onSave: (eye: 'od' | 'os', json: string) => void;
+}) {
   const [tool, setTool] = useState('pen');
   const [color, setColor] = useState('#dc2626');
   const odRef = useRef<HTMLCanvasElement>(null);
@@ -152,7 +324,12 @@ function PosteriorDiagram() {
   const osFab = useRef<fabric.Canvas | null>(null);
 
   const clearAll = () => {
-    [odFab, osFab].forEach(r => { if (r.current) { r.current.clear(); r.current.renderAll(); } });
+    [odFab, osFab].forEach(r => {
+      if (r.current && isFabricCanvasLive(r.current)) {
+        r.current.clear();
+        r.current.renderAll();
+      }
+    });
   };
 
   return (
@@ -181,25 +358,23 @@ function PosteriorDiagram() {
           className="ml-auto px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
           Clear All
         </button>
-        <button type="button" className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50">
-          <Upload className="w-3.5 h-3.5"/> Upload image
-        </button>
       </div>
 
       {/* Diagrams */}
       <div className="border border-slate-200 rounded-xl p-6 bg-slate-50/50">
         <div className="grid grid-cols-2 gap-10">
           {[
-            { label: 'RIGHT', ref: odRef, fab: odFab },
-            { label: 'LEFT', ref: osRef, fab: osFab },
+            { label: 'RIGHT', ref: odRef, fab: odFab, eye: 'od' as const },
+            { label: 'LEFT', ref: osRef, fab: osFab, eye: 'os' as const },
           ].map(eye => (
             <div key={eye.label} className="flex flex-col items-center gap-3">
               <span className="text-sm font-bold text-slate-400 tracking-widest uppercase">{eye.label}</span>
               <div className="relative w-[300px] h-[300px] rounded-full overflow-hidden bg-white border-2 border-slate-200 shadow-sm">
                 <FundusEyeSVG />
-                <FundusCanvas canvasRef={eye.ref} fabricRef={eye.fab} tool={tool} color={color}/>
+                <FundusCanvas canvasRef={eye.ref} fabricRef={eye.fab} tool={tool} color={color}
+                  savedJson={savedJson[eye.eye]} onSave={j => onSave(eye.eye, j)}/>
               </div>
-              <p className="text-[10px] text-slate-400">Disc (left circle) · Fovea (right dashed)</p>
+              <p className="text-[10px] text-slate-400">Disc (left circle) Â· Fovea (right dashed)</p>
             </div>
           ))}
         </div>
@@ -208,7 +383,7 @@ function PosteriorDiagram() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface StructureState {
   od: string[];
@@ -254,6 +429,7 @@ type PosteriorSegmentData = {
   structures: Record<StructureKey, StructureState>;
   cdr: { od: string; os: string };
   av: { od: string; os: string };
+  diagram: { od: string; os: string };
   remarks: string;
   showInDischarge: boolean;
 };
@@ -273,8 +449,9 @@ const DEFAULT_POSTERIOR_SEGMENT: PosteriorSegmentData = {
   },
   cdr: { od: '0', os: '0' },
   av: { od: 'None', os: 'None' },
+  diagram: { od: '', os: '' },
   remarks: '',
-  showInDischarge: false,
+  showInDischarge: true,
 };
 
 export const PosteriorSegmentEvaluationView: React.FC = () => {
@@ -296,6 +473,13 @@ export const PosteriorSegmentEvaluationView: React.FC = () => {
   const patch = (p: Partial<PosteriorSegmentData>) => setSectionData('posterior-segment', { ...f, ...p });
   const { activeTab, mydriaticDrug, instrument, cdr, av, remarks, showInDischarge } = f;
 
+  const savedDiagram = { od: f.diagram?.od ?? '', os: f.diagram?.os ?? '' };
+  const saveDiagram = (eye: 'od' | 'os', json: string) => {
+    if (json !== (eye === 'od' ? savedDiagram.od : savedDiagram.os)) {
+      patch({ diagram: { ...savedDiagram, [eye]: json } });
+    }
+  };
+
   const setStructure = (key: StructureKey, updater: (s: StructureState) => StructureState) =>
     patch({ structures: { ...structures, [key]: updater(structures[key]) } });
   const setStructOd = (key: StructureKey, od: string[]) => setStructure(key, s => ({ ...s, od, os: s.same ? od : s.os }));
@@ -316,7 +500,7 @@ export const PosteriorSegmentEvaluationView: React.FC = () => {
       </div>
 
       {activeTab === 'Diagram' && (
-        <PosteriorDiagram />
+        <PosteriorDiagram savedJson={savedDiagram} onSave={saveDiagram} />
       )}
 
       {activeTab === 'Form' && (

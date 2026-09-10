@@ -37,7 +37,6 @@ export interface PatientAppointment {
   startTime: string | null;
   reason: string | null;
   status: string | null;
-  consentObtained: boolean | null;
 }
 
 // DB-backed patient record data:

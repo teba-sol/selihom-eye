@@ -34,7 +34,13 @@ interface ApiAppointment {
   endTime: string | null;
   reason: string | null;
   status: string;
-  consentObtained: boolean;
+  notes: string | null;
+  estimatedDuration: number | null;
+  sourceEncounterId: string | null;
+  cancelledBy: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  createdAt: string;
   patient?: {
     id: string;
     mrn: string;
@@ -71,8 +77,12 @@ export interface Appointment {
   startTime: string;
   endTime?: string;
   reason: string;
-  status: 'scheduled' | 'confirmed' | 'in_exam' | 'completed' | 'cancelled';
-  consentObtained: boolean;
+  status: 'scheduled' | 'in_exam' | 'completed' | 'cancelled';
+  notes?: string;
+  estimatedDuration?: number;
+  sourceEncounterId?: string;
+  cancelledReason?: string;
+  cancelledAt?: string;
 }
 
 // ── Mappers ────────────────────────────────────────────────────────────
@@ -104,14 +114,17 @@ function mapAppointment(api: ApiAppointment): Appointment {
     endTime: api.endTime || undefined,
     reason: api.reason || 'Routine Eye Examination',
     status: mapStatus(api.status),
-    consentObtained: api.consentObtained,
+    notes: api.notes || undefined,
+    estimatedDuration: api.estimatedDuration || undefined,
+    sourceEncounterId: api.sourceEncounterId || undefined,
+    cancelledReason: api.cancellationReason || undefined,
+    cancelledAt: api.cancelledAt || undefined,
   };
 }
 
 function mapStatus(backend: string): Appointment['status'] {
   switch (backend) {
     case 'SCHEDULED': return 'scheduled';
-    case 'CHECKED_IN': return 'confirmed';
     case 'IN_EXAM': return 'in_exam';
     case 'COMPLETED': return 'completed';
     case 'CANCELLED': return 'cancelled';
@@ -122,7 +135,6 @@ function mapStatus(backend: string): Appointment['status'] {
 function mapStatusToFrontend(frontend: string): string {
   switch (frontend) {
     case 'scheduled': return 'SCHEDULED';
-    case 'confirmed': return 'CHECKED_IN';
     case 'in_exam': return 'IN_EXAM';
     case 'completed': return 'COMPLETED';
     case 'cancelled': return 'CANCELLED';
@@ -156,7 +168,7 @@ interface AppState {
   searchPatients: (query: string) => Patient[];
   addAppointment: (apt: Omit<Appointment, 'id' | 'status'>) => Promise<string>;
   updateAppointment: (id: string, data: Partial<Appointment>) => Promise<void>;
-  cancelAppointment: (id: string) => Promise<void>;
+  cancelAppointment: (id: string, reason: string) => Promise<void>;
   getPatientById: (id: string) => Patient | undefined;
   getAppointmentsForPatient: (patientId: string) => Appointment[];
   getAppointmentsForRange: (from: Date, to: Date) => Appointment[];
@@ -367,8 +379,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         scheduledDate: apt.date,
         startTime: apt.startTime,
         reason: apt.reason,
-        consentObtained: apt.consentObtained,
-      });
+        notes: apt.notes,
+        estimatedDuration: apt.estimatedDuration,
+      }, { toast: false });
       const mapped = mapAppointment(created);
       set((s) => ({ appointments: [...s.appointments, mapped] }));
       return mapped.id;
@@ -388,29 +401,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         console.error('Failed to update appointment:', err);
       }
     }
-    if (data.consentObtained !== undefined) {
-      try {
-        await api.patch(`/appointments/${id}/consent`, {
-          consentObtained: data.consentObtained,
-        });
-      } catch (err) {
-        console.error('Failed to update consent:', err);
-      }
-    }
     set((s) => ({
       appointments: s.appointments.map((a) => (a.id === id ? { ...a, ...data } : a)),
     }));
   },
 
-  cancelAppointment: async (id) => {
+  cancelAppointment: async (id, reason) => {
     try {
-      await api.delete(`/appointments/${id}`);
+      await api.patch(`/appointments/${id}/cancel`, { cancellationReason: reason });
     } catch (err) {
       console.error('Failed to cancel appointment:', err);
     }
     set((s) => ({
       appointments: s.appointments.map((a) =>
-        a.id === id ? { ...a, status: 'cancelled' as const } : a,
+        a.id === id ? { ...a, status: 'cancelled' as const, cancelledReason: reason } : a,
       ),
     }));
   },

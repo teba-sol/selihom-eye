@@ -5,13 +5,14 @@ import { ModuleErrorBoundary } from '../components/ModuleErrorBoundary';
 import { useEncounterStore } from '../store/useEncounterStore';
 import { useAppStore, type Patient } from '../store/useAppStore';
 import { useExamLoader } from '../hooks/useExamLoader';
-import { useAutosave } from '../hooks/useAutoSave';
+import { useDraftPersistence } from '../hooks/useDraftPersistence';
 import { VisitContextBanner } from '../components/VisitContextBanner';
 import { ExamHistoryModal } from '../components/ExamHistoryModal';
 import { AddCorrectionModal } from '../components/AddCorrectionModal';
+import { readDraft, clearDraft } from '../lib/draft';
 import { api } from '../lib/api';
-import { lazy, Suspense, useState, useMemo, type ComponentType } from 'react';
-import { Lock, CheckCircle2 } from 'lucide-react';
+import { lazy, Suspense, useState, useMemo, useRef, type ComponentType } from 'react';
+import { Lock, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 const lazyView = (
   loader: () => Promise<Record<string, ComponentType>>,
@@ -102,24 +103,27 @@ export function ExamDashboard() {
   const setActiveTab = useEncounterStore((s) => s.setActiveTab);
   const updateAppointment = useAppStore((s) => s.updateAppointment);
   const saveEncounter = useEncounterStore((s) => s.saveEncounter);
+  const dismissDraftNotice = useEncounterStore((s) => s.dismissDraftNotice);
+  const draftNotice = useEncounterStore((s) => s.draftNotice);
 
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showCorrection, setShowCorrection] = useState(false);
+  const retriedOnceRef = useRef(false);
 
-  useAutosave(2000);
+  useDraftPersistence();
 
   const currentIndex = NAV_ORDER.indexOf(activeTab);
 
-  const goToTab = async (tab: string) => {
+  const goToTab = (tab: string) => {
     if (!tab || !TAB_VIEWS[tab]) return;
-    await saveEncounter({ toast: false }).catch(() => {});
     setActiveTab(tab);
   };
 
-  const handleFinalize = async () => {
+  const handleSaveAndExit = async (isRetry = false) => {
     if (finalizing || isLocked) return;
+    if (!isRetry) retriedOnceRef.current = false;
     setFinalizing(true);
     setFinalizeError(null);
     try {
@@ -131,15 +135,26 @@ export function ExamDashboard() {
       }
       await api.patch(`/clinical/encounter/${eid}/lock`);
       useEncounterStore.getState().markExamFinalized(eid);
+      clearDraft(eid);
+      useEncounterStore.getState().dismissDraftNotice();
       if (st.appointmentId) {
         updateAppointment(st.appointmentId, { status: 'completed' });
       }
+      navigate('/appointments');
     } catch (err: any) {
-      setFinalizeError(
-        err?.message ?? 'Finalization failed. The examination remains editable — please retry.',
-      );
-    } finally {
-      setFinalizing(false);
+      if (!retriedOnceRef.current) {
+        retriedOnceRef.current = true;
+        setFinalizeError('Save failed — retrying automatically. Your work is preserved locally.');
+        setTimeout(() => {
+          handleSaveAndExit(true);
+        }, 4000);
+      } else {
+        setFinalizeError(
+          err?.message ??
+            'Save failed. Your work is preserved locally — please retry.',
+        );
+        setFinalizing(false);
+      }
     }
   };
 
@@ -148,6 +163,14 @@ export function ExamDashboard() {
     if (!st.encounterId) return;
     try {
       const data = await api.get<any>(`/clinical/encounter/${st.encounterId}`);
+      if (data && !data.isLocked) {
+        const draft = readDraft(st.encounterId);
+        const backendTs = data.updatedAt ? new Date(data.updatedAt).getTime() : 0;
+        if (draft && draft.savedAt > backendTs) {
+          st.loadDraftData(draft.data, draft.savedAt);
+          return;
+        }
+      }
       if (data) st.loadEncounterFromDb(data);
     } catch {}
   };
@@ -184,11 +207,37 @@ export function ExamDashboard() {
 
       <VisitContextBanner
         onOpenHistory={() => setShowHistory(true)}
-        onFinalize={handleFinalize}
+        onFinalize={handleSaveAndExit}
         onOpenCorrection={() => setShowCorrection(true)}
         finalizing={finalizing}
         finalizeError={finalizeError}
       />
+
+      {draftNotice && !isLocked && (
+        <div className="mx-5 mt-3 flex items-center justify-between gap-3 flex-wrap bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+          <span className="text-xs font-medium text-amber-800">
+            <AlertTriangle className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />
+            You have an unsaved draft from{' '}
+            {new Date(draftNotice.savedAt).toLocaleTimeString()}.
+          </span>
+          <span className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => useEncounterStore.getState().discardDraft()}
+              className="px-2.5 py-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100"
+            >
+              Discard
+            </button>
+            <button
+              type="button"
+              onClick={dismissDraftNotice}
+              className="px-2.5 py-1 text-xs font-semibold text-amber-800 bg-white border border-amber-300 rounded-md hover:bg-amber-100"
+            >
+              Keep working
+            </button>
+          </span>
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         <AsiraSidebar />

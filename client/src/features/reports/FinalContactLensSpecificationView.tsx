@@ -45,7 +45,7 @@ interface FclData {
 const DEFAULT_FCL: FclData = {
   clType: '', brand: '', modality: '', material: '',
   od: emptySpec(), os: emptySpec(), sameForOs: false,
-  solution: '', wearingSchedule: '', reviewDate: '', remarks: '', showInDischarge: false,
+  solution: '', wearingSchedule: '', reviewDate: '', remarks: '', showInDischarge: true,
 };
 
 export const FinalContactLensSpecificationView: React.FC = () => {

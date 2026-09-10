@@ -266,3 +266,4 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
     </div>
   );
 };
+ 

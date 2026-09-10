@@ -16,7 +16,7 @@ const DEFAULT_SPECTACLES = {
   osDist: { sph: '-', cyl: '-', axis: '-', va: '-' },
   osNear: { add: '-', va: '-' },
   remarks: '',
-  showInDischarge: false,
+  showInDischarge: true,
 };
 
 export const SpectaclesView: React.FC = () => {

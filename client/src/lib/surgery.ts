@@ -1,5 +1,6 @@
 import type { UnifiedSurgeryDetails } from '../features/UnifiedSurgeryForm';
 import { DEFAULT_UNIFIED_SURGERY_DETAILS } from '../features/UnifiedSurgeryForm';
+import { todayEthiopian } from './formatters';
 
 export type SurgeryStatus = 'PLANNED' | 'COMPLETED' | 'CANCELLED';
 
@@ -72,7 +73,9 @@ export const SURGERY_STATUS_LABELS: Record<SurgeryStatus, string> = {
 };
 
 export function freshUnifiedDetails(): UnifiedSurgeryDetails {
-  return structuredClone(DEFAULT_UNIFIED_SURGERY_DETAILS);
+  const d = structuredClone(DEFAULT_UNIFIED_SURGERY_DETAILS);
+  d.dateOfSurgery = todayEthiopian();
+  return d;
 }
 
 export function newSurgeryEntry(): SurgeryEntry {

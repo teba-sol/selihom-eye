@@ -41,7 +41,7 @@ export const SystemicHistoryView: React.FC = () => {
 
   const conditions = systemicHistory.conditions;
   const noHistory = systemicHistory.noHistoryReported;
-  const extra = (sectionData['systemic-history'] ?? { remarks: '', showInDischarge: false }) as {
+  const extra = (sectionData['systemic-history'] ?? { remarks: '', showInDischarge: true }) as {
     remarks: string;
     showInDischarge: boolean;
   };

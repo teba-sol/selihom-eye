@@ -51,7 +51,7 @@ export const SymptomaticHistoryView: React.FC = () => {
   const sectionData = useEncounterStore((s) => s.sectionData);
   const setSectionData = useEncounterStore((s) => s.setSectionData);
 
-  const extra = (sectionData['symptomatic-history'] ?? { remarks: '', showInDischarge: false }) as {
+  const extra = (sectionData['symptomatic-history'] ?? { remarks: '', showInDischarge: true }) as {
     remarks: string;
     showInDischarge: boolean;
   };

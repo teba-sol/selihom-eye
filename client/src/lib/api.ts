@@ -99,7 +99,13 @@ async function request<T>(method: string, url: string, data?: any, isRetry = fal
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `API error ${res.status}`);
+    const err = new Error(body.message || `API error ${res.status}`) as any;
+    if (body && typeof body === 'object') {
+      err.code = body.code ?? null;
+      err.status = res.status;
+      err.payload = body;
+    }
+    throw err;
   }
 
   return res.json();

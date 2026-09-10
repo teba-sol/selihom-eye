@@ -294,27 +294,73 @@ export const DischargeSummaryView: React.FC = () => {
                 </tbody>
               </ToggleSection>
 
-              {/* ================= REFRACTION (Spectacle Prescription) ================= */}
-              <ToggleSection s={s} sectionKey="objective-subjective" title={<>Spectacle<br />Prescription</>}>
-                <tbody>
-                  {(() => {
-                    const f = s.sectionData['objective-subjective'] ?? {};
-                    const od = f.objOd ?? {}; const os = f.objOs ?? {};
-                    const g = (r: any) => `${dash(r.sph)}${r.cyl ? ` / ${r.cyl}` : ''}${r.axis ? ` ×${r.axis}` : ''}${r.va ? ` VA ${r.va}` : ''}`;
-                    return (
-                      <Row label="Objective Refraction" value={<div><div><span className="font-medium">OD</span> {g(od)}</div><div><span className="font-medium">OS</span> {g(os)}</div></div>} />
-                    );
-                  })()}
-                  {(() => {
-                    const f = s.sectionData['objective-subjective'] ?? {};
-                    const so = f.subjOd ?? {}; const ss = f.subjOs ?? {};
-                    const g = (r: any) => `${dash(r.sph)}${r.cyl ? ` / ${r.cyl}` : ''}${r.axis ? ` ×${r.axis}` : ''}${r.va ? ` VA ${r.va}` : ''}`;
-                    const has = Object.keys(so).length || Object.keys(ss).length;
-                    if (!has) return null;
-                    return <Row label="Subjective Refraction" value={<div><div><span className="font-medium">OD</span> {g(so)}</div><div><span className="font-medium">OS</span> {g(ss)}</div></div>} />;
-                  })()}
-                </tbody>
-              </ToggleSection>
+              {/* ================= REFRACTION ================= */}
+              {(() => {
+                const objSubOn = s.sectionData['objective-subjective']?.showInDischarge === true;
+                const cycOn = s.sectionData['cycloplegic']?.showInDischarge === true;
+                if (!objSubOn && !cycOn) return null;
+                const g = (r: any) => `${dash(r?.sph)}${r?.cyl ? ` / ${r.cyl}` : ''}${r?.axis ? ` ×${r.axis}` : ''}${r?.va ? ` VA ${r.va}` : ''}`;
+                const hasVal = (v: any) => v !== undefined && v !== null && String(v).trim() !== '' && String(v) !== '-';
+                const gSub = (e: any) => {
+                  const dist = e?.dist ?? {}; const near = e?.near ?? {}; const inter = e?.inter ?? {};
+                  const parts: string[] = [];
+                  let d = dash(dist.sph);
+                  if (hasVal(dist.cyl)) d += ` / ${dist.cyl}`;
+                  if (hasVal(dist.axis)) d += ` ×${dist.axis}`;
+                  if (hasVal(dist.va)) d += ` VA ${dist.va}`;
+                  parts.push(d);
+                  if (hasVal(near.add)) parts.push(`Near +${near.add}${hasVal(near.va) ? ` ${near.va}` : ''}`);
+                  if (hasVal(inter.add)) parts.push(`Inter +${inter.add}${hasVal(inter.va) ? ` ${inter.va}` : ''}`);
+                  return parts.join('  ·  ');
+                };
+                const hasSubjd = (e: any) => {
+                  const dist = e?.dist ?? {}; const near = e?.near ?? {}; const inter = e?.inter ?? {};
+                  return hasVal(dist.sph) || hasVal(dist.cyl) || hasVal(dist.axis) || hasVal(dist.va)
+                    || hasVal(near.add) || hasVal(near.va) || hasVal(inter.add) || hasVal(inter.va);
+                };
+                const subHeader = (text: string) => (
+                  <tr className="bg-slate-50 border-b border-slate-100">
+                    <td colSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{text}</td>
+                  </tr>
+                );
+                return (
+                  <tr className="border-b border-slate-200">
+                    <SectionHeader>Refraction</SectionHeader>
+                    <td className="p-0">
+                      <table className="w-full border-collapse">
+                        <tbody>
+                          {objSubOn && (() => {
+                            const f = s.sectionData['objective-subjective'] ?? {};
+                            const od = f.objOd ?? {}; const os = f.objOs ?? {};
+                            const so = f.subjOd ?? {}; const ss = f.subjOs ?? {};
+                            const hasSubj = hasSubjd(so) || hasSubjd(ss);
+                            return (
+                              <>
+                                {subHeader('Objective & Subjective')}
+                                <Row label="Objective Refraction" value={<div><div><span className="font-medium">OD</span> {g(od)}</div><div><span className="font-medium">OS</span> {g(os)}</div></div>} />
+                                {hasSubj && <Row label="Subjective Refraction" value={<div><div><span className="font-medium">OD</span> {gSub(so)}</div><div><span className="font-medium">OS</span> {gSub(ss)}</div></div>} />}
+                              </>
+                            );
+                          })()}
+                          {cycOn && (() => {
+                            const f = s.sectionData['cycloplegic'] ?? {};
+                            const co = f.cycloOd ?? {}; const cs = f.cycloOs ?? {};
+                            const hasCyclo = hasVal(co?.sph) || hasVal(co?.cyl) || hasVal(co?.axis) || hasVal(co?.va)
+                              || hasVal(cs?.sph) || hasVal(cs?.cyl) || hasVal(cs?.axis) || hasVal(cs?.va);
+                            if (!hasCyclo) return null;
+                            return (
+                              <>
+                                {subHeader('Cycloplegic')}
+                                <Row label="Cycloplegic Refraction" value={<div><div><span className="font-medium">OD</span> {g(co)}</div><div><span className="font-medium">OS</span> {g(cs)}</div></div>} />
+                              </>
+                            );
+                          })()}
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                );
+              })()}
 
               {/* ================= ADDITIONAL TESTS ================= */}
               <ToggleSection s={s} sectionKey="tonometry" title={<>Tonometry</>}>
@@ -448,17 +494,6 @@ export const DischargeSummaryView: React.FC = () => {
               </ToggleSection>
               <ToggleSection s={s} sectionKey="pupil-evaluation" title={<>Pupil<br />Evaluation</>}>
                 <tbody>{(() => { const f = s.sectionData['pupil-evaluation'] ?? {}; return <KV label="Findings" value={f.checked} />; })()}</tbody>
-              </ToggleSection>
-
-              {/* ================= CYCLOPLEGIC ================= */}
-              <ToggleSection s={s} sectionKey="cycloplegic" title={<>Cycloplegic<br />Refraction</>}>
-                <tbody>
-                  {(() => {
-                    const f = s.sectionData['cycloplegic'] ?? {};
-                    const g = (r: any) => `${dash(r?.sph)}${r?.cyl ? ` / ${r.cyl}` : ''}${r?.axis ? ` ×${r.axis}` : ''}${r?.va ? ` VA ${r.va}` : ''}`;
-                    return <Row label="Cycloplegic" value={<div><div><span className="font-medium">OD</span> {g(f.cycloOd)}</div><div><span className="font-medium">OS</span> {g(f.cycloOs)}</div></div>} />;
-                  })()}
-                </tbody>
               </ToggleSection>
 
               {/* ================= CL FITTING / PRE-FIT ================= */}

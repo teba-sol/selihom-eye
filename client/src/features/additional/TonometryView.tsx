@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Clock } from 'lucide-react';
 import { useEncounterStore } from '../../store/useEncounterStore';
 
 const INSTRUMENT_OPTIONS = [
@@ -45,7 +46,7 @@ const DEFAULT_TONOMETRY: TonometryData = {
   leftEye: '',
   timeOfMeasurement: nowTime(),
   remarks: '',
-  showInDischarge: false,
+  showInDischarge: true,
 };
 
 export const TonometryView: React.FC = () => {
@@ -63,6 +64,12 @@ export const TonometryView: React.FC = () => {
     const id = setInterval(() => setDisplayTime(nowTime()), 1000);
     return () => clearInterval(id);
   }, [timeEdited]);
+
+  const commitTime = (val: string) => {
+    setTimeEdited(true);
+    setDisplayTime(val);
+    patch({ timeOfMeasurement: val });
+  };
 
   return (
     <div className="p-8 max-w-4xl bg-white min-h-full">
@@ -98,12 +105,27 @@ export const TonometryView: React.FC = () => {
         </Row>
 
         <Row label="Time of measurement">
-          <input
-            type="text"
-            value={timeEdited ? timeOfMeasurement : displayTime}
-            onChange={e => { setTimeEdited(true); patch({ timeOfMeasurement: e.target.value }); }}
-            className="w-32 px-3 py-2 text-sm border border-slate-200 rounded-md bg-slate-50 text-slate-700 font-mono focus:outline-none focus:border-blue-600"
-          />
+          {timeEdited ? (
+            <input
+              type="text"
+              autoFocus
+              value={timeOfMeasurement}
+              onChange={e => commitTime(e.target.value)}
+              onBlur={() => { if (!timeOfMeasurement.trim()) setTimeEdited(false); }}
+              className="w-40 px-3 py-2 text-sm border border-blue-400 rounded-md bg-white text-slate-700 font-mono focus:outline-none focus:border-blue-600"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setTimeEdited(true)}
+              title="Auto-captured — click to edit"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-slate-50 border border-slate-200 hover:bg-blue-50 hover:border-blue-200 transition-colors group"
+            >
+              <Clock className="w-4 h-4 text-slate-400 group-hover:text-blue-600" />
+              <span className="text-sm font-mono text-slate-700">{displayTime}</span>
+              <span className="text-[10px] text-slate-400 uppercase tracking-wide group-hover:text-blue-600">auto · tap to edit</span>
+            </button>
+          )}
         </Row>
       </div>
 

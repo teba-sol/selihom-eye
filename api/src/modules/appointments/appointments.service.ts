@@ -1,24 +1,70 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
 import { eq, and, gte, lte } from 'drizzle-orm';
 import { DRIZZLE_PROVIDER } from '../../database/database.module';
 import { appointments, patients } from '../../database/schema';
-import { BookAppointmentDto, UpdateAppointmentStatusDto, UpdateConsentDto } from './dto/appointment.dto';
+import { BookAppointmentDto, CancelAppointmentDto, UpdateAppointmentStatusDto } from './dto/appointment.dto';
 
 @Injectable()
 export class AppointmentsService {
   constructor(@Inject(DRIZZLE_PROVIDER) private db: any) {}
 
-  async book(dto: BookAppointmentDto) {
+  async book(dto: BookAppointmentDto, doctorUserId: string) {
+    // Validate not a past date/time — compare calendar dates in the server's
+    // local timezone, NOT the booking-day midnight against "now", which would
+    // wrongly reject any appointment booked for today.
+    const now = new Date();
+    const today = new Intl.DateTimeFormat('en-CA', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
+    if (dto.scheduledDate < today) {
+      throw new BadRequestException('Cannot book an appointment in the past.');
+    }
+    // Same-day bookings must also be after the current time.
+    if (dto.scheduledDate === today && dto.startTime) {
+      const nowParts: Record<string, string> = {};
+      for (const part of new Intl.DateTimeFormat('en-CA', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).formatToParts(now)) {
+        nowParts[part.type] = part.value;
+      }
+      const nowHHMM = `${nowParts.hour === '24' ? '00' : nowParts.hour}:${nowParts.minute}`;
+      if (dto.startTime <= nowHHMM) {
+        const nowMatch = nowHHMM.match(/^(\d{1,2}):(\d{2})/)!;
+        const h = Number(nowMatch[1]) % 24;
+        const h12 = h % 12 === 0 ? 12 : h % 12;
+        const period = h < 12 ? 'AM' : 'PM';
+        throw new BadRequestException(
+          `Cannot book an appointment in the past. Current time is ${String(h12).padStart(2, '0')}:${nowMatch[2]} ${period}. Adjust your time please!`,
+        );
+      }
+    }
+
+    // Validate patient exists
+    const [patient] = await this.db
+      .select({ id: patients.id })
+      .from(patients)
+      .where(eq(patients.id, dto.patientId))
+      .limit(1);
+    if (!patient) {
+      throw new NotFoundException(`Patient with ID ${dto.patientId} not found.`);
+    }
+
     const [newAppointment] = await this.db
       .insert(appointments)
       .values({
         patientId: dto.patientId,
+        doctorUserId,
         scheduledDate: new Date(dto.scheduledDate),
         startTime: dto.startTime || null,
-        reason: dto.reason || null,
-        status: dto.consentObtained ? 'CHECKED_IN' : 'SCHEDULED',
-        consentObtained: dto.consentObtained ?? false,
-        consentTimestamp: dto.consentObtained ? new Date() : null,
+        endTime: dto.endTime || null,
+        reason: dto.reason,
+        notes: dto.notes || null,
+        estimatedDuration: dto.estimatedDuration || 30,
+        status: 'SCHEDULED',
       })
       .returning();
 
@@ -52,7 +98,13 @@ export class AppointmentsService {
         endTime: appointments.endTime,
         reason: appointments.reason,
         status: appointments.status,
-        consentObtained: appointments.consentObtained,
+        notes: appointments.notes,
+        estimatedDuration: appointments.estimatedDuration,
+        sourceEncounterId: appointments.sourceEncounterId,
+        cancelledBy: appointments.cancelledBy,
+        cancelledAt: appointments.cancelledAt,
+        cancellationReason: appointments.cancellationReason,
+        createdAt: appointments.createdAt,
         patient: {
           id: patients.id,
           mrn: patients.mrn,
@@ -90,33 +142,34 @@ export class AppointmentsService {
     return updated;
   }
 
-  async recordConsent(id: string, dto: UpdateConsentDto) {
+  async cancel(id: string, dto: CancelAppointmentDto, userId: string) {
+    // Fetch current appointment
+    const [existing] = await this.db
+      .select()
+      .from(appointments)
+      .where(eq(appointments.id, id))
+      .limit(1);
+
+    if (!existing) {
+      throw new NotFoundException(`Appointment with ID ${id} not found.`);
+    }
+
+    if (existing.status !== 'SCHEDULED') {
+      throw new BadRequestException('Only SCHEDULED appointments can be cancelled.');
+    }
+
     const [updated] = await this.db
       .update(appointments)
       .set({
-        consentObtained: dto.consentObtained,
-        consentTimestamp: dto.consentObtained ? new Date() : null,
+        status: 'CANCELLED',
+        cancelledBy: userId,
+        cancelledAt: new Date(),
+        cancellationReason: dto.cancellationReason,
         updatedAt: new Date(),
       })
       .where(eq(appointments.id, id))
       .returning();
 
-    if (!updated) {
-      throw new NotFoundException(`Appointment with ID ${id} not found`);
-    }
-    return updated;
-  }
-
-  async cancel(id: string) {
-    const [updated] = await this.db
-      .update(appointments)
-      .set({ status: 'CANCELLED', updatedAt: new Date() })
-      .where(eq(appointments.id, id))
-      .returning();
-
-    if (!updated) {
-      throw new NotFoundException(`Appointment with ID ${id} not found`);
-    }
     return updated;
   }
 }

@@ -12,6 +12,7 @@ import { useToast } from '../lib/toast';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import { DraftResumeModal } from '../components/DraftResumeModal';
 import { isResumedDraft } from '../lib/draftResume';
+import { api } from '../lib/api';
 import type { Patient } from '../store/useAppStore';
 
 import type { NavigateFunction } from 'react-router-dom';
@@ -109,7 +110,6 @@ export const PatientsPage: React.FC = () => {
   const handleOpenExam = async (patient: Patient) => {
     setStartingExamId(patient.id);
     try {
-      const { api } = await import('../lib/api');
       const loadEncounterFromDb = useEncounterStore.getState().loadEncounterFromDb;
 
       // Single round-trip: POST /clinical/encounter both resumes an existing
@@ -129,7 +129,19 @@ export const PatientsPage: React.FC = () => {
       }
       toast.success('Examination started successfully.');
       openExamForPatient(patient, encounter, startExam, loadEncounterFromDb, navigate);
-    } catch {
+    } catch (e: any) {
+      if (e?.code === 'DRAFT_EXISTS' || e?.payload?.code === 'DRAFT_EXISTS') {
+        const draftId = e?.payload?.draftEncounterId ?? e?.draftEncounterId;
+        try {
+          const encounter = draftId ? await api.get<any>(`/clinical/encounter/${draftId}`) : null;
+          if (encounter) {
+            setResumeDraft({ patient, encounter });
+            return;
+          }
+        } catch {
+          // fall through to toast if the draft can't be fetched
+        }
+      }
       toast.error('Failed to start examination.');
     } finally {
       setStartingExamId(null);

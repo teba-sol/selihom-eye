@@ -46,7 +46,7 @@ export const VisionAndVisualAcuityView: React.FC = () => {
   const sectionData = useEncounterStore((s) => s.sectionData);
   const setSectionData = useEncounterStore((s) => s.setSectionData);
 
-  const extra = (sectionData['vision-and-visual-acuity'] ?? { showInDischarge: false }) as {
+  const extra = (sectionData['vision-and-visual-acuity'] ?? { showInDischarge: true }) as {
     showInDischarge: boolean;
   };
   const updateExtra = (patch: Partial<typeof extra>) =>

@@ -3,14 +3,14 @@ import { useEncounterStore } from '../store/useEncounterStore';
 import type { ContactLensState } from '../store/useEncounterStore';
 
 const DEFAULT_FLAGS = {
-  none: true,
+  none: false,
   softDaily: false,
   softMonthly: false,
   extendedWear: false,
   rgpHard: false,
   scleral: false,
   remarks: '',
-  showInDischarge: false,
+  showInDischarge: true,
 };
 
 export const ContactLensView: React.FC = () => {

@@ -8,7 +8,7 @@ const DEFAULT_FLAGS = {
   tablets: false,
   injection: false,
   remarks: '',
-  showInDischarge: false,
+  showInDischarge: true,
 };
 
 export const MedicationView: React.FC = () => {
