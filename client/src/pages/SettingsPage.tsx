@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { useAuthStore } from '../store/useAuthStore';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
-import { Settings } from 'lucide-react';
+import { Settings, ArrowLeft } from 'lucide-react';
 
 type Tab = 'name' | 'email' | 'password';
 
 export const SettingsPage: React.FC = () => {
   const user = useAuthStore((s) => s.user);
+  const navigate = useNavigate();
+  const isReceptionist = user?.role === 'RECEPTIONIST';
   // Update user directly in the persisted store state
   const updateUser = (patch: Partial<NonNullable<typeof user>>) =>
     useAuthStore.setState((s) => ({ user: s.user ? { ...s.user, ...patch } : s.user }));
@@ -107,10 +110,18 @@ export const SettingsPage: React.FC = () => {
       tab === t ? 'bg-[#1e3a5f] text-white' : 'text-slate-600 hover:bg-slate-100'
     }`;
 
-  return (
-    <DashboardLayout>
+  const content = (
       <div className="p-6 max-w-xl">
         <div className="flex items-center gap-2 mb-6">
+          {isReceptionist && (
+            <button
+              type="button"
+              onClick={() => navigate('/receptionist')}
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 mr-2"
+            >
+              <ArrowLeft className="w-4 h-4" /> Back
+            </button>
+          )}
           <Settings className="w-5 h-5 text-[#2563eb]" />
           <h1 className="text-xl font-semibold text-[#2563eb]">Account Settings</h1>
         </div>
@@ -253,6 +264,15 @@ export const SettingsPage: React.FC = () => {
           </form>
         )}
       </div>
-    </DashboardLayout>
   );
+
+  if (isReceptionist) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        {content}
+      </div>
+    );
+  }
+
+  return <DashboardLayout>{content}</DashboardLayout>;
 };

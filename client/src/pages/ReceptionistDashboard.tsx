@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { UserPlus, Search, Calendar, Users, LogOut, Printer, CheckCircle2, Eye, Receipt } from 'lucide-react';
+import { UserPlus, Search, Calendar, Users, LogOut, Printer, CheckCircle2, Eye, Receipt, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -71,7 +71,32 @@ export const ReceptionistDashboard: React.FC = () => {
   const [pendingOrders, setPendingOrders] = useState<OpticalOrder[]>([]);
   const [billingQueue, setBillingQueue] = useState<BillingQueueEntry[]>([]);
   const [dismissedBillings, setDismissedBillings] = useState<Set<string>>(new Set());
-  const [doneBillings, setDoneBillings] = useState<Set<string>>(new Set());
+  const [doneBillings, setDoneBillings] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('receptionist-done-billings');
+      return stored ? new Set<string>(JSON.parse(stored)) : new Set<string>();
+    } catch {
+      return new Set<string>();
+    }
+  });
+
+  const markDone = (encounterId: string) => {
+    setDoneBillings((prev) => {
+      const next = new Set(prev);
+      next.add(encounterId);
+      try { localStorage.setItem('receptionist-done-billings', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
+
+  const unmarkDone = (encounterId: string) => {
+    setDoneBillings((prev) => {
+      const next = new Set(prev);
+      next.delete(encounterId);
+      try { localStorage.setItem('receptionist-done-billings', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -241,6 +266,13 @@ export const ReceptionistDashboard: React.FC = () => {
               <span className="text-slate-200 font-medium">{user?.name}</span>
             </div>
             <button
+              onClick={() => navigate('/settings')}
+              className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-4 py-2 rounded-full transition-all border border-white/20"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              Settings
+            </button>
+            <button
               onClick={handleLogout}
               className="flex items-center gap-2 bg-gradient-to-r from-rose-500/80 to-rose-600/80 hover:from-rose-600 hover:to-rose-700 text-white text-xs font-bold px-5 py-2 rounded-full transition-all shadow-lg shadow-rose-500/20 hover:shadow-rose-500/40 border border-white/20 hover:scale-105 active:scale-95"
             >
@@ -409,10 +441,18 @@ export const ReceptionistDashboard: React.FC = () => {
                           <div className="flex items-center gap-2">
                             {!isDone && (
                               <button
-                                onClick={() => setDoneBillings((prev) => new Set([...prev, entry.encounterId]))}
+                                onClick={() => markDone(entry.encounterId)}
                                 className="flex items-center gap-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-lg transition-colors"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" /> Done
+                              </button>
+                            )}
+                            {isDone && (
+                              <button
+                                onClick={() => unmarkDone(entry.encounterId)}
+                                className="text-xs font-semibold text-slate-500 hover:text-slate-700 border border-slate-300 hover:border-slate-400 px-3 py-1.5 rounded-lg transition-colors bg-white"
+                              >
+                                Look again
                               </button>
                             )}
                             <button
