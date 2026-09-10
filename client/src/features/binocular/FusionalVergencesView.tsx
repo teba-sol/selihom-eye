@@ -2,7 +2,6 @@ import React from 'react';
 import { useEncounterStore } from '../../store/useEncounterStore';
 
 type VisionTab = 'Distance Vision' | 'Intermediate Vision' | 'Near Vision';
-type VergenceType = 'BI' | 'BO';
 
 interface VergenceData {
   blur: string;
@@ -71,10 +70,20 @@ export const FusionalVergencesView: React.FC = () => {
   const sectionData = useEncounterStore((s) => s.sectionData);
   const setSectionData = useEncounterStore((s) => s.setSectionData);
   const raw = Object.assign({}, DEFAULT, sectionData['fusional-vergences'] ?? {}) as FusionalVergencesData;
+  const rawData = raw.data ?? {};
   const data: Record<VisionTab, TabData> = {
-    'Distance Vision': { bi: { ...EMPTY }, bo: { ...EMPTY }, ...(raw.data?.['Distance Vision'] ?? {}) },
-    'Intermediate Vision': { bi: { ...EMPTY }, bo: { ...EMPTY }, ...(raw.data?.['Intermediate Vision'] ?? {}) },
-    'Near Vision': { bi: { ...EMPTY }, bo: { ...EMPTY }, ...(raw.data?.['Near Vision'] ?? {}) },
+    'Distance Vision': {
+      bi: { ...EMPTY, ...rawData['Distance Vision']?.bi },
+      bo: { ...EMPTY, ...rawData['Distance Vision']?.bo },
+    },
+    'Intermediate Vision': {
+      bi: { ...EMPTY, ...rawData['Intermediate Vision']?.bi },
+      bo: { ...EMPTY, ...rawData['Intermediate Vision']?.bo },
+    },
+    'Near Vision': {
+      bi: { ...EMPTY, ...rawData['Near Vision']?.bi },
+      bo: { ...EMPTY, ...rawData['Near Vision']?.bo },
+    },
   };
   const f: FusionalVergencesData = { ...raw, data };
   const patch = (p: Partial<FusionalVergencesData>) => setSectionData('fusional-vergences', { ...f, ...p });

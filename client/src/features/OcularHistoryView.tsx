@@ -25,7 +25,7 @@ export const OcularHistoryView: React.FC = () => {
   const sectionData = useEncounterStore((s) => s.sectionData);
   const setSectionData = useEncounterStore((s) => s.setSectionData);
 
-  const extra = (sectionData['ocular-history'] ?? { showInDischarge: false }) as {
+  const extra = (sectionData['ocular-history'] ?? { showInDischarge: true }) as {
     showInDischarge: boolean;
   };
   const updateExtra = (patch: Partial<typeof extra>) =>

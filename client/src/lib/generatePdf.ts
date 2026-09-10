@@ -462,7 +462,7 @@ export function downloadEncounterPdf(state: EncounterState) {
         </div>
         <div>
           <div class="patient-info-label">Age</div>
-          <div>${patient.age}</div>
+          <div>${typeof patient.age === 'number' ? `${patient.age} years` : patient.age}</div>
         </div>
         <div>
           <div class="patient-info-label">MRN</div>
@@ -585,6 +585,192 @@ export function downloadContactLensSpecificationPdf(_state: EncounterState) {
       </div>
       <div class="footer-right">
         <div>Generated: ${today} at ${time}</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  openPrintWindow(html);
+}
+
+// Surgery detail report (single surgery from the Surgeries page)
+export interface SurgeryDetailReportData {
+  patientName: string;
+  mrn: string;
+  doctorName: string;
+  encounterDate: string;
+  type: string;
+  status: string;
+  eye: string;
+  diagnosis: string;
+  preOpVa: string;
+  postOpVa: string;
+  iolPower: string;
+  iopOd: string;
+  iopOs: string;
+  dateOfSurgery: string;
+  surgeon: string;
+  remarks: string;
+  details: Record<string, unknown> | null;
+}
+
+const surgeryStatusLabel = (status: string): string => {
+  switch (status) {
+    case 'PLANNED': return 'Planned';
+    case 'COMPLETED': return 'Completed';
+    case 'CANCELLED': return 'Cancelled';
+    default: return status || '—';
+  }
+};
+
+const formatEncounterDate = (iso?: string): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const prettifyReportKey = (key: string): string =>
+  key
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/Va(Od|Os)/g, 'VA $1')
+    .replace(/Iop(Od|Os)/g, 'IOP $1')
+    .replace(/Iol(Ac|No|Pc)(Od|Os)/g, 'IOL $1 $2')
+    .trim();
+
+function flattenReportObj(
+  obj: Record<string, unknown>,
+  prefix = '',
+): { label: string; value: string }[] {
+  const rows: { label: string; value: string }[] = [];
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === undefined) continue;
+    const label = prefix ? `${prefix}.${k}` : k;
+    if (Array.isArray(v)) {
+      const items = v.filter((x) => typeof x === 'string' && String(x).trim());
+      if (items.length > 0) rows.push({ label: prettifyReportKey(label), value: items.join(', ') });
+    } else if (typeof v === 'object') {
+      rows.push(...flattenReportObj(v as Record<string, unknown>, label));
+    } else if ((typeof v === 'string' || typeof v === 'number') && String(v).trim()) {
+      rows.push({ label: prettifyReportKey(label), value: String(v) });
+    }
+  }
+  return rows;
+}
+
+export function downloadSurgeryDetailPdf(data: SurgeryDetailReportData) {
+  const { today, time } = getTimestamp();
+
+  const summaryRows: { label: string; value: string }[] = [
+    { label: 'Type', value: data.type || '—' },
+    { label: 'Status', value: surgeryStatusLabel(data.status) },
+    { label: 'Eye', value: data.eye || '—' },
+    { label: 'Diagnosis', value: data.diagnosis || '—' },
+    { label: 'Pre-op VA', value: data.preOpVa || '—' },
+    { label: 'Post-op VA', value: data.postOpVa || '—' },
+    { label: 'IOL Power', value: data.iolPower || '—' },
+    { label: 'IOP OD', value: data.iopOd || '—' },
+    { label: 'IOP OS', value: data.iopOs || '—' },
+    { label: 'Date of Surgery', value: data.dateOfSurgery || '—' },
+    { label: 'Surgeon', value: data.surgeon || '—' },
+  ];
+
+  const summaryTable = `
+    <table>
+      <tbody>
+        ${summaryRows
+          .map(
+            (r) => `
+          <tr>
+            <td style="width: 30%; font-weight: 600; color: #475569;">${r.label}</td>
+            <td style="font-weight: 500;">${r.value}</td>
+          </tr>`,
+          )
+          .join('')}
+      </tbody>
+    </table>`;
+
+  const fullRows = data.details ? flattenReportObj(data.details) : [];
+  const fullTable =
+    fullRows.length > 0
+      ? `
+    <table>
+      <thead>
+        <tr><th style="width: 40%;">Field</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        ${fullRows
+          .map(
+            (r) => `
+          <tr>
+            <td style="font-weight: 600; color: #475569;">${r.label}</td>
+            <td>${r.value}</td>
+          </tr>`,
+          )
+          .join('')}
+      </tbody>
+    </table>`
+      : '';
+
+  const remarksBlock = data.remarks
+    ? `
+    <div class="section-title">REMARKS</div>
+    <div class="section-content">${data.remarks}</div>`
+    : '';
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Surgery Detail Report - SELIHOME</title>
+  <style>${getCommonStyles()}</style>
+</head>
+<body>
+  <div class="page-container">
+    <div class="pdf-header">
+      <div class="clinic-name">SELIHOME</div>
+      <div class="clinic-subtitle">Ophthalmic Medium Clinic · Comprehensive Eye Care Center</div>
+    </div>
+
+    <div class="document-title">SURGERY DETAIL REPORT</div>
+
+    <div class="patient-header">
+      <div class="patient-name">${data.patientName}</div>
+      <div class="patient-info">
+        <div>
+          <div class="patient-info-label">MRN</div>
+          <div>${data.mrn}</div>
+        </div>
+        <div>
+          <div class="patient-info-label">Doctor</div>
+          <div>${data.doctorName}</div>
+        </div>
+        <div>
+          <div class="patient-info-label">Encounter Date</div>
+          <div>${formatEncounterDate(data.encounterDate)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">SUMMARY</div>
+    <div class="section-content">${summaryTable}</div>
+
+    ${fullTable ? `<div class="section-title">FULL DETAILS</div><div class="section-content">${fullTable}</div>` : ''}
+
+    ${remarksBlock}
+
+    <div class="pdf-footer">
+      <div class="footer-left">
+        <strong>SELIHOME Ophthalmic Medium Clinic</strong>
+        <span class="confidential-badge">CONFIDENTIAL</span>
+      </div>
+      <div class="footer-right">
+        <div>Generated: ${today} at ${time}</div>
+        <div style="font-size: 7.5pt; margin-top: 2px;">This document contains protected health information</div>
       </div>
     </div>
   </div>

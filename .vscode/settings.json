@@ -4,7 +4,7 @@
     "**/.git/objects/**": true,
     "**/.git/subtree-cache/**": true,
     "**/dist/**": true,
-    "**/build/**": true,
+    "**/build/**": true,  
     "**/.next/**": true,
     "**/coverage/**": true
   },

@@ -1,7 +1,7 @@
 import { Controller, Post, Body, HttpCode, HttpStatus, Patch, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterStaffDto, UpdateProfileDto } from './dto/auth.dto';
+import { LoginDto, RegisterStaffDto, RefreshDto, UpdateProfileDto } from './dto/auth.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { RequestUser } from '../../common/decorators/current-user.decorator';
 
@@ -18,6 +18,12 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(@Body() dto: RefreshDto) {
+    return this.authService.refresh(dto);
   }
 
   @Patch('me')

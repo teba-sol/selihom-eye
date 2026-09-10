@@ -50,8 +50,16 @@ export const TopographyView: React.FC = () => {
   const sectionData = useEncounterStore((s) => s.sectionData);
   const setSectionData = useEncounterStore((s) => s.setSectionData);
   const raw = Object.assign({}, DEFAULT_TOPOG, sectionData.topography ?? {}) as TopographyData;
-  const keratometryOd: Keratometry = { flat: '', steep: '', axis: '', ...(raw.keratometryOd ?? {}) };
-  const keratometryOs: Keratometry = { flat: '', steep: '', axis: '', ...(raw.keratometryOs ?? {}) };
+  const keratometryOd: Keratometry = {
+    flat: raw.keratometryOd?.flat ?? '',
+    steep: raw.keratometryOd?.steep ?? '',
+    axis: raw.keratometryOd?.axis ?? '',
+  };
+  const keratometryOs: Keratometry = {
+    flat: raw.keratometryOs?.flat ?? '',
+    steep: raw.keratometryOs?.steep ?? '',
+    axis: raw.keratometryOs?.axis ?? '',
+  };
   const f: TopographyData = { ...raw, keratometryOd, keratometryOs };
   const patch = (p: Partial<TopographyData>) => setSectionData('topography', { ...f, ...p });
   const { device, topoType, kMaxOd, kMaxOs, pupilSizeOd, pupilSizeOs, remarks, showInDischarge } = f;

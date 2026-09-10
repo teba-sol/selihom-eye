@@ -24,7 +24,7 @@ export const ReasonForVisitView: React.FC = () => {
   const setSectionData = useEncounterStore((s) => s.setSectionData);
 
   const selectedReason = patient.reasonForVisit;
-  const extra = (sectionData['reason-for-visit'] ?? { remarks: '', showInDischarge: false }) as {
+  const extra = (sectionData['reason-for-visit'] ?? { remarks: '', showInDischarge: true }) as {
     remarks: string;
     showInDischarge: boolean;
   };

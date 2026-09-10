@@ -5,7 +5,7 @@ const DEFAULT_FLAGS = {
   occupation: '',
   hobbies: '',
   remarks: '',
-  showInDischarge: false,
+  showInDischarge: true,
 };
 
 export const LifestyleView: React.FC = () => {

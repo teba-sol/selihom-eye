@@ -148,13 +148,73 @@ const ETHIOPIAN_MONTHS = [
   'Megabit', 'Miazia', 'Ginbot', 'Sene', 'Hamle', 'Nehase', 'Pagume',
 ];
 
-// Format a Gregorian ISO date (YYYY-MM-DD or Date) as an Ethiopian day-first
-// "DD Mon YYYY" string (e.g. "12 Meskerem 2018").
+// Ethiopian calendar parts (year, month, day + month name) for a GC date/ISO string.
+export function ethiopianParts(d: string | Date): {
+  year: number;
+  month: number;
+  day: number;
+  monthName: string;
+} {
+  const dt = typeof d === 'string' ? parseDate(d) : d;
+  const eth = gregorianToEthiopian(dt.getFullYear(), dt.getMonth() + 1, dt.getDate());
+  return {
+    year: eth.year,
+    month: eth.month,
+    day: eth.day,
+    monthName: ETHIOPIAN_MONTHS[eth.month - 1] ?? `M${eth.month}`,
+  };
+}
+
+// Format a Gregorian ISO date (YYYY-MM-DD or Date) as an Ethiopian "DD Mon YYYY"
+// string (e.g. "08 Meskerem 2018").
 export function formatEthiopianDate(iso: string | Date | null | undefined): string {
   if (!iso) return '—';
   const d = typeof iso === 'string' ? parseDate(iso) : iso;
   if (Number.isNaN(d.getTime())) return String(iso);
-  const eth = gregorianToEthiopian(d.getFullYear(), d.getMonth() + 1, d.getDate());
-  const monthName = ETHIOPIAN_MONTHS[eth.month - 1] ?? `M${eth.month}`;
-  return `${String(eth.day).padStart(2, '0')} ${monthName} ${eth.year}`;
+  const eth = ethiopianParts(d);
+  return `${String(eth.day).padStart(2, '0')} ${eth.monthName} ${eth.year}`;
+}
+
+// Today's Ethiopian date as DD/MM/YYYY (numeric), e.g. "07/01/2019".
+export function todayEthiopian(): string {
+  const eth = ethiopianParts(new Date());
+  return `${String(eth.day).padStart(2, '0')}/${String(eth.month).padStart(2, '0')}/${eth.year}`;
+}
+
+// Today's date (YYYY-MM-DD) in the user's computer (local) timezone.
+export function todayLocalStr(): string {
+  const p: Record<string, string> = {};
+  for (const part of new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())) {
+    p[part.type] = part.value;
+  }
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+// Current time (HH:mm, 24h) in the user's computer (local) timezone.
+export function nowLocalTime(): string {
+  const p: Record<string, string> = {};
+  for (const part of new Intl.DateTimeFormat('en-CA', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date())) {
+    p[part.type] = part.value;
+  }
+  const hh = p.hour === '24' ? '00' : p.hour;
+  return `${hh}:${p.minute}`;
+}
+
+// Convert a 24h "HH:mm" string to 12-hour display ("04:25 PM").
+export function formatTime12(hhmm: string | null | undefined): string {
+  if (!hhmm) return '—';
+  const m = hhmm.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return hhmm;
+  const h = Number(m[1]) % 24;
+  const period = h < 12 ? 'AM' : 'PM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${String(h12).padStart(2, '0')}:${m[2]} ${period}`;
 }

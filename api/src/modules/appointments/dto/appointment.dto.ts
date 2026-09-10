@@ -1,4 +1,4 @@
-import { IsUUID, IsNotEmpty, IsDateString, IsIn, IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsUUID, IsNotEmpty, IsDateString, IsIn, IsOptional, IsString, IsInt, Min } from 'class-validator';
 
 export class BookAppointmentDto {
   @IsUUID()
@@ -15,19 +15,29 @@ export class BookAppointmentDto {
 
   @IsString()
   @IsOptional()
-  reason?: string;
+  endTime?: string;
 
-  @IsBoolean()
+  @IsString()
+  @IsNotEmpty()
+  reason!: string;
+
+  @IsString()
   @IsOptional()
-  consentObtained?: boolean;
+  notes?: string;
+
+  @IsInt()
+  @Min(5)
+  @IsOptional()
+  estimatedDuration?: number;
+}
+
+export class CancelAppointmentDto {
+  @IsString()
+  @IsNotEmpty()
+  cancellationReason!: string;
 }
 
 export class UpdateAppointmentStatusDto {
-  @IsIn(['SCHEDULED', 'CHECKED_IN', 'IN_EXAM', 'COMPLETED', 'CANCELLED'])
-  status!: 'SCHEDULED' | 'CHECKED_IN' | 'IN_EXAM' | 'COMPLETED' | 'CANCELLED';
-}
-
-export class UpdateConsentDto {
-  @IsBoolean()
-  consentObtained!: boolean;
+  @IsIn(['SCHEDULED', 'IN_EXAM', 'COMPLETED', 'CANCELLED'])
+  status!: 'SCHEDULED' | 'IN_EXAM' | 'COMPLETED' | 'CANCELLED';
 }

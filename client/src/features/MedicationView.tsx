@@ -5,11 +5,11 @@ import { generateId } from '../utils/uuid';
 
 const DEFAULT_FLAGS = {
   none: false,
-  eyeDrops: true,
-  tablets: true,
+  eyeDrops: false,
+  tablets: false,
   injection: false,
-  remarks: 'Eye drops for dry eye',
-  showInDischarge: false,
+  remarks: '',
+  showInDischarge: true,
 };
 
 export const MedicationView: React.FC = () => {

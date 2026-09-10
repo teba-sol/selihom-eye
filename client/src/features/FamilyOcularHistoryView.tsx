@@ -4,12 +4,12 @@ import type { FamilyHistoryItem } from '../store/useEncounterStore';
 import { generateId } from '../utils/uuid';
 
 const DEFAULT_FLAGS = {
-  noHistory: true,
+  noHistory: false,
   parent: false,
   sibling: false,
   grandparent: false,
   remarks: '',
-  showInDischarge: false,
+  showInDischarge: true,
 };
 
 export const FamilyOcularHistoryView: React.FC = () => {

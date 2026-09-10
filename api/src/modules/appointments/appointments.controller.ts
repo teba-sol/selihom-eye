@@ -1,8 +1,10 @@
-import { Controller, Post, Get, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AppointmentsService } from './appointments.service';
-import { BookAppointmentDto, UpdateAppointmentStatusDto, UpdateConsentDto } from './dto/appointment.dto';
+import { BookAppointmentDto, CancelAppointmentDto, UpdateAppointmentStatusDto } from './dto/appointment.dto';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { RequestUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('appointments')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -10,15 +12,9 @@ export class AppointmentsController {
   constructor(private readonly appointmentsService: AppointmentsService) {}
 
   @Post()
-  @Roles('RECEPTIONIST', 'DOCTOR')
-  async book(@Body() dto: BookAppointmentDto) {
-    return this.appointmentsService.book(dto);
-  }
-
-  @Get('queue')
-  @Roles('RECEPTIONIST', 'DOCTOR')
-  async getLiveQueue() {
-    return this.appointmentsService.getLiveQueue();
+  @Roles('DOCTOR')
+  async book(@Body() dto: BookAppointmentDto, @CurrentUser() user: RequestUser) {
+    return this.appointmentsService.book(dto, user.userId);
   }
 
   @Get()
@@ -38,20 +34,14 @@ export class AppointmentsController {
   }
 
   @Patch(':id/status')
-  @Roles('RECEPTIONIST', 'DOCTOR')
+  @Roles('DOCTOR')
   async updateStatus(@Param('id') id: string, @Body() dto: UpdateAppointmentStatusDto) {
     return this.appointmentsService.updateStatus(id, dto);
   }
 
-  @Patch(':id/consent')
-  @Roles('RECEPTIONIST', 'DOCTOR')
-  async recordConsent(@Param('id') id: string, @Body() dto: UpdateConsentDto) {
-    return this.appointmentsService.recordConsent(id, dto);
-  }
-
-  @Delete(':id')
-  @Roles('RECEPTIONIST', 'DOCTOR')
-  async cancel(@Param('id') id: string) {
-    return this.appointmentsService.cancel(id);
+  @Patch(':id/cancel')
+  @Roles('DOCTOR')
+  async cancel(@Param('id') id: string, @Body() dto: CancelAppointmentDto, @CurrentUser() user: RequestUser) {
+    return this.appointmentsService.cancel(id, dto, user.userId);
   }
 }

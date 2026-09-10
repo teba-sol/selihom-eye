@@ -2,8 +2,8 @@ import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsEmail } from 'class-vali
 
 export class CreatePatientDto {
   @IsString()
-  @IsOptional()
-  mrn?: string;
+  @IsNotEmpty()
+  mrn!: string;
 
   @IsString()
   @IsNotEmpty()

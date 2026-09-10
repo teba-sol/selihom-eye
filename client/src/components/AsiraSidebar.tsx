@@ -245,19 +245,40 @@ export const AsiraSidebar: React.FC = () => {
       case 'symptomatic-history':
         return encounterState.symptoms.length > 0;
       case 'ocular-history':
-        return Object.values(encounterState.ocularHistory.conditions).some(c => c.active);
+        return (
+          Object.values(encounterState.ocularHistory.conditions).some(c => c.active) ||
+          !!encounterState.ocularHistory.noHistoryReported
+        );
       case 'systemic-history':
-        return Object.values(encounterState.systemicHistory.conditions).some((c: any) => c.active);
+        return (
+          Object.values(encounterState.systemicHistory.conditions).some((c: any) => c.active) ||
+          !!encounterState.systemicHistory.noHistoryReported
+        );
       case 'medication':
-        return encounterState.patientMedications.length > 0;
+        return (
+          encounterState.patientMedications.length > 0 ||
+          !!encounterState.sectionData['medication']?.none
+        );
       case 'family-ocular-history':
-        return encounterState.familyOcularHistory.length > 0;
+        return (
+          encounterState.familyOcularHistory.length > 0 ||
+          !!encounterState.sectionData['family-ocular-history']?.noHistory
+        );
       case 'family-systemic-history':
-        return encounterState.familySystemicHistory.length > 0;
+        return (
+          encounterState.familySystemicHistory.length > 0 ||
+          !!encounterState.sectionData['family-systemic-history']?.noHistory
+        );
       case 'spectacles':
-        return encounterState.spectaclesHistory.currentlyWears === true;
+        return (
+          encounterState.spectaclesHistory.currentlyWears === true ||
+          !!encounterState.sectionData['spectacles']?.none
+        );
       case 'contact-lens':
-        return encounterState.contactLensHistory.currentWearer === true;
+        return (
+          encounterState.contactLensHistory.currentWearer === true ||
+          !!encounterState.sectionData['contact-lens']?.none
+        );
       case 'lifestyle': {
         const l = encounterState.lifestyleDemands;
         return l.occupation.trim() !== '' || l.hobbies.trim() !== '' || l.outdoorActivities.trim() !== '';
@@ -266,7 +287,7 @@ export const AsiraSidebar: React.FC = () => {
       case 'visual-acuity': {
         const va = encounterState.visualAcuity;
         return [va.od, va.os, va.ou].some((eye) =>
-          Object.values(eye).some((scope) => Object.values(scope).some((v) => v.trim() !== '')),
+          Object.values(eye).some((scope) => Object.values(scope).some((v) => String(v).trim() !== '')),
         );
       }
       case 'refraction':
@@ -275,21 +296,21 @@ export const AsiraSidebar: React.FC = () => {
         if (rf.odSph.trim() !== '' || rf.osSph.trim() !== '') return true;
         const f = encounterState.sectionData['objective-subjective'] as any;
         if (!f) return sectionId === 'objective-subjective' ? false : isSectionCompleted('objective-subjective');
+        const filled = (v: any) => {
+          const s = String(v ?? '').trim();
+          return s !== '' && s !== '-';
+        };
         const has = (o: any) =>
-          !!o &&
-          (String(o.sph ?? '').trim() !== '' ||
-            String(o.cyl ?? '').trim() !== '' ||
-            String(o.axis ?? '').trim() !== '' ||
-            String(o.va ?? '').trim() !== '');
+          !!o && (filled(o.sph) || filled(o.cyl) || filled(o.axis) || filled(o.va));
         return (
           has(f.subjOd?.dist) ||
           has(f.subjOs?.dist) ||
           has(f.objOd) ||
           has(f.objOs) ||
-          String(f.subjOd?.near?.add ?? '').trim() !== '' ||
-          String(f.subjOs?.near?.add ?? '').trim() !== '' ||
-          String(f.subjOd?.inter?.add ?? '').trim() !== '' ||
-          String(f.subjOs?.inter?.add ?? '').trim() !== ''
+          filled(f.subjOd?.near?.add) ||
+          filled(f.subjOs?.near?.add) ||
+          filled(f.subjOd?.inter?.add) ||
+          filled(f.subjOs?.inter?.add)
         );
       }
       case 'cycloplegic': {
@@ -330,6 +351,11 @@ export const AsiraSidebar: React.FC = () => {
         return sectionHasData(sectionId);
       case 'action-and-advice':
         return sectionHasData('action-and-advice');
+      case 'final-spectacle-prescription':
+      case 'final-contact-lens-specification':
+      case 'spectacle-dispensing':
+      case 'discharge-summary':
+        return sectionHasData(sectionId);
       default:
         return false;
     }

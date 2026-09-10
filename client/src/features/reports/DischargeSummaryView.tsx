@@ -43,7 +43,7 @@ function KV({ label, value }: { label: string; value: any }) {
   return <Row label={label} value={d} />;
 }
 
-// Normalize surgery list from either the new `surgeries` array or legacy flat fields
+// Normalize surgery list from the `surgeries` array (flat-field fallback for very old visits)
 function resolveSurgeryList(a: any): any[] {
   if (Array.isArray(a?.surgeries) && a.surgeries.length > 0) return a.surgeries;
   const type = a?.surgeryType || '';
@@ -52,10 +52,6 @@ function resolveSurgeryList(a: any): any[] {
     type,
     otherName: a?.surgeryOther ?? '',
     remarks: a?.surgeryRemarks ?? '',
-    cataractDetails: a?.cataractDetails,
-    genericDetails: type === 'Other (Enter Manually)'
-      ? a?.genericSurgeryDetails?.['Other (Enter Manually)']
-      : a?.genericSurgeryDetails?.[type],
   }];
 }
 
@@ -90,50 +86,34 @@ function SurgeryRows({ e }: { e: any }) {
   const remarks = (e.remarks || '').trim();
   add('Surgery', name ? `${name}${remarks ? ` — ${remarks}` : ''}` : '');
 
-  const cat = e.cataractDetails;
-  const gen = e.genericDetails;
+  const d = e.unifiedDetails;
 
-  if (cat) {
-    add('Diagnosis', cat.diagnosis);
-    add('Eye To Be Operated', cat.eyeToBeOperated);
-    addEye('Pre-Op VA', cat.preOpVaOd, cat.preOpVaOs);
-    addEye('Pre-Op IOP', cat.preOpIopOd, cat.preOpIopOs);
-    addEye('Biometry — K1', cat.biometryOd?.k1, cat.biometryOs?.k1);
-    addEye('Biometry — K2', cat.biometryOd?.k2, cat.biometryOs?.k2);
-    addEye('Biometry — AXL', cat.biometryOd?.axl, cat.biometryOs?.axl);
-    addEye('Biometry — IOL', cat.biometryOd?.iol, cat.biometryOs?.iol);
-    add('Date Of Surgery', cat.dateOfSurgery);
-    add('Surgeon', cat.surgeon);
-    addEye('IOL — PC', cat.iolPcOd, cat.iolPcOs);
-    addEye('IOL — AC', cat.iolAcOd, cat.iolAcOs);
-    addEye('IOL — NO', cat.iolNoOd, cat.iolNoOs);
-    addRec(cat.intraOpComplications);
-    add('Complication Management', cat.intraOpComplicationAction);
-    add('Documented By', cat.documentedBy);
-    add('Surgeon (Post-Op)', cat.surgeonPostOp);
-    addEye('1st Post-Op Day VA', cat.postOpDay1VaOd, cat.postOpDay1VaOs);
-    addRec(cat.postOpDay1Complications);
-    add('Assessment', cat.assessment);
-    add('Plan', cat.plan);
-  } else if (gen) {
-    add('Diagnosis', gen.diagnosis);
-    add('Eye To Be Operated', gen.eyeToBeOperated);
-    addEye('Pre-Op VA', gen.preOpVaOd, gen.preOpVaOs);
-    addEye('Pre-Op IOP', gen.preOpIopOd, gen.preOpIopOs);
-    addRec(gen.preOpFindings);
-    add('Pre-Op Notes', gen.preOpNotes);
-    add('Date Of Surgery', gen.dateOfSurgery);
-    add('Surgeon', gen.surgeon);
-    addStrRec(gen.surgicalFields);
-    addRec(gen.intraOpComplications);
-    add('Complication Management', gen.intraOpAction);
-    add('Documented By', gen.documentedBy);
-    addEye('1st Post-Op Day VA', gen.postOpDay1VaOd, gen.postOpDay1VaOs);
-    addEye('1st Post-Op Day IOP', gen.postOpDay1IopOd, gen.postOpDay1IopOs);
-    addRec(gen.postOpFindings);
-    add('Post-Op Notes', gen.postOpNotes);
-    add('Assessment', gen.assessment);
-    add('Plan', gen.plan);
+  if (d) {
+    add('Diagnosis', d.diagnosis);
+    add('Eye To Be Operated', d.eyeToBeOperated);
+    addEye('Pre-Op VA', d.preOpVaOd, d.preOpVaOs);
+    addEye('Pre-Op IOP', d.preOpIopOd, d.preOpIopOs);
+    addRec(d.preOpFindings);
+    add('Pre-Op Notes', d.preOpNotes);
+    addEye('Biometry — K1', d.biometryOd?.k1, d.biometryOs?.k1);
+    addEye('Biometry — K2', d.biometryOd?.k2, d.biometryOs?.k2);
+    addEye('Biometry — AXL', d.biometryOd?.axl, d.biometryOs?.axl);
+    addEye('Biometry — IOL', d.biometryOd?.iol, d.biometryOs?.iol);
+    add('Date Of Surgery', d.dateOfSurgery);
+    add('Surgeon', d.surgeon);
+    addStrRec(d.surgicalFields);
+    addEye('IOL — PC', d.iolPcOd, d.iolPcOs);
+    addEye('IOL — AC', d.iolAcOd, d.iolAcOs);
+    addEye('IOL — NO', d.iolNoOd, d.iolNoOs);
+    addRec(d.intraOpComplications);
+    add('Complication Management', d.intraOpAction);
+    add('Documented By', d.documentedBy);
+    addEye('1st Post-Op Day VA', d.postOpDay1VaOd, d.postOpDay1VaOs);
+    addEye('1st Post-Op Day IOP', d.postOpDay1IopOd, d.postOpDay1IopOs);
+    addRec(d.postOpFindings);
+    add('Post-Op Notes', d.postOpNotes);
+    add('Assessment', d.assessment);
+    add('Plan', d.plan);
   } else if (!name) {
     return null;
   }
@@ -205,6 +185,7 @@ export const DischargeSummaryView: React.FC = () => {
 
           <div className="border border-slate-200 rounded-xl overflow-hidden">
             <table className="w-full border-collapse text-sm">
+              <tbody>
               {/* ================= HISTORY & SYMPTOMS ================= */}
               {(() => {
                 const historyToggled = [
@@ -313,27 +294,73 @@ export const DischargeSummaryView: React.FC = () => {
                 </tbody>
               </ToggleSection>
 
-              {/* ================= REFRACTION (Spectacle Prescription) ================= */}
-              <ToggleSection s={s} sectionKey="objective-subjective" title={<>Spectacle<br />Prescription</>}>
-                <tbody>
-                  {(() => {
-                    const f = s.sectionData['objective-subjective'] ?? {};
-                    const od = f.objOd ?? {}; const os = f.objOs ?? {};
-                    const g = (r: any) => `${dash(r.sph)}${r.cyl ? ` / ${r.cyl}` : ''}${r.axis ? ` ×${r.axis}` : ''}${r.va ? ` VA ${r.va}` : ''}`;
-                    return (
-                      <Row label="Objective Refraction" value={<div><div><span className="font-medium">OD</span> {g(od)}</div><div><span className="font-medium">OS</span> {g(os)}</div></div>} />
-                    );
-                  })()}
-                  {(() => {
-                    const f = s.sectionData['objective-subjective'] ?? {};
-                    const so = f.subjOd ?? {}; const ss = f.subjOs ?? {};
-                    const g = (r: any) => `${dash(r.sph)}${r.cyl ? ` / ${r.cyl}` : ''}${r.axis ? ` ×${r.axis}` : ''}${r.va ? ` VA ${r.va}` : ''}`;
-                    const has = Object.keys(so).length || Object.keys(ss).length;
-                    if (!has) return null;
-                    return <Row label="Subjective Refraction" value={<div><div><span className="font-medium">OD</span> {g(so)}</div><div><span className="font-medium">OS</span> {g(ss)}</div></div>} />;
-                  })()}
-                </tbody>
-              </ToggleSection>
+              {/* ================= REFRACTION ================= */}
+              {(() => {
+                const objSubOn = s.sectionData['objective-subjective']?.showInDischarge === true;
+                const cycOn = s.sectionData['cycloplegic']?.showInDischarge === true;
+                if (!objSubOn && !cycOn) return null;
+                const g = (r: any) => `${dash(r?.sph)}${r?.cyl ? ` / ${r.cyl}` : ''}${r?.axis ? ` ×${r.axis}` : ''}${r?.va ? ` VA ${r.va}` : ''}`;
+                const hasVal = (v: any) => v !== undefined && v !== null && String(v).trim() !== '' && String(v) !== '-';
+                const gSub = (e: any) => {
+                  const dist = e?.dist ?? {}; const near = e?.near ?? {}; const inter = e?.inter ?? {};
+                  const parts: string[] = [];
+                  let d = dash(dist.sph);
+                  if (hasVal(dist.cyl)) d += ` / ${dist.cyl}`;
+                  if (hasVal(dist.axis)) d += ` ×${dist.axis}`;
+                  if (hasVal(dist.va)) d += ` VA ${dist.va}`;
+                  parts.push(d);
+                  if (hasVal(near.add)) parts.push(`Near +${near.add}${hasVal(near.va) ? ` ${near.va}` : ''}`);
+                  if (hasVal(inter.add)) parts.push(`Inter +${inter.add}${hasVal(inter.va) ? ` ${inter.va}` : ''}`);
+                  return parts.join('  ·  ');
+                };
+                const hasSubjd = (e: any) => {
+                  const dist = e?.dist ?? {}; const near = e?.near ?? {}; const inter = e?.inter ?? {};
+                  return hasVal(dist.sph) || hasVal(dist.cyl) || hasVal(dist.axis) || hasVal(dist.va)
+                    || hasVal(near.add) || hasVal(near.va) || hasVal(inter.add) || hasVal(inter.va);
+                };
+                const subHeader = (text: string) => (
+                  <tr className="bg-slate-50 border-b border-slate-100">
+                    <td colSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{text}</td>
+                  </tr>
+                );
+                return (
+                  <tr className="border-b border-slate-200">
+                    <SectionHeader>Refraction</SectionHeader>
+                    <td className="p-0">
+                      <table className="w-full border-collapse">
+                        <tbody>
+                          {objSubOn && (() => {
+                            const f = s.sectionData['objective-subjective'] ?? {};
+                            const od = f.objOd ?? {}; const os = f.objOs ?? {};
+                            const so = f.subjOd ?? {}; const ss = f.subjOs ?? {};
+                            const hasSubj = hasSubjd(so) || hasSubjd(ss);
+                            return (
+                              <>
+                                {subHeader('Objective & Subjective')}
+                                <Row label="Objective Refraction" value={<div><div><span className="font-medium">OD</span> {g(od)}</div><div><span className="font-medium">OS</span> {g(os)}</div></div>} />
+                                {hasSubj && <Row label="Subjective Refraction" value={<div><div><span className="font-medium">OD</span> {gSub(so)}</div><div><span className="font-medium">OS</span> {gSub(ss)}</div></div>} />}
+                              </>
+                            );
+                          })()}
+                          {cycOn && (() => {
+                            const f = s.sectionData['cycloplegic'] ?? {};
+                            const co = f.cycloOd ?? {}; const cs = f.cycloOs ?? {};
+                            const hasCyclo = hasVal(co?.sph) || hasVal(co?.cyl) || hasVal(co?.axis) || hasVal(co?.va)
+                              || hasVal(cs?.sph) || hasVal(cs?.cyl) || hasVal(cs?.axis) || hasVal(cs?.va);
+                            if (!hasCyclo) return null;
+                            return (
+                              <>
+                                {subHeader('Cycloplegic')}
+                                <Row label="Cycloplegic Refraction" value={<div><div><span className="font-medium">OD</span> {g(co)}</div><div><span className="font-medium">OS</span> {g(cs)}</div></div>} />
+                              </>
+                            );
+                          })()}
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                );
+              })()}
 
               {/* ================= ADDITIONAL TESTS ================= */}
               <ToggleSection s={s} sectionKey="tonometry" title={<>Tonometry</>}>
@@ -467,17 +494,6 @@ export const DischargeSummaryView: React.FC = () => {
               </ToggleSection>
               <ToggleSection s={s} sectionKey="pupil-evaluation" title={<>Pupil<br />Evaluation</>}>
                 <tbody>{(() => { const f = s.sectionData['pupil-evaluation'] ?? {}; return <KV label="Findings" value={f.checked} />; })()}</tbody>
-              </ToggleSection>
-
-              {/* ================= CYCLOPLEGIC ================= */}
-              <ToggleSection s={s} sectionKey="cycloplegic" title={<>Cycloplegic<br />Refraction</>}>
-                <tbody>
-                  {(() => {
-                    const f = s.sectionData['cycloplegic'] ?? {};
-                    const g = (r: any) => `${dash(r?.sph)}${r?.cyl ? ` / ${r.cyl}` : ''}${r?.axis ? ` ×${r.axis}` : ''}${r?.va ? ` VA ${r.va}` : ''}`;
-                    return <Row label="Cycloplegic" value={<div><div><span className="font-medium">OD</span> {g(f.cycloOd)}</div><div><span className="font-medium">OS</span> {g(f.cycloOs)}</div></div>} />;
-                  })()}
-                </tbody>
               </ToggleSection>
 
               {/* ================= CL FITTING / PRE-FIT ================= */}
@@ -710,6 +726,7 @@ export const DischargeSummaryView: React.FC = () => {
                   </tr>
                 );
               })()}
+              </tbody>
             </table>
           </div>
 
@@ -730,10 +747,6 @@ export const DischargeSummaryView: React.FC = () => {
               <p className="text-slate-600">Dr. Tarekegn</p>
               <p className="text-slate-500 text-xs">Selihome Ophthalmic Medium Clinic</p>
             </div>
-          </div>
-
-          <div className="flex justify-end mt-4">
-            <button onClick={handleDownloadPdf} className="px-4 py-2 border border-teal-600 text-teal-700 rounded-lg text-sm font-medium hover:bg-teal-50">Download PDF</button>
           </div>
         </div>
       </div>

@@ -9,6 +9,12 @@ export class LoginDto {
   password!: string;
 }
 
+export class RefreshDto {
+  @IsString()
+  @IsNotEmpty()
+  refreshToken!: string;
+}
+
 export class RegisterStaffDto {
   @IsEmail()
   email!: string;

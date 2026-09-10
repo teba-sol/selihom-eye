@@ -1,10 +1,11 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
-import { Upload, MousePointer2, Pencil, Eraser, Type, Circle, ArrowUpRight, MoreHorizontal, ChevronDown, X } from 'lucide-react';
+import { MousePointer2, Pencil, Eraser, Type, Circle, ArrowUpRight, MoreHorizontal } from 'lucide-react';
 import { MultiSelect } from '../components/MultiSelect';
 import { useEncounterStore } from '../store/useEncounterStore';
+import { disposeFabricCanvas, isFabricCanvasLive, flushCanvasJson } from '../lib/fabricGuard';
 
-// ── Multi-select tag options per structure ────────────────────────────────────
+// -- Multi-select tag options per structure ------------------------------------
 const STRUCTURE_OPTIONS: Record<string, string[]> = {
   'Lids/Lashes': [
     'Clean and healthy / Within normal limits',
@@ -53,7 +54,7 @@ const STRUCTURE_OPTIONS: Record<string, string[]> = {
 
 const STRUCTURES = Object.keys(STRUCTURE_OPTIONS);
 
-// ── Anatomy SVG for one eye ───────────────────────────────────────────────────
+// -- Anatomy SVG for one eye ---------------------------------------------------
 function EyeAnatomy() {
   return (
     <svg viewBox="0 0 200 200" className="w-full h-full" style={{ overflow: 'visible' }}>
@@ -71,16 +72,48 @@ function EyeAnatomy() {
   );
 }
 
-// ── Drawing canvas for one eye ────────────────────────────────────────────────
-function DrawingCanvas({ tool, color, brushSize, canvasRef, fabricRef, eyeLabel }: {
+// -- Drawing canvas for one eye ------------------------------------------------
+function makeArrow(from: { x: number; y: number }, to: { x: number; y: number }, color: string) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const line = new fabric.Line([from.x, from.y, to.x, to.y], {
+    stroke: color,
+    strokeWidth: 2,
+    selectable: false,
+    evented: false,
+  });
+  const triangle = new fabric.Triangle({
+    left: to.x,
+    top: to.y,
+    width: 12,
+    height: 12,
+    fill: color,
+    originX: 'center',
+    originY: 'center',
+    angle: (Math.atan2(dy, dx) * 180) / Math.PI + 90,
+    selectable: false,
+    evented: false,
+  });
+  return new fabric.Group([line, triangle], { selectable: true, evented: true });
+}
+
+function DrawingCanvas({ tool, color, brushSize, canvasRef, fabricRef, savedJson, onSave }: {
   tool: string; color: string; brushSize: number;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   fabricRef: React.MutableRefObject<fabric.Canvas | null>;
-  eyeLabel: string;
+  savedJson?: string | null;
+  onSave?: (json: string) => void;
 }) {
+  const savedJsonRef = useRef(savedJson);
+  savedJsonRef.current = savedJson;
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+  const shapeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const previewRef = useRef<fabric.Object | null>(null);
+
   useEffect(() => {
     if (!canvasRef.current) return;
-    if (fabricRef.current) fabricRef.current.dispose();
+    if (fabricRef.current) disposeFabricCanvas(fabricRef);
 
     const canvas = new fabric.Canvas(canvasRef.current, {
       width: 320, height: 280,
@@ -88,12 +121,61 @@ function DrawingCanvas({ tool, color, brushSize, canvasRef, fabricRef, eyeLabel 
     });
     fabricRef.current = canvas;
 
-    return () => { canvas.dispose(); };
+    let persistTimer: ReturnType<typeof setTimeout> | null = null;
+    const schedulePersist = () => {
+      if (persistTimer) clearTimeout(persistTimer);
+      persistTimer = setTimeout(() => {
+        const json = flushCanvasJson(canvas);
+        if (json) onSaveRef.current?.(json);
+      }, 400);
+    };
+    canvas.on('after:render', schedulePersist);
+
+    // Deferred JSON restore. loadFromJSON resolves asynchronously and, on
+    // resolve, internally calls clear() on the canvas. If we dispose the
+    // canvas before that promise settles, clear() runs on a destroyed canvas
+    // (elements.lower.ctx is null) and throws. So we abort the load on
+    // teardown and defer dispose() until the load has settled.
+    const controller = new AbortController();
+    let loadPromise: Promise<fabric.Canvas> | null = null;
+    if (savedJsonRef.current) {
+      loadPromise = canvas
+        .loadFromJSON(savedJsonRef.current, undefined, { signal: controller.signal })
+        .then((c) => {
+          if (c === fabricRef.current) {
+            c.renderAll();
+            c.requestRenderAll();
+          }
+          return c;
+        })
+        .catch(() => canvas);
+    }
+
+    return () => {
+      controller.abort();
+      if (persistTimer) clearTimeout(persistTimer);
+      const json = flushCanvasJson(canvas);
+      if (json) onSaveRef.current?.(json);
+      canvas.off('after:render', schedulePersist);
+      fabricRef.current = null;
+      const teardown = () => {
+        try { canvas.dispose().catch(() => {}); } catch { /* noop */ }
+      };
+      if (loadPromise) loadPromise.finally(teardown);
+      else teardown();
+    };
   }, []);
 
   useEffect(() => {
     const canvas = fabricRef.current;
     if (!canvas) return;
+
+    // Strip preview + reset modes for non-drawing tools
+    if (previewRef.current) { canvas.remove(previewRef.current); previewRef.current = null; }
+    canvas.isDrawingMode = false;
+    canvas.selection = tool === 'cursor';
+    canvas.skipTargetFind = false;
+
     if (tool === 'pen') {
       canvas.isDrawingMode = true;
       const brush = new fabric.PencilBrush(canvas);
@@ -107,14 +189,161 @@ function DrawingCanvas({ tool, color, brushSize, canvasRef, fabricRef, eyeLabel 
       brush.color = 'white';
       brush.width = 16;
       canvas.freeDrawingBrush = brush;
-    } else if (tool === 'cursor') {
-      canvas.isDrawingMode = false;
-      canvas.selection = true;
-    } else {
-      canvas.isDrawingMode = false;
       canvas.selection = false;
     }
-  }, [tool, color, brushSize]);
+
+    canvas.off('mouse:down');
+    canvas.off('mouse:move');
+    canvas.off('mouse:up');
+    canvas.off('mouse:dblclick');
+
+    if (tool === 'cursor') {
+      const onKey = (e: KeyboardEvent) => {
+        if ((e.key === 'Delete' || e.key === 'Backspace') && canvas === fabricRef.current && canvas.getActiveObjects().length) {
+          e.preventDefault();
+          canvas.remove(...canvas.getActiveObjects());
+          canvas.discardActiveObject();
+          canvas.requestRenderAll();
+        }
+      };
+      window.addEventListener('keydown', onKey);
+      return () => window.removeEventListener('keydown', onKey);
+    }
+
+    if (tool === 'annotate') {
+      const addText = (e: any) => {
+        const opt = canvas.getScenePoint(e.e);
+        const text = new fabric.IText('', { left: opt.x, top: opt.y, fill: color, fontSize: 14, fontFamily: 'Arial' });
+        canvas.add(text);
+        canvas.setActiveObject(text);
+        text.enterEditing();
+        text.hiddenTextarea?.focus();
+      };
+      canvas.on('mouse:down', addText);
+      return;
+    }
+
+    if (tool === 'outline-circle') {
+      canvas.on('mouse:down', (e: any) => {
+        shapeStartRef.current = canvas.getScenePoint(e.e);
+      });
+      canvas.on('mouse:move', (e: any) => {
+        if (!shapeStartRef.current || !canvas || canvas !== fabricRef.current) return;
+        const p = canvas.getScenePoint(e.e);
+        if (!previewRef.current) {
+          const circle = new fabric.Circle({
+            left: shapeStartRef.current.x,
+            top: shapeStartRef.current.y,
+            radius: 0,
+            stroke: color,
+            strokeWidth: 2,
+            fill: 'transparent',
+            originX: 'center',
+            originY: 'center',
+            selectable: false,
+            evented: false,
+          });
+          canvas.add(circle);
+          previewRef.current = circle;
+        }
+        const r = Math.hypot(p.x - shapeStartRef.current.x, p.y - shapeStartRef.current.y);
+        (previewRef.current as fabric.Circle).set({ radius: r });
+        canvas.requestRenderAll();
+      });
+      canvas.on('mouse:up', (e: any) => {
+        if (!shapeStartRef.current || !previewRef.current) return;
+        const p = canvas.getScenePoint(e.e);
+        const r = Math.hypot(p.x - shapeStartRef.current.x, p.y - shapeStartRef.current.y);
+        if (r > 2 && canvas === fabricRef.current) {
+          canvas.remove(previewRef.current);
+          const circle = new fabric.Circle({
+            left: shapeStartRef.current.x,
+            top: shapeStartRef.current.y,
+            radius: r,
+            stroke: color,
+            strokeWidth: 2,
+            fill: 'transparent',
+            originX: 'center',
+            originY: 'center',
+            selectable: true,
+            evented: true,
+          });
+          canvas.add(circle);
+        } else if (previewRef.current) {
+          canvas.remove(previewRef.current);
+        }
+        previewRef.current = null;
+        shapeStartRef.current = null;
+      });
+      return;
+    }
+
+    if (tool === 'arrow') {
+      canvas.on('mouse:down', (e: any) => {
+        shapeStartRef.current = canvas.getScenePoint(e.e);
+      });
+      canvas.on('mouse:move', (e: any) => {
+        if (!shapeStartRef.current || !canvas || canvas !== fabricRef.current) return;
+        const p = canvas.getScenePoint(e.e);
+        if (!previewRef.current) {
+          const line = new fabric.Line(
+            [shapeStartRef.current.x, shapeStartRef.current.y, p.x, p.y],
+            { stroke: color, strokeWidth: 2, selectable: false, evented: false },
+          );
+          canvas.add(line);
+          previewRef.current = line;
+        } else {
+          (previewRef.current as fabric.Line).set({ x2: p.x, y2: p.y });
+        }
+        canvas.requestRenderAll();
+      });
+      canvas.on('mouse:up', (e: any) => {
+        if (!shapeStartRef.current || !previewRef.current) return;
+        const p = canvas.getScenePoint(e.e);
+        if (canvas === fabricRef.current) canvas.remove(previewRef.current);
+        const len = Math.hypot(p.x - shapeStartRef.current.x, p.y - shapeStartRef.current.y);
+        if (len > 2 && canvas === fabricRef.current) {
+          const arrow = makeArrow(shapeStartRef.current, p, color);
+          canvas.add(arrow);
+        }
+        previewRef.current = null;
+        shapeStartRef.current = null;
+      });
+      return;
+    }
+
+    if (tool === 'eraser') return;
+
+    // Stamp tools — stamp repeatedly at the pointer
+    const svg = STAMP_SHAPES[tool];
+    if (svg) {
+      const stampColor = TOOL_STAMP_COLORS[tool] ?? color;
+      const place = (x: number, y: number) => {
+        if (!canvas || canvas !== fabricRef.current) return;
+        const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">${svg(stampColor)}</svg>`)}`;
+        fabric.Image.fromURL(dataUrl).then((img) => {
+          if (canvas !== fabricRef.current) return;
+          img.set({
+            left: x - 12, top: y - 12,
+            scaleX: 1, scaleY: 1,
+            selectable: true, evented: true,
+          });
+          canvas.add(img);
+          canvas.requestRenderAll();
+        }).catch(() => {});
+      };
+      canvas.on('mouse:down', (e: any) => {
+        const p = canvas.getScenePoint(e.e);
+        place(p.x, p.y);
+      });
+      canvas.on('mouse:move', (e: any) => {
+        if (!canvas || e.e.buttons === 0 || canvas !== fabricRef.current) return;
+        const p = canvas.getScenePoint(e.e);
+        place(p.x, p.y);
+      });
+      return;
+    }
+  }, [tool, color]);
 
   return (
     <div className="relative" style={{ width: 320, height: 280 }}>
@@ -128,7 +357,7 @@ function DrawingCanvas({ tool, color, brushSize, canvasRef, fabricRef, eyeLabel 
   );
 }
 
-// ── Toolbar ───────────────────────────────────────────────────────────────────
+// -- Toolbar -------------------------------------------------------------------
 type ToolDef = { id: string; label: string; icon: React.ReactNode; color?: string };
 
 const TOOL_STAMP_COLORS: Record<string, string> = {
@@ -146,22 +375,26 @@ const TOOL_STAMP_COLORS: Record<string, string> = {
   hypopyon: '#fbbf24',
 };
 
-// SVG stamp icons as simple ReactNodes
+// SVG stamp shapes used both for toolbar icons and stamping onto the canvas.
+const STAMP_SHAPES: Record<string, (c: string) => string> = {
+  congestion: (c) => `<path d="M3 12 Q7 6 12 12 Q17 18 21 12" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M3 16 Q7 10 12 16 Q17 22 21 16" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+  neovascularization: (c) => `<path d="M4 20 Q8 12 12 14 Q16 16 20 8" stroke="${c}" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M12 14 Q14 10 16 12" stroke="${c}" stroke-width="1.5" fill="none"/>`,
+  stromal: (c) => `<line x1="4" y1="8" x2="20" y2="8" stroke="${c}" stroke-width="1.5"/><line x1="4" y1="12" x2="20" y2="12" stroke="${c}" stroke-width="1.5"/><line x1="4" y1="16" x2="20" y2="16" stroke="${c}" stroke-width="1.5"/>`,
+  ghost: (c) => `<line x1="4" y1="8" x2="20" y2="8" stroke="${c}" stroke-width="1" stroke-dasharray="2 2"/><line x1="4" y1="12" x2="20" y2="12" stroke="${c}" stroke-width="1" stroke-dasharray="2 2"/><line x1="4" y1="16" x2="20" y2="16" stroke="${c}" stroke-width="1" stroke-dasharray="2 2"/>`,
+  punctate: (c) => [5, 10, 15, 8, 13, 18, 5, 10, 15].map((x, i) => `<circle cx="${x}" cy="${5 + i * 2}" r="1.2" fill="${c}"/>`).join(''),
+  staining: (c) => `<ellipse cx="12" cy="12" rx="7" ry="5" fill="${c}" opacity="0.7"/>`,
+  filaments: (c) => `<path d="M4 18 Q8 10 12 14 Q16 18 20 10" stroke="${c}" stroke-width="1.5" fill="none"/><path d="M6 16 Q10 8 14 12" stroke="${c}" stroke-width="1.5" fill="none"/>`,
+  epithelial: (c) => `<rect x="4" y="8" width="4" height="4" fill="none" stroke="${c}" stroke-width="1.2"/><rect x="10" y="8" width="4" height="4" fill="none" stroke="${c}" stroke-width="1.2"/><rect x="16" y="8" width="4" height="4" fill="none" stroke="${c}" stroke-width="1.2"/><rect x="7" y="13" width="4" height="4" fill="none" stroke="${c}" stroke-width="1.2"/><rect x="13" y="13" width="4" height="4" fill="none" stroke="${c}" stroke-width="1.2"/>`,
+  inflammatory: (c) => [6, 10, 14, 18, 8, 12, 16].map((x, i) => `<circle cx="${x}" cy="${6 + i * 2}" r="1.5" fill="${c}"/>`).join(''),
+  pigment: (c) => [6, 11, 16, 8, 13, 18].map((x, i) => `<circle cx="${x}" cy="${7 + i * 2.5}" r="1.8" fill="${c}"/>`).join(''),
+  hyphaema: (c) => `<rect x="4" y="16" width="16" height="4" fill="${c}" rx="1"/>`,
+  hypopyon: (c) => `<rect x="4" y="17" width="16" height="3" fill="${c}" rx="1"/>`,
+};
+
 const StampIcon = ({ id }: { id: string }) => {
   const c = TOOL_STAMP_COLORS[id] ?? '#64748b';
-  if (id === 'congestion') return <svg viewBox="0 0 24 24" className="w-6 h-6"><path d="M3 12 Q7 6 12 12 Q17 18 21 12" stroke={c} strokeWidth="2" fill="none" strokeLinecap="round"/><path d="M3 16 Q7 10 12 16 Q17 22 21 16" stroke={c} strokeWidth="2" fill="none" strokeLinecap="round"/></svg>;
-  if (id === 'neovascularization') return <svg viewBox="0 0 24 24" className="w-6 h-6"><path d="M4 20 Q8 12 12 14 Q16 16 20 8" stroke={c} strokeWidth="1.5" fill="none" strokeLinecap="round"/><path d="M12 14 Q14 10 16 12" stroke={c} strokeWidth="1.5" fill="none"/></svg>;
-  if (id === 'stromal') return <svg viewBox="0 0 24 24" className="w-6 h-6"><line x1="4" y1="8" x2="20" y2="8" stroke={c} strokeWidth="1.5"/><line x1="4" y1="12" x2="20" y2="12" stroke={c} strokeWidth="1.5"/><line x1="4" y1="16" x2="20" y2="16" stroke={c} strokeWidth="1.5"/></svg>;
-  if (id === 'ghost') return <svg viewBox="0 0 24 24" className="w-6 h-6"><line x1="4" y1="8" x2="20" y2="8" stroke={c} strokeWidth="1" strokeDasharray="2 2"/><line x1="4" y1="12" x2="20" y2="12" stroke={c} strokeWidth="1" strokeDasharray="2 2"/><line x1="4" y1="16" x2="20" y2="16" stroke={c} strokeWidth="1" strokeDasharray="2 2"/></svg>;
-  if (id === 'punctate') return <svg viewBox="0 0 24 24" className="w-6 h-6">{[5,10,15,8,13,18,5,10,15].map((x,i)=><circle key={i} cx={x} cy={5+i*2} r="1.2" fill={c}/>)}</svg>;
-  if (id === 'staining') return <svg viewBox="0 0 24 24" className="w-6 h-6"><ellipse cx="12" cy="12" rx="7" ry="5" fill={c} opacity="0.7"/></svg>;
-  if (id === 'filaments') return <svg viewBox="0 0 24 24" className="w-6 h-6"><path d="M4 18 Q8 10 12 14 Q16 18 20 10" stroke={c} strokeWidth="1.5" fill="none"/><path d="M6 16 Q10 8 14 12" stroke={c} strokeWidth="1.5" fill="none"/></svg>;
-  if (id === 'epithelial') return <svg viewBox="0 0 24 24" className="w-6 h-6"><rect x="4" y="8" width="4" height="4" fill="none" stroke={c} strokeWidth="1.2"/><rect x="10" y="8" width="4" height="4" fill="none" stroke={c} strokeWidth="1.2"/><rect x="16" y="8" width="4" height="4" fill="none" stroke={c} strokeWidth="1.2"/><rect x="7" y="13" width="4" height="4" fill="none" stroke={c} strokeWidth="1.2"/><rect x="13" y="13" width="4" height="4" fill="none" stroke={c} strokeWidth="1.2"/></svg>;
-  if (id === 'inflammatory') return <svg viewBox="0 0 24 24" className="w-6 h-6">{[6,10,14,18,8,12,16].map((x,i)=><circle key={i} cx={x} cy={6+i*2} r="1.5" fill={c}/>)}</svg>;
-  if (id === 'pigment') return <svg viewBox="0 0 24 24" className="w-6 h-6">{[6,11,16,8,13,18].map((x,i)=><circle key={i} cx={x} cy={7+i*2.5} r="1.8" fill={c}/>)}</svg>;
-  if (id === 'hyphaema') return <svg viewBox="0 0 24 24" className="w-6 h-6"><rect x="4" y="16" width="16" height="4" fill={c} rx="1"/></svg>;
-  if (id === 'hypopyon') return <svg viewBox="0 0 24 24" className="w-6 h-6"><rect x="4" y="17" width="16" height="3" fill={c} rx="1"/></svg>;
-  return <div className="w-6 h-6 bg-slate-200 rounded" />;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">${STAMP_SHAPES[id]?.(c) ?? '<rect x="3" y="3" width="18" height="18" rx="4" fill="#e2e8f0"/>'}</svg>`;
+  return <span className="w-6 h-6" dangerouslySetInnerHTML={{ __html: svg }} />;
 };
 
 const PRIMARY_TOOLS: ToolDef[] = [
@@ -198,13 +431,14 @@ function ToolButton({ tool, active, onClick }: { tool: ToolDef; active: boolean;
   );
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
+// -- Main Component ------------------------------------------------------------
 type StructureObs = { od: string[]; os: string[]; sameForOS: boolean };
 
 type AnteriorSegmentData = {
   activeSubTab: 'Form' | 'Diagram';
   instrument: 'Torch Light' | 'Slit Lamp';
   multiObs: Record<string, StructureObs>;
+  diagram: { od: string; os: string };
   remarks: string;
   showInDischarge: boolean;
 };
@@ -219,8 +453,9 @@ const DEFAULT_ANTERIOR_SEGMENT: AnteriorSegmentData = {
   activeSubTab: 'Form',
   instrument: 'Slit Lamp',
   multiObs: DEFAULT_MULTI_OBS(),
+  diagram: { od: '', os: '' },
   remarks: '',
-  showInDischarge: false,
+  showInDischarge: true,
 };
 
 export const AnteriorSegmentEvaluationView: React.FC = () => {
@@ -228,11 +463,21 @@ export const AnteriorSegmentEvaluationView: React.FC = () => {
   const setSectionData = useEncounterStore((s) => s.setSectionData);
   const raw = Object.assign({}, DEFAULT_ANTERIOR_SEGMENT, sectionData['anterior-segment-eval'] ?? {}) as AnteriorSegmentData;
   const multiObs: Record<string, StructureObs> = Object.fromEntries(
-    STRUCTURES.map((s) => [s, { od: [], os: [], sameForOS: false, ...(raw.multiObs?.[s] ?? {}) }]),
+    STRUCTURES.map((s) => {
+      const b = raw.multiObs?.[s] ?? {};
+      return [s, { od: b.od ?? [], os: b.os ?? [], sameForOS: b.sameForOS ?? false }];
+    }),
   );
   const f: AnteriorSegmentData = { ...raw, multiObs };
   const patch = (p: Partial<AnteriorSegmentData>) => setSectionData('anterior-segment-eval', { ...f, ...p });
   const { activeSubTab, instrument, remarks, showInDischarge } = f;
+
+  const savedDiagram = { od: f.diagram?.od ?? '', os: f.diagram?.os ?? '' };
+  const saveDiagram = (eye: 'od' | 'os') => (json: string) => {
+    if (json !== (eye === 'od' ? savedDiagram.od : savedDiagram.os)) {
+      patch({ diagram: { ...savedDiagram, [eye]: json } });
+    }
+  };
 
   // Diagram UI state (transient)
   const [activeTool, setActiveTool] = useState('pen');
@@ -259,7 +504,12 @@ export const AnteriorSegmentEvaluationView: React.FC = () => {
   };
 
   const handleClearAll = () => {
-    [odFabricRef, osFabricRef].forEach(ref => { if (ref.current) { ref.current.clear(); ref.current.renderAll(); } });
+    [odFabricRef, osFabricRef].forEach((ref) => {
+      if (ref.current && isFabricCanvasLive(ref.current)) {
+        ref.current.clear();
+        ref.current.renderAll();
+      }
+    });
   };
 
   const COLORS = [
@@ -273,11 +523,6 @@ export const AnteriorSegmentEvaluationView: React.FC = () => {
     <div className="p-8 max-w-5xl bg-white min-h-full">
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-2xl font-bold text-[#2563eb]">Anterior Segment Evaluation</h1>
-        {activeSubTab === 'Diagram' && (
-          <button type="button" className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50">
-            <Upload className="w-3.5 h-3.5"/> Upload image
-          </button>
-        )}
       </div>
 
       {/* Sub-tabs */}
@@ -290,7 +535,7 @@ export const AnteriorSegmentEvaluationView: React.FC = () => {
         ))}
       </div>
 
-      {/* ── FORM TAB ── */}
+      {/* -- FORM TAB -- */}
       {activeSubTab === 'Form' && (
         <div>
           {/* Instrument */}
@@ -356,7 +601,7 @@ export const AnteriorSegmentEvaluationView: React.FC = () => {
         </div>
       )}
 
-      {/* ── DIAGRAM TAB ── */}
+      {/* -- DIAGRAM TAB -- */}
       {activeSubTab === 'Diagram' && (
         <div>
           {/* Toolbar */}
@@ -406,12 +651,14 @@ export const AnteriorSegmentEvaluationView: React.FC = () => {
               <div className="flex flex-col items-center gap-2">
                 <span className="text-sm font-bold text-slate-400 tracking-widest uppercase">RIGHT</span>
                 <DrawingCanvas tool={activeTool} color={activeColor} brushSize={3}
-                  canvasRef={odCanvasRef} fabricRef={odFabricRef} eyeLabel="OD"/>
+                  canvasRef={odCanvasRef} fabricRef={odFabricRef}
+                  savedJson={savedDiagram.od} onSave={saveDiagram('od')} />
               </div>
               <div className="flex flex-col items-center gap-2">
                 <span className="text-sm font-bold text-slate-400 tracking-widest uppercase">LEFT</span>
                 <DrawingCanvas tool={activeTool} color={activeColor} brushSize={3}
-                  canvasRef={osCanvasRef} fabricRef={osFabricRef} eyeLabel="OS"/>
+                  canvasRef={osCanvasRef} fabricRef={osFabricRef}
+                  savedJson={savedDiagram.os} onSave={saveDiagram('os')} />
               </div>
             </div>
           </div>

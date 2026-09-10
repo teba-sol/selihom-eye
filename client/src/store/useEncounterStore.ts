@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { getDefaultClinicalState } from '../lib/encounterDefaults';
 import { apiEncounterToSnapshot } from '../lib/encounterMappers';
+import { clearDraft } from '../lib/draft';
 import { generateId } from '../utils/uuid';
 
 export interface SymptomItem {
@@ -137,11 +138,11 @@ interface EncounterState {
   isLocked: boolean;
   lockedAt: string | null;
   addendumNotes: string | null;
-  patient: {
-    id: string;
-    mrn: string;
-    name: string;
-    age: number;
+    patient: {
+      id: string;
+      mrn: string;
+      name: string;
+      age: string | number;
     gender: string;
     appointmentTime: string;
     reasonForVisit: string;
@@ -199,6 +200,16 @@ interface EncounterState {
   // manage their own local state. Autosaved wholesale and restored on load.
   sectionData: Record<string, any>;
 
+  // True once persisted clinical data for the current encounter has been
+  // hydrated into the store. Local draft persistence and explicit saves are
+  // suppressed until this is set so a freshly-started (empty) exam can never
+  // overwrite existing DB data.
+  dataLoaded: boolean;
+
+  // Non-null when the current exam was restored from a newer local draft than
+  // the backend row. Drives the "unsaved draft" banner in ExamDashboard.
+  draftNotice: { savedAt: number } | null;
+
   // Actions
   setActiveTab: (tab: string) => void;
   setConsent: (val: boolean) => void;
@@ -212,8 +223,11 @@ interface EncounterState {
     reasonForVisit: string;
   }) => void;
   loadEncounterFromDb: (data: any) => void;
-  saveEncounter: () => Promise<void>;
+  loadDraftData: (snapshot: EncounterSnapshot, savedAt: number) => void;
+  saveEncounter: (opts?: { toast?: boolean }) => Promise<void>;
   markExamFinalized: (encounterId: string) => void;
+  dismissDraftNotice: () => void;
+  discardDraft: () => void;
   updateOcularCondition: (key: keyof OcularHistoryState['conditions'], data: Partial<OcularConditionDetail>) => void;
   setOcularGeneralRemarks: (remarks: string) => void;
   setNoOcularHistory: (val: boolean) => void;
@@ -259,6 +273,7 @@ export interface EncounterSnapshot {
   patient: EncounterState['patient'];
   consentObtained: boolean;
   activeTab: string;
+  dataLoaded: boolean;
   ocularHistory: OcularHistoryState;
   symptoms: SymptomItem[];
   visualAcuity: EncounterState['visualAcuity'];
@@ -286,20 +301,85 @@ export interface EncounterSnapshot {
 // real immutability.
 const META_KEYS = new Set([
   'isLocked', 'lockedAt', 'encounterId', 'appointmentId', 'activeTab',
-  'patient', 'consentObtained', 'encounterSnapshots',
+  'patient', 'consentObtained', 'encounterSnapshots', 'dataLoaded',
 ]);
+
+function buildEncounterPayload(state: EncounterState) {
+  let refractions: any[] = [];
+  const r = state.refraction;
+  const hasRefraction = [r.odSph, r.odCyl, r.odAxis, r.odAdd, r.osSph, r.osCyl, r.osAxis, r.osAdd]
+    .some((v) => (v ?? '').trim() !== '');
+  if (hasRefraction) {
+    const n = (v: string): number | undefined => {
+      const parsed = Number.parseFloat(v);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    };
+    const od = { sph: n(r.odSph), cyl: n(r.odCyl), axis: n(r.odAxis), va: r.odVa.trim() || undefined, add: n(r.odAdd) };
+    const os = { sph: n(r.osSph), cyl: n(r.osCyl), axis: n(r.osAxis), va: r.osVa.trim() || undefined, add: n(r.osAdd) };
+    refractions = [{
+      type: 'MAIN',
+      od: Object.fromEntries(Object.entries(od).filter(([, v]) => v !== undefined)),
+      os: Object.fromEntries(Object.entries(os).filter(([, v]) => v !== undefined)),
+      pdBinocular: n(r.pdBinocular.trim() === '' ? '' : r.pdBinocular),
+      bvdMm: n(r.bvdMm.trim() === '' ? '' : r.bvdMm),
+    }];
+  }
+
+  let canvas: any;
+  if (state.odCanvasVectors || state.osCanvasVectors) {
+    const parseVec = (raw: string): any => {
+      if (!raw) return null;
+      try { return JSON.parse(raw); } catch { return null; }
+    };
+    canvas = {
+      segmentType: 'CORNEA_ANTERIOR',
+      odVectorData: parseVec(state.odCanvasVectors),
+      osVectorData: parseVec(state.osCanvasVectors),
+    };
+  }
+
+  const payload: Record<string, any> = {
+    encounterId: state.encounterId,
+    appointmentId: state.appointmentId,
+    patientId: state.patient.id,
+    reasonForVisit: {
+      selectedReason: state.patient.reasonForVisit || '',
+      remarks: (state.sectionData['reason-for-visit'] as any)?.remarks ?? '',
+      showInDischarge: (state.sectionData['reason-for-visit'] as any)?.showInDischarge ?? false,
+    },
+    symptomaticHistory: { symptoms: state.symptoms, remarks: (state.sectionData['symptomatic-history'] as any)?.remarks ?? '', showInDischarge: (state.sectionData['symptomatic-history'] as any)?.showInDischarge ?? false },
+    ocularHistory: state.ocularHistory,
+    systemicHistory: state.systemicHistory,
+    medicationHistory: state.patientMedications,
+    familyOcularHistory: state.familyOcularHistory,
+    familySystemicHistory: state.familySystemicHistory,
+    spectaclesHistory: state.spectaclesHistory,
+    contactLensHistory: state.contactLensHistory,
+    lifestyleDemands: state.lifestyleDemands,
+    visualAcuity: state.visualAcuity,
+    slitLampFindings: state.slitLamp,
+    tonometry: state.tonometry,
+    diagnoses: state.diagnoses,
+    treatmentPlanPathway: state.treatmentPathway,
+    counselingAdviceGiven: state.counselingAdvice,
+  };
+  if (refractions.length > 0) payload.refractions = refractions;
+  if (canvas) payload.canvas = canvas;
+  payload.sectionData = state.sectionData;
+  return payload;
+}
 
 export const useEncounterStore = create<EncounterState>((rawSet, get) => {
   const set: typeof rawSet = (partial, replace?) => {
     const locked = get().isLocked;
+    const patch = typeof partial === 'function' ? (partial as any)(get()) : partial;
     if (!locked) {
-      rawSet(partial, replace as any);
+      rawSet(patch, replace as any);
       return;
     }
-    const patch = typeof partial === 'function' ? (partial as any)(get()) : partial;
     const keys = Object.keys(patch ?? {});
     if (keys.length === 0) {
-      rawSet(partial, replace as any);
+      rawSet(patch, replace as any);
       return;
     }
     const isRestore = keys.includes('isLocked') || keys.includes('appointmentId');
@@ -317,6 +397,8 @@ export const useEncounterStore = create<EncounterState>((rawSet, get) => {
   isLocked: false,
   lockedAt: null,
   addendumNotes: null,
+  dataLoaded: false,
+  draftNotice: null,
   patient: {
     id: '',
     mrn: '',
@@ -334,11 +416,12 @@ export const useEncounterStore = create<EncounterState>((rawSet, get) => {
   setConsent: (val) => set({ consentObtained: val }),
   setPatient: (patient) => set({ patient }),
 
-  setSectionData: (section, data) =>
-    set((state) => ({ sectionData: { ...state.sectionData, [section]: data } })),
+  setSectionData: (section, data) => {
+    set((state) => ({ sectionData: { ...state.sectionData, [section]: data } }));
+  },
 
-  startExam: ({ encounterId, appointmentId, patient, consentObtained, reasonForVisit }) =>
-    set((state) => {
+  startExam: ({ encounterId, appointmentId, patient, consentObtained, reasonForVisit }) => {
+    const result = set((state) => {
       const snapshots = { ...state.encounterSnapshots };
       if (state.encounterId && state.encounterId !== encounterId) {
         const { appointmentId: prevApt, encounterId: prevId, encounterSnapshots: _snaps, ...rest } = state;
@@ -361,96 +444,51 @@ export const useEncounterStore = create<EncounterState>((rawSet, get) => {
         isLocked: false,
         lockedAt: null,
         addendumNotes: null,
+        dataLoaded: false,
+        draftNotice: null,
         patient: { ...patient, reasonForVisit },
         consentObtained,
         activeTab: 'reason-for-visit',
         encounterSnapshots: snapshots,
       };
-    }),
-
-  loadEncounterFromDb: (data: any) =>
-    set((state) => {
-      if (!data) return state;
-      return apiEncounterToSnapshot(data, state as unknown as EncounterSnapshot);
-    }),
-
-  saveEncounter: async () => {
-    const state = useEncounterStore.getState();
-    if (state.isLocked) return;
-    if (!state.encounterId || !state.patient.id) return;
-    const { api } = await import('../lib/api');
-
-    let refractions: any[] = [];
-    const r = state.refraction;
-    const hasRefraction = [r.odSph, r.odCyl, r.odAxis, r.odAdd, r.osSph, r.osCyl, r.osAxis, r.osAdd]
-      .some((v) => (v ?? '').trim() !== '');
-    if (hasRefraction) {
-      const n = (v: string): number | undefined => {
-        const parsed = Number.parseFloat(v);
-        return Number.isFinite(parsed) ? parsed : undefined;
-      };
-      const od = { sph: n(r.odSph), cyl: n(r.odCyl), axis: n(r.odAxis), va: r.odVa.trim() || undefined, add: n(r.odAdd) };
-      const os = { sph: n(r.osSph), cyl: n(r.osCyl), axis: n(r.osAxis), va: r.osVa.trim() || undefined, add: n(r.osAdd) };
-      refractions = [{
-        type: 'MAIN',
-        od: Object.fromEntries(Object.entries(od).filter(([, v]) => v !== undefined)),
-        os: Object.fromEntries(Object.entries(os).filter(([, v]) => v !== undefined)),
-        pdBinocular: n(r.pdBinocular.trim() === '' ? '' : r.pdBinocular),
-        bvdMm: n(r.bvdMm.trim() === '' ? '' : r.bvdMm),
-      }];
-    }
-
-    let canvas: any;
-    if (state.odCanvasVectors || state.osCanvasVectors) {
-      const parseVec = (raw: string): any => {
-        if (!raw) return null;
-        try { return JSON.parse(raw); } catch { return null; }
-      };
-      canvas = {
-        segmentType: 'CORNEA_ANTERIOR',
-        odVectorData: parseVec(state.odCanvasVectors),
-        osVectorData: parseVec(state.osCanvasVectors),
-      };
-    }
-
-    const payload: Record<string, any> = {
-      encounterId: state.encounterId,
-      appointmentId: state.appointmentId,
-      patientId: state.patient.id,
-      reasonForVisit: {
-        selectedReason: state.patient.reasonForVisit || '',
-        remarks: (state.sectionData['reason-for-visit'] as any)?.remarks ?? '',
-        showInDischarge: (state.sectionData['reason-for-visit'] as any)?.showInDischarge ?? false,
-      },
-      symptomaticHistory: { symptoms: state.symptoms, remarks: (state.sectionData['symptomatic-history'] as any)?.remarks ?? '', showInDischarge: (state.sectionData['symptomatic-history'] as any)?.showInDischarge ?? false },
-      ocularHistory: state.ocularHistory,
-      systemicHistory: state.systemicHistory,
-      medicationHistory: state.patientMedications,
-      familyOcularHistory: state.familyOcularHistory,
-      familySystemicHistory: state.familySystemicHistory,
-      spectaclesHistory: state.spectaclesHistory,
-      contactLensHistory: state.contactLensHistory,
-      lifestyleDemands: state.lifestyleDemands,
-      visualAcuity: state.visualAcuity,
-      slitLampFindings: state.slitLamp,
-      tonometry: state.tonometry,
-      diagnoses: state.diagnoses,
-      treatmentPlanPathway: state.treatmentPathway,
-      counselingAdviceGiven: state.counselingAdvice,
-    };
-    if (refractions.length > 0) payload.refractions = refractions;
-    if (canvas) payload.canvas = canvas;
-    if (Object.keys(state.sectionData).length > 0) payload.sectionData = state.sectionData;
-
-    await api.post('/clinical/encounter', payload);
-
-    if (state.appointmentId && state.consentObtained !== undefined) {
-      await api.patch(`/appointments/${state.appointmentId}/consent`, { consentObtained: state.consentObtained }).catch(() => {});
-    }
+    });
+    return result;
   },
+
+  loadEncounterFromDb: (data: any) => {
+    const result = set((state) => {
+      if (!data) return state;
+      return {
+        ...apiEncounterToSnapshot(data, state as unknown as EncounterSnapshot),
+        dataLoaded: true,
+        draftNotice: null,
+      };
+    });
+    return result;
+  },
+
+  loadDraftData: (snapshot, savedAt) =>
+    set({ ...snapshot, dataLoaded: true, draftNotice: { savedAt } }),
+
+  saveEncounter: (opts?: { toast?: boolean }): Promise<void> =>
+    (async () => {
+      const st = useEncounterStore.getState();
+      if (st.isLocked || !st.encounterId || !st.patient.id) return;
+      const payload = buildEncounterPayload(st);
+      const { api } = await import('../lib/api');
+      await api.post('/clinical/encounter', payload, { toast: opts?.toast });
+    })(),
 
   markExamFinalized: (encounterId) =>
     set({ encounterId, isLocked: true, lockedAt: new Date().toISOString() }),
+
+  dismissDraftNotice: () => set({ draftNotice: null }),
+
+  discardDraft: () => {
+    const st = get();
+    clearDraft(st.encounterId);
+    set({ draftNotice: null, encounterId: null, dataLoaded: false });
+  },
 
   updateOcularCondition: (key, data) =>
     set((state) => ({

@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import type { SurgeryListItem } from '../lib/surgery';
+
+const STALE_MS = 60_000;
 
 // ── Backend data shapes ────────────────────────────────────────────────
 
@@ -31,7 +34,13 @@ interface ApiAppointment {
   endTime: string | null;
   reason: string | null;
   status: string;
-  consentObtained: boolean;
+  notes: string | null;
+  estimatedDuration: number | null;
+  sourceEncounterId: string | null;
+  cancelledBy: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  createdAt: string;
   patient?: {
     id: string;
     mrn: string;
@@ -68,8 +77,12 @@ export interface Appointment {
   startTime: string;
   endTime?: string;
   reason: string;
-  status: 'scheduled' | 'confirmed' | 'in_exam' | 'completed' | 'cancelled';
-  consentObtained: boolean;
+  status: 'scheduled' | 'in_exam' | 'completed' | 'cancelled';
+  notes?: string;
+  estimatedDuration?: number;
+  sourceEncounterId?: string;
+  cancelledReason?: string;
+  cancelledAt?: string;
 }
 
 // ── Mappers ────────────────────────────────────────────────────────────
@@ -101,14 +114,17 @@ function mapAppointment(api: ApiAppointment): Appointment {
     endTime: api.endTime || undefined,
     reason: api.reason || 'Routine Eye Examination',
     status: mapStatus(api.status),
-    consentObtained: api.consentObtained,
+    notes: api.notes || undefined,
+    estimatedDuration: api.estimatedDuration || undefined,
+    sourceEncounterId: api.sourceEncounterId || undefined,
+    cancelledReason: api.cancellationReason || undefined,
+    cancelledAt: api.cancelledAt || undefined,
   };
 }
 
 function mapStatus(backend: string): Appointment['status'] {
   switch (backend) {
     case 'SCHEDULED': return 'scheduled';
-    case 'CHECKED_IN': return 'confirmed';
     case 'IN_EXAM': return 'in_exam';
     case 'COMPLETED': return 'completed';
     case 'CANCELLED': return 'cancelled';
@@ -119,7 +135,6 @@ function mapStatus(backend: string): Appointment['status'] {
 function mapStatusToFrontend(frontend: string): string {
   switch (frontend) {
     case 'scheduled': return 'SCHEDULED';
-    case 'confirmed': return 'CHECKED_IN';
     case 'in_exam': return 'IN_EXAM';
     case 'completed': return 'COMPLETED';
     case 'cancelled': return 'CANCELLED';
@@ -132,32 +147,85 @@ function mapStatusToFrontend(frontend: string): string {
 interface AppState {
   patients: Patient[];
   appointments: Appointment[];
+  surgeries: SurgeryListItem[];
   loading: boolean;
+  patientsLoaded: boolean;
+  appointmentsLoaded: boolean;
+  surgeriesLoaded: boolean;
+  patientsFetchedAt: number | null;
+  appointmentsFetchedAt: number | null;
+  surgeriesFetchedAt: number | null;
+  completedExamCounts: Record<string, number>;
+  completedCountsFetchedAt: number | null;
+  completedCountsLoaded: boolean;
 
-  fetchPatients: (query?: string) => Promise<void>;
-  fetchAppointments: (from?: string, to?: string) => Promise<void>;
+  fetchPatients: (query?: string, force?: boolean) => Promise<void>;
+  fetchAppointments: (from?: string, to?: string, force?: boolean) => Promise<void>;
+  fetchSurgeries: (force?: boolean) => Promise<void>;
+  fetchCompletedExamCounts: (force?: boolean) => Promise<void>;
 
   addPatient: (patient: Omit<Patient, 'id'>) => Promise<void>;
   searchPatients: (query: string) => Patient[];
   addAppointment: (apt: Omit<Appointment, 'id' | 'status'>) => Promise<string>;
   updateAppointment: (id: string, data: Partial<Appointment>) => Promise<void>;
-  cancelAppointment: (id: string) => Promise<void>;
+  cancelAppointment: (id: string, reason: string) => Promise<void>;
   getPatientById: (id: string) => Patient | undefined;
   getAppointmentsForPatient: (patientId: string) => Appointment[];
-  createWalkInAppointment: (patientId: string, reason?: string) => Promise<Appointment>;
   getAppointmentsForRange: (from: Date, to: Date) => Appointment[];
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
   patients: [],
   appointments: [],
+  surgeries: [],
   loading: false,
+  patientsLoaded: false,
+  appointmentsLoaded: false,
+  surgeriesLoaded: false,
+  patientsFetchedAt: null,
+  appointmentsFetchedAt: null,
+  surgeriesFetchedAt: null,
+  completedExamCounts: {},
+  completedCountsFetchedAt: null,
+  completedCountsLoaded: false,
 
-  fetchPatients: async (query?: string) => {
-    set({ loading: true });
+  fetchPatients: async (query?: string, force = false) => {
+    if (query) {
+      set({ loading: true });
+      try {
+        const data = await api.get<ApiPatient[]>(`/patients?q=${encodeURIComponent(query)}`);
+        const patients = data.map(mapPatient);
+
+        // Determine isNew: patient has no completed appointments
+        const appointments = get().appointments;
+        const enriched = patients.map((p) => {
+          const hasCompleted = appointments.some(
+            (a) => a.patientId === p.id && a.status === 'completed',
+          );
+          return { ...p, isNew: !hasCompleted };
+        });
+
+        set({ patients: enriched, loading: false });
+      } catch {
+        set({ loading: false });
+      }
+      return;
+    }
+
+    const { patients, patientsFetchedAt, patientsLoaded } = get();
+    const hasFullList = patients.length > 0 && patientsLoaded;
+    const cached =
+      hasFullList &&
+      patientsFetchedAt !== null &&
+      !force &&
+      Date.now() - patientsFetchedAt < STALE_MS;
+    if (cached) return;
+
+    // Revalidate in the background once a full list already exists so revisits
+    // don't flash a skeleton; only a true first load shows one.
+    if (!hasFullList) set({ loading: true });
     try {
-      const url = query ? `/patients?q=${encodeURIComponent(query)}` : '/patients';
-      const data = await api.get<ApiPatient[]>(url);
+      const data = await api.get<ApiPatient[]>('/patients');
       const patients = data.map(mapPatient);
 
       // Determine isNew: patient has no completed appointments
@@ -169,21 +237,101 @@ export const useAppStore = create<AppState>((set, get) => ({
         return { ...p, isNew: !hasCompleted };
       });
 
-      set({ patients: enriched, loading: false });
+      set({
+        patients: enriched,
+        patientsLoaded: true,
+        patientsFetchedAt: Date.now(),
+        loading: false,
+      });
     } catch {
       set({ loading: false });
     }
   },
 
-  fetchAppointments: async (from?: string, to?: string) => {
+  fetchCompletedExamCounts: async (force = false) => {
+    const { patients, completedCountsFetchedAt, completedCountsLoaded } = get();
+    if (!patients.length) return;
+
+    const cached =
+      completedCountsLoaded &&
+      !force &&
+      completedCountsFetchedAt !== null &&
+      Date.now() - completedCountsFetchedAt < STALE_MS;
+    if (cached) return;
+
     try {
-      let url = '/appointments?';
-      if (from) url += `from=${from}&`;
-      if (to) url += `to=${to}`;
-      const data = await api.get<ApiAppointment[]>(url);
-      set({ appointments: data.map(mapAppointment) });
+      const ids = patients.map((p) => p.id).join(',');
+      const rows = await api.get<Array<{ patientId: string; count: number }>>(
+        `/clinical/encounters/completed-counts?patientIds=${encodeURIComponent(ids)}`,
+      );
+      const counts: Record<string, number> = {};
+      (rows ?? []).forEach((r) => {
+        counts[r.patientId] = r.count;
+      });
+      set({
+        completedExamCounts: counts,
+        completedCountsLoaded: true,
+        completedCountsFetchedAt: Date.now(),
+      });
+    } catch {
+      // Keep the previous map — counts can be revalidated on a later visit.
+    }
+  },
+
+  fetchAppointments: async (from?: string, to?: string, force = false) => {
+    if (from || to) {
+      try {
+        let url = '/appointments?';
+        if (from) url += `from=${from}&`;
+        if (to) url += `to=${to}`;
+        const data = await api.get<ApiAppointment[]>(url);
+        set({ appointments: data.map(mapAppointment) });
+      } catch {
+        // silent
+      }
+      return;
+    }
+
+    const { appointments, appointmentsFetchedAt } = get();
+    const cached =
+      appointments.length > 0 &&
+      appointmentsFetchedAt !== null &&
+      !force &&
+      Date.now() - appointmentsFetchedAt < STALE_MS;
+    if (cached) return;
+
+    try {
+      const data = await api.get<ApiAppointment[]>('/appointments');
+      set({
+        appointments: data.map(mapAppointment),
+        appointmentsLoaded: true,
+        appointmentsFetchedAt: Date.now(),
+      });
     } catch {
       // silent
+    }
+  },
+
+  fetchSurgeries: async (force = false) => {
+    const { surgeries, surgeriesFetchedAt } = get();
+    const cached =
+      surgeries.length > 0 &&
+      surgeriesFetchedAt !== null &&
+      !force &&
+      Date.now() - surgeriesFetchedAt < STALE_MS;
+    if (cached) return;
+
+    set({ loading: true });
+    try {
+      const data = await api.get<SurgeryListItem[]>('/clinical/surgeries');
+      set({
+        surgeries: data ?? [],
+        surgeriesLoaded: true,
+        surgeriesFetchedAt: Date.now(),
+        loading: false,
+      });
+    } catch {
+      set({ loading: false });
     }
   },
 
@@ -231,8 +379,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         scheduledDate: apt.date,
         startTime: apt.startTime,
         reason: apt.reason,
-        consentObtained: apt.consentObtained,
-      });
+        notes: apt.notes,
+        estimatedDuration: apt.estimatedDuration,
+      }, { toast: false });
       const mapped = mapAppointment(created);
       set((s) => ({ appointments: [...s.appointments, mapped] }));
       return mapped.id;
@@ -252,29 +401,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         console.error('Failed to update appointment:', err);
       }
     }
-    if (data.consentObtained !== undefined) {
-      try {
-        await api.patch(`/appointments/${id}/consent`, {
-          consentObtained: data.consentObtained,
-        });
-      } catch (err) {
-        console.error('Failed to update consent:', err);
-      }
-    }
     set((s) => ({
       appointments: s.appointments.map((a) => (a.id === id ? { ...a, ...data } : a)),
     }));
   },
 
-  cancelAppointment: async (id) => {
+  cancelAppointment: async (id, reason) => {
     try {
-      await api.delete(`/appointments/${id}`);
+      await api.patch(`/appointments/${id}/cancel`, { cancellationReason: reason });
     } catch (err) {
       console.error('Failed to cancel appointment:', err);
     }
     set((s) => ({
       appointments: s.appointments.map((a) =>
-        a.id === id ? { ...a, status: 'cancelled' as const } : a,
+        a.id === id ? { ...a, status: 'cancelled' as const, cancelledReason: reason } : a,
       ),
     }));
   },
@@ -285,31 +425,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     get()
       .appointments.filter((a) => a.patientId === patientId && a.status !== 'cancelled')
       .sort((a, b) => `${b.date}${b.startTime}`.localeCompare(`${a.date}${a.startTime}`)),
-
-  createWalkInAppointment: async (patientId, reason) => {
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const hours = String(now.getHours()).padStart(2, '0');
-    const mins = String(now.getMinutes()).padStart(2, '0');
-    const startTime = `${hours}:${mins}`;
-
-    const created = await api.post<ApiAppointment>('/appointments', {
-      patientId,
-      scheduledDate: today,
-      startTime,
-      reason: reason || 'Routine Eye Examination',
-      consentObtained: true,
-    });
-
-    // Mark status as IN_EXAM immediately
-    await api.patch(`/appointments/${created.id}/status`, { status: 'IN_EXAM' });
-
-    const mapped = mapAppointment(created);
-    mapped.status = 'in_exam';
-    mapped.consentObtained = true;
-    set((s) => ({ appointments: [...s.appointments, mapped] }));
-    return mapped;
-  },
 
   getAppointmentsForRange: (from, to) => {
     const fromStr = from.toISOString().split('T')[0];
