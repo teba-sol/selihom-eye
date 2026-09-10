@@ -8,7 +8,9 @@ type Tab = 'name' | 'email' | 'password';
 
 export const SettingsPage: React.FC = () => {
   const user = useAuthStore((s) => s.user);
-  const setUser = useAuthStore((s) => s.setUser);
+  // Update user directly in the persisted store state
+  const updateUser = (patch: Partial<NonNullable<typeof user>>) =>
+    useAuthStore.setState((s) => ({ user: s.user ? { ...s.user, ...patch } : s.user }));
 
   const [tab, setTab] = useState<Tab>('name');
 
@@ -46,7 +48,7 @@ export const SettingsPage: React.FC = () => {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
       });
-      setUser({ ...user!, name: `${updated.firstName} ${updated.lastName}` });
+      updateUser({ name: `${updated.firstName} ${updated.lastName}` });
       setNameStatus('saved');
       setTimeout(() => setNameStatus('idle'), 3000);
     } catch (err: any) {
@@ -62,7 +64,7 @@ export const SettingsPage: React.FC = () => {
     setEmailError('');
     try {
       const updated = await api.patch<{ email: string }>('/auth/me', { email: newEmail.trim() });
-      setUser({ ...user!, email: updated.email });
+      updateUser({ email: updated.email });
       setEmailStatus('saved');
       setTimeout(() => setEmailStatus('idle'), 3000);
     } catch (err: any) {
