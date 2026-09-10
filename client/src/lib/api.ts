@@ -3,9 +3,12 @@ import { notifySessionExpired } from './authExpired';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
-function postSuccessMessage(url: string): string {
+function postSuccessMessage(url: string, data?: any): string {
   if (url.includes('/auth/login')) return '';
-  if (url.includes('/clinical/encounter')) return 'Examination started successfully';
+  if (url.includes('/clinical/encounter')) {
+    if (url.endsWith('/addendum')) return 'Addendum saved successfully';
+    return data?.encounterId ? 'Examination saved successfully' : 'Examination started successfully';
+  }
   if (url.includes('/optical-orders')) return 'Order placed successfully';
   if (url.includes('/patients')) return 'Patient registered successfully';
   if (url.includes('/appointments')) return 'Appointment booked successfully';
@@ -115,7 +118,7 @@ export const api = {
   get: <T>(url: string) => request<T>('GET', url),
   post: async <T>(url: string, data?: any, opts?: { toast?: boolean }): Promise<T> => {
     const result = await request<T>('POST', url, data);
-    const message = postSuccessMessage(url);
+    const message = postSuccessMessage(url, data);
     if (message && opts?.toast !== false) toastSuccess(message);
     return result;
   },

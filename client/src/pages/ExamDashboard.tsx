@@ -101,7 +101,6 @@ export function ExamDashboard() {
   const encounterPatient = useEncounterStore((s) => s.patient);
   const patientName = useEncounterStore((s) => s.patient.name);
   const setActiveTab = useEncounterStore((s) => s.setActiveTab);
-  const updateAppointment = useAppStore((s) => s.updateAppointment);
   const saveEncounter = useEncounterStore((s) => s.saveEncounter);
   const dismissDraftNotice = useEncounterStore((s) => s.dismissDraftNotice);
   const draftNotice = useEncounterStore((s) => s.draftNotice);
@@ -137,9 +136,6 @@ export function ExamDashboard() {
       useEncounterStore.getState().markExamFinalized(eid);
       clearDraft(eid);
       useEncounterStore.getState().dismissDraftNotice();
-      if (st.appointmentId) {
-        updateAppointment(st.appointmentId, { status: 'completed' });
-      }
       navigate('/appointments');
     } catch (err: any) {
       if (!retriedOnceRef.current) {

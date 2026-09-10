@@ -5,10 +5,6 @@ export type UnifiedSurgeryDetails = {
   // Patient Info
   patientType: 'inpatient' | 'outpatient';
   phone: string;
-  addressZone: string;
-  addressDistrict: string;
-  addressKebele: string;
-  addressVillage: string;
   
   // Diagnosis
   diagnosis: string;
@@ -70,10 +66,6 @@ export type UnifiedSurgeryDetails = {
 export const DEFAULT_UNIFIED_SURGERY_DETAILS: UnifiedSurgeryDetails = {
   patientType: 'outpatient',
   phone: '',
-  addressZone: '',
-  addressDistrict: '',
-  addressKebele: '',
-  addressVillage: '',
   diagnosis: '',
   diagnosisOther: '',
   preOpVaOd: '',
@@ -350,24 +342,6 @@ export const UnifiedSurgeryForm: React.FC<Props> = ({ surgeryType, data, onChang
                 <span>Out Patient</span>
               </label>
             </div>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mt-2 pt-2 border-t border-blue-100">
-          <div>
-            <span className="text-xs font-semibold text-slate-500 block">Zone</span>
-            <input type="text" value={data.addressZone} onChange={e => patch({ addressZone: e.target.value })} className="w-full border-b border-slate-300 focus:border-blue-500 outline-none text-sm" placeholder="Zone" />
-          </div>
-          <div>
-            <span className="text-xs font-semibold text-slate-500 block">District</span>
-            <input type="text" value={data.addressDistrict} onChange={e => patch({ addressDistrict: e.target.value })} className="w-full border-b border-slate-300 focus:border-blue-500 outline-none text-sm" placeholder="District" />
-          </div>
-          <div>
-            <span className="text-xs font-semibold text-slate-500 block">Kebele</span>
-            <input type="text" value={data.addressKebele} onChange={e => patch({ addressKebele: e.target.value })} className="w-full border-b border-slate-300 focus:border-blue-500 outline-none text-sm" placeholder="Kebele" />
-          </div>
-          <div>
-            <span className="text-xs font-semibold text-slate-500 block">Village</span>
-            <input type="text" value={data.addressVillage} onChange={e => patch({ addressVillage: e.target.value })} className="w-full border-b border-slate-300 focus:border-blue-500 outline-none text-sm" placeholder="Village" />
           </div>
         </div>
         <div className="mt-2 pt-2 border-t border-blue-100">

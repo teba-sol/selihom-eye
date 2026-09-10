@@ -16,10 +16,6 @@ export class UnifiedSurgeryDetailsDto {
   // Patient Info
   @IsString() @IsOptional() patientType?: 'inpatient' | 'outpatient';
   @IsString() @IsOptional() phone?: string;
-  @IsString() @IsOptional() addressZone?: string;
-  @IsString() @IsOptional() addressDistrict?: string;
-  @IsString() @IsOptional() addressKebele?: string;
-  @IsString() @IsOptional() addressVillage?: string;
   
   // Diagnosis
   @IsString() @IsOptional() diagnosis?: string;

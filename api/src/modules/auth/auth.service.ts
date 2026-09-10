@@ -59,7 +59,6 @@ export class AuthService {
         firstName: dto.firstName,
         lastName: dto.lastName,
         role: dto.role,
-        licenseNumber: dto.licenseNumber || null,
       })
       .returning({
         id: users.id,

@@ -21,13 +21,7 @@ export class PatientsService {
           dob: dto.dob ? dto.dob : null,
           gender: dto.gender || null,
           phone: dto.phone,
-          email: dto.email || null,
           address: dto.address || null,
-          occupation: dto.occupation || null,
-          hobbies: dto.hobbies || null,
-          isDiabetic: dto.isDiabetic ?? false,
-          hasGlaucomaFamilyHistory: dto.hasGlaucomaFamilyHistory ?? false,
-          priorEyeSurgery: dto.priorEyeSurgery || null,
         })
         .returning();
     } catch (err: any) {
@@ -65,27 +59,5 @@ export class PatientsService {
       throw new NotFoundException(`Patient with ID ${id} not found`);
     }
     return patient;
-  }
-
-  async update(id: string, dto: Record<string, any>) {
-    const fields: Record<string, any> = {};
-    for (const [key, value] of Object.entries(dto)) {
-      if (value !== undefined) {
-        fields[key] = value;
-      }
-    }
-    if (Object.keys(fields).length === 0) {
-      return this.findById(id);
-    }
-    fields.updatedAt = new Date();
-    const [updated] = await this.db
-      .update(patients)
-      .set(fields)
-      .where(eq(patients.id, id))
-      .returning();
-    if (!updated) {
-      throw new NotFoundException(`Patient with ID ${id} not found`);
-    }
-    return updated;
   }
 }

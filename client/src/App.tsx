@@ -29,7 +29,6 @@ class AppErrorBoundary extends React.Component<
     try {
       localStorage.removeItem('asira-auth');
       localStorage.removeItem('selihom_patients_v1');
-      localStorage.removeItem('selihom_mrn_seq');
       localStorage.removeItem('selihom_kebele_data_v1');
       sessionStorage.clear();
     } catch (_) {}

@@ -507,10 +507,14 @@ export class ClinicalService {
       };
     }
 
-    // ✅ AUTOSAVE / EXPLICIT UPDATE: skip hydrate (response body is discarded)
+    // ✅ AUTOSAVE / EXPLICIT UPDATE: skip hydrate (response body is discarded).
+    // Return a lean body — echoing section_data (which can be hundreds of KB)
+    // back to the client wastes a large round trip for nothing.
     if (dto.encounterId && existing) {
       return {
-        ...result.row,
+        id: result.row.id,
+        updatedAt: result.row.updatedAt,
+        isLocked: result.row.isLocked,
         resumed: false,
         refractions: [],
         canvas: null,
@@ -528,27 +532,21 @@ export class ClinicalService {
   // ─────────────────────────────────────────────────────────────
   async lockEncounter(id: string) {
     return this.db.transaction(async (tx: any) => {
-      const [encounter] = await tx
-        .select()
-        .from(clinicalEncounters)
-        .where(eq(clinicalEncounters.id, id))
-        .limit(1);
-
-      if (!encounter) {
-        throw new NotFoundException(`Encounter with ID ${id} not found`);
-      }
-
       const [locked] = await tx
         .update(clinicalEncounters)
         .set({ isLocked: true, lockedAt: new Date(), updatedAt: new Date() })
         .where(eq(clinicalEncounters.id, id))
         .returning();
 
-      if (encounter.appointmentId) {
+      if (!locked) {
+        throw new NotFoundException(`Encounter with ID ${id} not found`);
+      }
+
+      if (locked.appointmentId) {
         await tx
           .update(appointments)
           .set({ status: 'COMPLETED', sourceEncounterId: id, updatedAt: new Date() })
-          .where(eq(appointments.id, encounter.appointmentId));
+          .where(eq(appointments.id, locked.appointmentId));
       }
 
       return locked;

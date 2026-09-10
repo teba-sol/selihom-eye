@@ -159,7 +159,6 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
             }
             updateGregorianReadout();
           } else if (groupId === 'regEthGroup') {
-            syncMrnYearWithRegDate();
             updateGregorianReadout();
           }
         });
@@ -570,70 +569,6 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
       }
     }
 
-    // MRN Generation
-    function getSeqForYear(yy: string): number {
-      const yearKey = `selihom_mrn_seq_${yy}`;
-      const storedYearSeq = localStorage.getItem(yearKey);
-      if (storedYearSeq !== null) {
-        const val = parseInt(storedYearSeq, 10);
-        return isNaN(val) ? 1 : val;
-      }
-      return yy === '18' ? 8614 : 1;
-    }
-
-    function setSeqForYear(yy: string, seq: number) {
-      localStorage.setItem(`selihom_mrn_seq_${yy}`, String(seq));
-      localStorage.setItem('selihom_mrn_seq', String(seq));
-    }
-
-    function formatMRN(seq: number, yy: string): string {
-      const paddedSeq = String(seq).padStart(4, '0');
-      return `${paddedSeq}/${yy}`;
-    }
-
-    function currentRegEthYY(): string {
-      const yEl = document.getElementById('regEthY') as HTMLInputElement;
-      const y = digitsOnly(yEl?.value);
-      if (y.length >= 3 && y.length <= 4) return y.slice(-2).padStart(2, '0');
-      const today = new Date();
-      const eth = gregorianToEthiopian(today.getFullYear(), today.getMonth() + 1, today.getDate());
-      return String(eth.year).slice(-2);
-    }
-
-    function generateMRN() {
-      const yy = currentRegEthYY();
-      const seqNum = getSeqForYear(yy);
-      const mrnEl = document.getElementById('mrn') as HTMLInputElement;
-      if (mrnEl) mrnEl.value = formatMRN(seqNum, yy);
-    }
-
-    function syncMrnYearWithRegDate() {
-      const mrnEl = document.getElementById('mrn') as HTMLInputElement;
-      if (!mrnEl) return;
-      const newYY = currentRegEthYY();
-      const current = mrnEl.value.trim();
-
-      if (!current) {
-        generateMRN();
-        return;
-      }
-
-      const slashIdx = current.indexOf('/');
-      const rawSeqStr = slashIdx >= 0 ? current.slice(0, slashIdx).trim() : current;
-      const oldYY = slashIdx >= 0 ? current.slice(slashIdx + 1).trim() : '';
-
-      if (oldYY && oldYY !== newYY) {
-        const seqNum = getSeqForYear(newYY);
-        mrnEl.value = formatMRN(seqNum, newYY);
-      } else if (rawSeqStr) {
-        const parsedSeq = parseInt(digitsOnly(rawSeqStr), 10);
-        const seqNum = !isNaN(parsedSeq) && parsedSeq > 0 ? parsedSeq : getSeqForYear(newYY);
-        mrnEl.value = formatMRN(seqNum, newYY);
-      } else {
-        generateMRN();
-      }
-    }
-
     function setRegistrationDatePlaceholders(gregorianDate: Date) {
       if (!gregorianDate || Number.isNaN(gregorianDate.getTime())) return;
       const gd = gregorianDate.getDate();
@@ -793,36 +728,12 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
 
     setRegistrationDatePlaceholders(new Date());
     updateGregorianReadout();
-    generateMRN();
     (window as any).toggleReferralField();
     initAddressDropdowns();
 
     // Wire up age -> year auto-calculation
     (window as any).__tryCalculateYearFromAge = tryCalculateYearFromAge;
     (window as any).__handleAgeUnitChange = handleAgeUnitChange;
-
-    // MRN blur: normalize format
-    const mrnEl = document.getElementById('mrn') as HTMLInputElement;
-    if (mrnEl) {
-      mrnEl.addEventListener('blur', function() {
-        const val = this.value.trim();
-        if (!val) return;
-        const yy = currentRegEthYY();
-        const slashIdx = val.indexOf('/');
-        const rawSeq = slashIdx >= 0 ? val.slice(0, slashIdx).trim() : val;
-        const specifiedYY = slashIdx >= 0 ? val.slice(slashIdx + 1).trim() : yy;
-        const parsed = parseInt(digitsOnly(rawSeq), 10);
-        if (!isNaN(parsed) && parsed > 0) {
-          this.value = formatMRN(parsed, specifiedYY || yy);
-        }
-      });
-    }
-
-    // Wire up registration date year change -> MRN sync
-    ['regEthY', 'regEthM', 'regEthD'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.addEventListener('input', syncMrnYearWithRegDate);
-    });
 
     // Load online date
     fetchOnlineCurrentDate().then(online => {
@@ -947,14 +858,8 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
           gender: sex === 'F' ? 'Female' : 'Male',
           dateOfBirth,
           phone: phone || '',
-          email: '',
           address,
         };
-
-        // Increment MRN for next patient
-        const yy = currentRegEthYY();
-        const currentSeq = getSeqForYear(yy);
-        setSeqForYear(yy, currentSeq + 1);
 
         (async () => {
           try {
@@ -1019,7 +924,7 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
               <div className="w-8 h-8 rounded-lg bg-[#1e3a8a]/5 text-[#1e3a8a] flex items-center justify-center shrink-0"><FileText className="w-4 h-4" /></div>
               <div>
                 <h3 className="text-sm font-bold text-slate-800">Identification &amp; Medical Facility</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Auto-incrementing MRN synced with the Ethiopian year</p>
+                <p className="text-xs text-slate-500 mt-0.5">Enter the facility-assigned Medical Record Number</p>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

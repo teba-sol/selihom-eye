@@ -63,7 +63,7 @@ export interface Patient {
   gender: 'Male' | 'Female' | 'Other';
   dateOfBirth: string;
   phone: string;
-  email: string;
+  email?: string;
   address?: string;
   isNew?: boolean;
   lastVisit?: string;
@@ -345,7 +345,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         dob: patient.dateOfBirth || null,
         gender: patient.gender || null,
         phone: patient.phone,
-        email: patient.email || null,
         address: patient.address || null,
       });
       const mapped = mapPatient(created);
@@ -365,7 +364,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       (p) =>
         p.firstName.toLowerCase().includes(q) ||
         p.lastName.toLowerCase().includes(q) ||
-        p.email.toLowerCase().includes(q) ||
+        (p.email && p.email.toLowerCase().includes(q)) ||
         p.phone.includes(q) ||
         (p.mrn && p.mrn.toLowerCase().includes(q)) ||
         p.id.includes(q),

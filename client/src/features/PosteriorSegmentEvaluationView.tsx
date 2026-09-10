@@ -120,11 +120,27 @@ function FundusCanvas({ canvasRef, fabricRef, tool, color, savedJson, onSave }: 
   onSaveRef.current = onSave;
   const shapeStartRef = useRef<{ x: number; y: number } | null>(null);
   const previewRef = useRef<fabric.Object | null>(null);
+  const pendingDisposeRef = useRef<fabric.Canvas | null>(null);
 
   useEffect(() => {
     if (!canvasRef.current) return;
+
+    // A previous mount may still be finishing a deferred dispose (we defer
+    // dispose() until loadFromJSON settles, so fabric keeps its `data-fabric`
+    // mark on the element in the meantime). Forcing the stale dispose now is
+    // safe — fabric's cleanupDOM runs synchronously — and clears the mark so
+    // re-initialising the same element below cannot throw.
+    const stale = pendingDisposeRef.current;
+    pendingDisposeRef.current = null;
+    if (stale) {
+      try { stale.dispose().catch(() => {}); } catch { /* noop */ }
+    }
     if (fabricRef.current) disposeFabricCanvas(fabricRef);
-    const canvas = new fabric.Canvas(canvasRef.current, { width: 300, height: 300, backgroundColor: 'transparent' });
+    const el = canvasRef.current;
+    el.removeAttribute('data-fabric');
+    el.classList.remove('lower-canvas', 'upper-canvas');
+
+    const canvas = new fabric.Canvas(el, { width: 300, height: 300, backgroundColor: 'transparent' });
     fabricRef.current = canvas;
 
     let persistTimer: ReturnType<typeof setTimeout> | null = null;
@@ -164,7 +180,9 @@ function FundusCanvas({ canvasRef, fabricRef, tool, color, savedJson, onSave }: 
       if (json) onSaveRef.current?.(json);
       canvas.off('after:render', schedulePersist);
       fabricRef.current = null;
+      pendingDisposeRef.current = canvas;
       const teardown = () => {
+        if (pendingDisposeRef.current === canvas) pendingDisposeRef.current = null;
         try { canvas.dispose().catch(() => {}); } catch { /* noop */ }
       };
       if (loadPromise) loadPromise.finally(teardown);

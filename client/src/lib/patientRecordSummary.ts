@@ -9,6 +9,7 @@ export interface SurgeryEntryRecord {
   remarks: string;
   unifiedDetails?: any;
   eye?: string;
+  status?: string;
 }
 
 /** Best recorded distance VA for an eye (aided preferred, then unaided). */
@@ -71,6 +72,7 @@ export function resolveSurgeries(snap: EncounterSnapshot | null | undefined): Su
       remarks: s.remarks ?? '',
       unifiedDetails: s.unifiedDetails,
       eye: s.unifiedDetails?.eyeToBeOperated ?? '',
+      status: s.status,
     }));
   }
   const type = a?.surgeryType ?? '';
@@ -82,6 +84,7 @@ export function resolveSurgeries(snap: EncounterSnapshot | null | undefined): Su
       remarks: a?.surgeryRemarks ?? '',
       unifiedDetails: undefined,
       eye: '',
+      status: a?.surgeryStatus ?? 'PLANNED',
     },
   ];
 }

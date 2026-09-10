@@ -24,7 +24,6 @@ async function seed() {
       firstName: 'Dr.',
       lastName: 'Tarekegn',
       role: 'DOCTOR' as const,
-      licenseNumber: 'OPT-2024-001',
     },
     {
       email: 'receptionist@selihome.com',
@@ -32,7 +31,6 @@ async function seed() {
       firstName: 'Amina',
       lastName: 'Hassan',
       role: 'RECEPTIONIST' as const,
-      licenseNumber: null,
     },
   ];
 
@@ -52,7 +50,6 @@ async function seed() {
         firstName: u.firstName,
         lastName: u.lastName,
         role: u.role,
-        licenseNumber: u.licenseNumber,
       })
       .returning({ id: users.id, email: users.email, role: users.role });
 

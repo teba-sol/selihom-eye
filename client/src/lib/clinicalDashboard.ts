@@ -275,7 +275,7 @@ export function buildClinicalDashboard(
           eye: eye || '',
           surgeon: ud?.surgeon ?? '',
           dateOfSurgery: ud?.dateOfSurgery ?? '',
-          status: ud?.status ?? (ud?.rootStatus ?? 'PLANNED'),
+          status: s.status ?? (ud?.status ?? 'PLANNED'),
           date,
         });
       }
