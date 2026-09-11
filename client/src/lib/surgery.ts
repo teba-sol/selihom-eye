@@ -1,6 +1,7 @@
 import type { UnifiedSurgeryDetails } from '../features/UnifiedSurgeryForm';
 import { DEFAULT_UNIFIED_SURGERY_DETAILS } from '../features/UnifiedSurgeryForm';
 import { todayEthiopian } from './formatters';
+import { generateId } from '../utils/uuid';
 
 export type SurgeryStatus = 'PLANNED' | 'COMPLETED' | 'CANCELLED';
 
@@ -80,7 +81,7 @@ export function freshUnifiedDetails(): UnifiedSurgeryDetails {
 
 export function newSurgeryEntry(): SurgeryEntry {
   return {
-    id: crypto.randomUUID(),
+    id: generateId(),
     type: '',
     otherName: '',
     remarks: '',

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { getDefaultClinicalState } from '../lib/encounterDefaults';
 import { apiEncounterToSnapshot } from '../lib/encounterMappers';
 import { clearDraft } from '../lib/draft';
+import { generateId } from '../utils/uuid';
 
 export interface SymptomItem {
   id: string;
@@ -538,7 +539,7 @@ export const useEncounterStore = create<EncounterState>((rawSet, get) => {
         return { symptoms: state.symptoms.filter((s) => s.name !== name) };
       }
       const newSymptom: SymptomItem = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         name,
         eye: 'Both Eyes',
         durationValue: 1,

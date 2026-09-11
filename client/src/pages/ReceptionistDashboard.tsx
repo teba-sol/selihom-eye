@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { UserPlus, Search, Calendar, Users, LogOut, Printer, CheckCircle2, Eye } from 'lucide-react';
+import { UserPlus, Search, Calendar, Users, LogOut, Printer, CheckCircle2, Eye, Receipt, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -9,6 +9,20 @@ import { useToast } from '../lib/toast';
 import { formatDobEthiopian, patientFullName, formatEthiopianDate } from '../lib/formatters';
 import { listOpticalOrders, deliverOpticalOrder, type OpticalOrder } from '../lib/opticalOrders';
 import { printOpticalRx } from '../components/OpticalRxCard';
+
+interface BillingLineItem { id: string; name: string; price: number; }
+interface BillingData { items: BillingLineItem[]; total: number; confirmedAt: string; }
+
+interface BillingQueueEntry {
+  encounterId: string;
+  patientName: string;
+  mrn: string;
+  billing: BillingData | null;
+  medicationPricing: BillingData | null;
+  prescriptionPricing: BillingData | null;
+  grandTotal: number;
+  confirmedAt: string;
+}
 
 function formatRxShort(v?: string | number | null): string {
   if (v === undefined || v === null || v === '') return '-';
@@ -55,6 +69,34 @@ export const ReceptionistDashboard: React.FC = () => {
   const [todayAppts, setTodayAppts] = useState<ApiAppointment[]>([]);
   const [recentRegistrations, setRecentRegistrations] = useState<ApiPatient[]>([]);
   const [pendingOrders, setPendingOrders] = useState<OpticalOrder[]>([]);
+  const [billingQueue, setBillingQueue] = useState<BillingQueueEntry[]>([]);
+  const [dismissedBillings, setDismissedBillings] = useState<Set<string>>(new Set());
+  const [doneBillings, setDoneBillings] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('receptionist-done-billings');
+      return stored ? new Set<string>(JSON.parse(stored)) : new Set<string>();
+    } catch {
+      return new Set<string>();
+    }
+  });
+
+  const markDone = (encounterId: string) => {
+    setDoneBillings((prev) => {
+      const next = new Set(prev);
+      next.add(encounterId);
+      try { localStorage.setItem('receptionist-done-billings', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
+
+  const unmarkDone = (encounterId: string) => {
+    setDoneBillings((prev) => {
+      const next = new Set(prev);
+      next.delete(encounterId);
+      try { localStorage.setItem('receptionist-done-billings', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -67,6 +109,52 @@ export const ReceptionistDashboard: React.FC = () => {
     }
   };
 
+  const fetchBillingQueue = async (todayApts: ApiAppointment[]) => {
+    try {
+      const inExamOrCompleted = todayApts.filter(
+        (a) => a.status === 'in_exam' || a.status === 'completed' || a.status === 'IN_EXAM' || a.status === 'COMPLETED',
+      );
+      const entries: BillingQueueEntry[] = [];
+      await Promise.all(
+        inExamOrCompleted.map(async (apt) => {
+          try {
+            const enc = await api.get<any>(`/clinical/appointment/${apt.id}`);
+            const aa = enc?.sectionData?.['action-and-advice'] ?? {};
+            const billing: BillingData | null = aa.billing ?? null;
+            const medPricing: BillingData | null = aa.medicationPricing ?? null;
+            const rxPricing: BillingData | null = aa.prescriptionPricing ?? null;
+            const hasAny = billing || medPricing || rxPricing;
+            if (hasAny) {
+              const grandTotal =
+                (billing?.total ?? 0) + (medPricing?.total ?? 0) + (rxPricing?.total ?? 0);
+              const confirmedAt =
+                billing?.confirmedAt ?? medPricing?.confirmedAt ?? rxPricing?.confirmedAt ?? '';
+              const pName = apt.patient
+                ? `${apt.patient.firstName} ${apt.patient.lastName}`
+                : 'Unknown';
+              entries.push({
+                encounterId: enc.id,
+                patientName: pName,
+                mrn: enc.patient?.mrn ?? '',
+                billing,
+                medicationPricing: medPricing,
+                prescriptionPricing: rxPricing,
+                grandTotal,
+                confirmedAt,
+              });
+            }
+          } catch {
+            // skip this encounter
+          }
+        }),
+      );
+      entries.sort((a, b) => new Date(b.confirmedAt).getTime() - new Date(a.confirmedAt).getTime());
+      setBillingQueue(entries);
+    } catch {
+      // silent
+    }
+  };
+
   const fetchDashboardData = async () => {
     try {
       const [todayApts, allPatients] = await Promise.all([
@@ -74,6 +162,7 @@ export const ReceptionistDashboard: React.FC = () => {
         api.get<ApiPatient[]>('/patients'),
       ]);
       setTodayAppts(todayApts);
+      fetchBillingQueue(todayApts);
 
       const recent = allPatients
         .slice()
@@ -88,6 +177,9 @@ export const ReceptionistDashboard: React.FC = () => {
   useEffect(() => {
     fetchDashboardData();
     fetchOpticalOrders();
+    // Poll billing queue every 30 s so edits from the doctor appear automatically
+    const interval = setInterval(() => fetchDashboardData(), 30_000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -173,6 +265,13 @@ export const ReceptionistDashboard: React.FC = () => {
               </div>
               <span className="text-slate-200 font-medium">{user?.name}</span>
             </div>
+            <button
+              onClick={() => navigate('/settings')}
+              className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-4 py-2 rounded-full transition-all border border-white/20"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              Settings
+            </button>
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 bg-gradient-to-r from-rose-500/80 to-rose-600/80 hover:from-rose-600 hover:to-rose-700 text-white text-xs font-bold px-5 py-2 rounded-full transition-all shadow-lg shadow-rose-500/20 hover:shadow-rose-500/40 border border-white/20 hover:scale-105 active:scale-95"
@@ -298,6 +397,124 @@ export const ReceptionistDashboard: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Billing Queue */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-2xl shadow-slate-200/60 border border-white/60 p-6 mb-8 hover:shadow-teal-100/30 transition-shadow duration-300">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-br from-teal-100 to-emerald-100 rounded-xl">
+                  <Receipt className="w-5 h-5 text-teal-600" />
+                </div>
+                <h2 className="text-sm font-extrabold text-slate-700 uppercase tracking-wider">Billing Queue</h2>
+              </div>
+              <span className="text-xs font-bold bg-gradient-to-r from-teal-100 to-emerald-100 text-teal-700 px-4 py-1.5 rounded-full shadow-inner flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse"></span>
+                {billingQueue.filter((b) => !dismissedBillings.has(b.encounterId) && !doneBillings.has(b.encounterId)).length} pending
+              </span>
+            </div>
+
+            {billingQueue.filter((b) => !dismissedBillings.has(b.encounterId)).length > 0 ? (
+              <div className="space-y-4">
+                {billingQueue
+                  .filter((b) => !dismissedBillings.has(b.encounterId))
+                  .map((entry) => {
+                    const isDone = doneBillings.has(entry.encounterId);
+                    return (
+                      <div key={entry.encounterId} className={`border rounded-2xl overflow-hidden shadow-sm transition-all ${isDone ? 'border-emerald-200' : 'border-teal-100'}`}>
+                        {/* Patient header */}
+                        <div className={`flex items-center justify-between px-4 py-3 border-b ${isDone ? 'bg-emerald-50 border-emerald-100' : 'bg-gradient-to-r from-teal-50 to-emerald-50 border-teal-100'}`}>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-bold text-slate-800">{entry.patientName}</span>
+                            {entry.mrn && <span className="text-xs text-slate-500">MRN: {entry.mrn}</span>}
+                            {!isDone && (
+                              <span className="text-[10px] text-slate-400">
+                                {new Date(entry.confirmedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                            {isDone && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                <CheckCircle2 className="w-3 h-3" /> Done
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {!isDone && (
+                              <button
+                                onClick={() => markDone(entry.encounterId)}
+                                className="flex items-center gap-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-lg transition-colors"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Done
+                              </button>
+                            )}
+                            {isDone && (
+                              <button
+                                onClick={() => unmarkDone(entry.encounterId)}
+                                className="text-xs font-semibold text-slate-500 hover:text-slate-700 border border-slate-300 hover:border-slate-400 px-3 py-1.5 rounded-lg transition-colors bg-white"
+                              >
+                                Look again
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setDismissedBillings((prev) => new Set([...prev, entry.encounterId]))}
+                              className="text-xs text-slate-400 hover:text-slate-600 px-2 py-1 rounded-md hover:bg-white transition-colors"
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Line items — hidden when Done */}
+                        {!isDone && (
+                          <div className="px-4 py-3 bg-white space-y-3">
+                            {[
+                              { label: 'Billing', data: entry.billing, color: 'text-teal-700' },
+                              { label: 'Medication', data: entry.medicationPricing, color: 'text-blue-700' },
+                              { label: 'Prescription', data: entry.prescriptionPricing, color: 'text-purple-700' },
+                            ]
+                              .filter((s) => s.data && s.data.items?.length > 0)
+                              .map((section) => (
+                                <div key={section.label}>
+                                  <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${section.color}`}>{section.label}</p>
+                                  <table className="w-full text-xs">
+                                    <tbody>
+                                      {section.data!.items.map((item) => (
+                                        <tr key={item.id} className="border-b border-slate-50">
+                                          <td className="py-1 text-slate-700">{item.name}</td>
+                                          <td className="py-1 text-slate-700 text-right font-mono">{item.price.toLocaleString()}</td>
+                                        </tr>
+                                      ))}
+                                      <tr>
+                                        <td className="pt-1 text-xs font-semibold text-slate-600">Subtotal</td>
+                                        <td className={`pt-1 text-xs font-semibold text-right font-mono ${section.color}`}>
+                                          {section.data!.total.toLocaleString()} ETB
+                                        </td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ))}
+                            <div className="border-t-2 border-slate-200 pt-2 flex justify-between items-center">
+                              <span className="text-sm font-bold text-slate-800">Grand Total</span>
+                              <span className="text-sm font-bold text-teal-600 font-mono">
+                                {entry.grandTotal.toLocaleString()} ETB
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center mx-auto mb-3">
+                  <Receipt className="w-7 h-7 text-slate-300" />
+                </div>
+                <p className="text-sm text-slate-500 font-medium">No billing orders yet</p>
+                <p className="text-xs text-slate-400 mt-1">Billing will appear here once the doctor confirms it from the exam room.</p>
+              </div>
+            )}
           </div>
 
           {/* Optical Orders / Dispensing Queue - Enhanced */}

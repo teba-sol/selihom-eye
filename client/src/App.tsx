@@ -6,6 +6,7 @@ import { PageLoader } from './components/LoadingSkeleton';
 const LoginPage = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
 const PatientsPage = lazy(() => import('./pages/PatientsPage').then((m) => ({ default: m.PatientsPage })));
 const AppointmentsPage = lazy(() => import('./pages/AppointmentsPage').then((m) => ({ default: m.AppointmentsPage })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const SurgeriesPage = lazy(() => import('./pages/SurgeriesPage').then((m) => ({ default: m.SurgeriesPage })));
 const ExamDashboard = lazy(() => import('./pages/ExamDashboard').then((m) => ({ default: m.ExamDashboard })));
 const ReceptionistDashboard = lazy(() => import('./pages/ReceptionistDashboard').then((m) => ({ default: m.ReceptionistDashboard })));
@@ -25,7 +26,6 @@ class AppErrorBoundary extends React.Component<
   }
 
   handleReset = () => {
-    // Clear all persisted state
     try {
       localStorage.removeItem('asira-auth');
       localStorage.removeItem('selihom_patients_v1');
@@ -76,6 +76,7 @@ export default function App() {
               <Route path="/surgeries" element={<SurgeriesPage />} />
               <Route path="/exam/:encounterId" element={<ExamDashboard />} />
               <Route path="/receptionist/*" element={<ReceptionistDashboard />} />
+              <Route path="/settings" element={<SettingsPage />} />
             </Route>
 
             <Route path="/" element={<Navigate to="/login" replace />} />
