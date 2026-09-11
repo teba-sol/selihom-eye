@@ -5,9 +5,12 @@ import { formatEthiopianDate } from './formatters';
 export function fmtDate(value: unknown): string {
   if (!value) return '';
   const str = String(value);
-  const d = /^\d{4}-\d{2}-\d{2}$/.test(str)
-    ? new Date(`${str}T00:00:00`)
-    : new Date(str);
+  const dm = str.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (dm) {
+    const d = new Date(Number(dm[1]), Number(dm[2]) - 1, Number(dm[3]));
+    return formatEthiopianDate(d);
+  }
+  const d = new Date(str);
   if (isNaN(d.getTime())) return str;
   return formatEthiopianDate(d);
 }

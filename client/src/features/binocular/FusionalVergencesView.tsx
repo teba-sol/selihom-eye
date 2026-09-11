@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useEncounterStore } from '../../store/useEncounterStore';
 
 type VisionTab = 'Distance Vision' | 'Intermediate Vision' | 'Near Vision';
@@ -87,9 +87,9 @@ export const FusionalVergencesView: React.FC = () => {
   };
   const f: FusionalVergencesData = { ...raw, data };
   const patch = (p: Partial<FusionalVergencesData>) => setSectionData('fusional-vergences', { ...f, ...p });
-  const { activeTab, remarks, showInDischarge } = f;
+  const [activeTab, setActiveTab] = useState<VisionTab>(f.activeTab ?? 'Distance Vision');
+  const { remarks, showInDischarge } = f;
 
-  const setActiveTab = (tab: VisionTab) => patch({ activeTab: tab });
   const upd = (type: 'bi' | 'bo', fields: Partial<VergenceData>) =>
     patch({ data: { ...data, [activeTab]: { ...data[activeTab], [type]: { ...data[activeTab][type], ...fields } } } });
 

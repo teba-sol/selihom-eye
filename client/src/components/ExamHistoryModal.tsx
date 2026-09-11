@@ -25,7 +25,7 @@ function ExamRow({ entry, onAction }: {
       <div className="flex items-start justify-between px-4 py-3 bg-white">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-bold text-slate-800">{fmtDate(entry.appointmentDate ?? entry.createdAt)}</span>
+            <span className="text-sm font-bold text-slate-800">{fmtDate(entry.createdAt ?? entry.appointmentDate)}</span>
             <span className="text-[10px] font-bold text-[#2563eb] bg-blue-50 rounded-full px-2 py-0.5 uppercase tracking-wide">{entry.appointmentReason || 'Examination'}</span>
             <StatusBadge entry={entry}/>
           </div>

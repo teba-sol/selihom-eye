@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useEncounterStore } from '../../store/useEncounterStore';
 
 type VisionTab = 'Distance Vision' | 'Intermediate Vision' | 'Near Vision';
@@ -75,9 +75,9 @@ export const OcularMotorBalanceView: React.FC = () => {
   };
   const f: OcularMotorBalanceData = { ...raw, data };
   const patch = (p: Partial<OcularMotorBalanceData>) => setSectionData('ocular-motor-balance', { ...f, ...p });
-  const { activeTab, remarks, showInDischarge } = f;
+  const [activeTab, setActiveTab] = useState<VisionTab>(f.activeTab ?? 'Distance Vision');
+  const { remarks, showInDischarge } = f;
 
-  const setActiveTab = (tab: VisionTab) => patch({ activeTab: tab });
   const cur = data[activeTab];
   const upd = (fields: Partial<TabData>) =>
     patch({ data: { ...data, [activeTab]: { ...data[activeTab], ...fields } } });

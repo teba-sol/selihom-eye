@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useEncounterStore } from '../store/useEncounterStore';
 import { StepperCell } from '../components/StepperCell';
 
@@ -106,7 +106,7 @@ export const SubjectiveRefractionView: React.FC = () => {
   const f = Object.assign({}, DEFAULT_OBJ_SUB, sectionData['objective-subjective'] ?? {}) as SubjectiveRefractionData;
 
   const patch = (p: Partial<SubjectiveRefractionData>) => setSectionData('objective-subjective', { ...f, ...p });
-  const setTab = (tab: 'objective' | 'subjective') => patch({ tab });
+  const [tab, setTab] = useState<'objective' | 'subjective'>(f.tab ?? 'subjective');
   const setUnit = (unit: string) => patch({ unit });
   const setRemarks = (remarks: string) => patch({ remarks });
   const setShowInDischarge = (showInDischarge: boolean) => patch({ showInDischarge });
@@ -115,7 +115,7 @@ export const SubjectiveRefractionView: React.FC = () => {
   const setObjEye = (eyeKey: 'objOd' | 'objOs', p: Partial<ObjectiveEye>) =>
     patch({ [eyeKey]: { ...f[eyeKey], ...p } } as Partial<SubjectiveRefractionData>);
 
-  const { tab, unit, subjOd, subjOs, objOd, objOs, remarks, showInDischarge } = f;
+  const { unit, subjOd, subjOs, objOd, objOs, remarks, showInDischarge } = f;
 
   return (
     <div className="p-8 max-w-5xl bg-white min-h-full font-sans">

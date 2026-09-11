@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MultiSelect } from '../components/MultiSelect';
 import { useEncounterStore } from '../store/useEncounterStore';
 
@@ -149,7 +149,8 @@ export const CrystallineLensView: React.FC = () => {
   };
   const f: CrystallineLensData = { ...raw, locs };
   const patch = (p: Partial<CrystallineLensData>) => setSectionData('crystalline-lens', { ...f, ...p });
-  const { activeTab, mydriaticDrug, instrument, odObs, osObs, sameForOS, remarks, showInDischarge } = f;
+  const [subTab, setSubTab] = useState<'Form' | 'LOCS III Grading scale'>(f.activeTab ?? 'Form');
+  const { mydriaticDrug, instrument, odObs, osObs, sameForOS, remarks, showInDischarge } = f;
 
   const handleOdChange = (v: string[]) => {
     patch({ odObs: v, ...(sameForOS ? { osObs: v } : {}) });
@@ -169,14 +170,14 @@ export const CrystallineLensView: React.FC = () => {
       {/* Sub-tabs */}
       <div className="flex gap-6 border-b border-slate-200 mb-6">
         {(['Form', 'LOCS III Grading scale'] as const).map(tab => (
-          <button key={tab} type="button" onClick={() => patch({ activeTab: tab })}
-            className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab ? 'text-blue-700 border-blue-700 font-semibold' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
+          <button key={tab} type="button" onClick={() => setSubTab(tab)}
+            className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${subTab === tab ? 'text-blue-700 border-blue-700 font-semibold' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
             {tab}
           </button>
         ))}
       </div>
 
-      {activeTab === 'LOCS III Grading scale' ? (
+      {subTab === 'LOCS III Grading scale' ? (
         <LocsIIIGrading locs={locs} onChange={updateLocs} />
       ) : (
         <div className="space-y-5 max-w-4xl mb-8">

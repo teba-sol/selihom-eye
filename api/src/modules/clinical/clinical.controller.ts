@@ -73,6 +73,18 @@ export class ClinicalController {
     return this.clinicalService.getPatientHistory(patientId);
   }
 
+  @Get('billing-queue')
+  @Roles('DOCTOR', 'RECEPTIONIST')
+  async getBillingQueue() {
+    return this.clinicalService.getBillingQueue();
+  }
+
+  @Patch('billing/:encounterId/pay')
+  @Roles('RECEPTIONIST')
+  async markBillingPaid(@Param('encounterId') encounterId: string) {
+    return this.clinicalService.markBillingPaid(encounterId);
+  }
+
   @Get('surgeries')
   @Roles('DOCTOR', 'RECEPTIONIST')
   async getSurgeries(

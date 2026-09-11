@@ -39,18 +39,6 @@ function addDays(d: Date, n: number): Date {
   return r;
 }
 
-import { gregorianToEthiopian } from '../lib/formatters';
-
-const ETH_MONTHS_SHORT = [
-  'Mes', 'Tik', 'Hid', 'Tah', 'Tir', 'Yek',
-  'Meg', 'Mia', 'Gin', 'Sen', 'Ham', 'Neh', 'Pag',
-];
-
-function toEthDay(d: Date): string {
-  const eth = gregorianToEthiopian(d.getFullYear(), d.getMonth() + 1, d.getDate());
-  return String(eth.day);
-}
-
 function formatWeekRange(start: Date): string {
   const end = addDays(start, 6);
   const s = ethiopianParts(start);

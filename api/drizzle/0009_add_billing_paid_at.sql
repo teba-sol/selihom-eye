@@ -1,0 +1,1 @@
+ALTER TABLE "clinical_encounters" ADD COLUMN "billing_paid_at" timestamp with time zone;

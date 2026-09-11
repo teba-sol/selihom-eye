@@ -489,7 +489,8 @@ export const PosteriorSegmentEvaluationView: React.FC = () => {
     av: { od: raw.av?.od ?? 'None', os: raw.av?.os ?? 'None' },
   };
   const patch = (p: Partial<PosteriorSegmentData>) => setSectionData('posterior-segment', { ...f, ...p });
-  const { activeTab, mydriaticDrug, instrument, cdr, av, remarks, showInDischarge } = f;
+  const [subTab, setSubTab] = useState<'Form' | 'Diagram'>(f.activeTab ?? 'Form');
+  const { mydriaticDrug, instrument, cdr, av, remarks, showInDischarge } = f;
 
   const savedDiagram = { od: f.diagram?.od ?? '', os: f.diagram?.os ?? '' };
   const saveDiagram = (eye: 'od' | 'os', json: string) => {
@@ -510,18 +511,18 @@ export const PosteriorSegmentEvaluationView: React.FC = () => {
 
       <div className="flex gap-6 border-b border-slate-200 mb-6">
         {(['Form', 'Diagram'] as const).map(tab => (
-          <button key={tab} type="button" onClick={() => patch({ activeTab: tab })}
-            className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab ? 'text-blue-700 border-blue-700 font-semibold' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
+          <button key={tab} type="button" onClick={() => setSubTab(tab)}
+            className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${subTab === tab ? 'text-blue-700 border-blue-700 font-semibold' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
             {tab}
           </button>
         ))}
       </div>
 
-      {activeTab === 'Diagram' && (
+      {subTab === 'Diagram' && (
         <PosteriorDiagram savedJson={savedDiagram} onSave={saveDiagram} />
       )}
 
-      {activeTab === 'Form' && (
+      {subTab === 'Form' && (
         <div>
           {/* Mydriatic Drug */}
           <div className="grid grid-cols-[180px_1fr] items-start gap-4 mb-4">

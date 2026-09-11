@@ -104,7 +104,7 @@ export const VisitContextBanner: React.FC<VisitContextBannerProps> = ({
           <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">
             Last examination
           </span>
-          <span className="text-xs font-semibold text-slate-700">{fmtDate(lastExam.appointmentDate ?? lastExam.createdAt)}</span>
+          <span className="text-xs font-semibold text-slate-700">{fmtDate(lastExam.createdAt ?? lastExam.appointmentDate)}</span>
           <span className="text-xs text-slate-500">{lastExam.appointmentReason || 'Examination'}</span>
           <SummaryChips entry={lastExam} />
         </div>

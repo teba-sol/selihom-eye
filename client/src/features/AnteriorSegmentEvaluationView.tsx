@@ -487,7 +487,8 @@ export const AnteriorSegmentEvaluationView: React.FC = () => {
   );
   const f: AnteriorSegmentData = { ...raw, multiObs };
   const patch = (p: Partial<AnteriorSegmentData>) => setSectionData('anterior-segment-eval', { ...f, ...p });
-  const { activeSubTab, instrument, remarks, showInDischarge } = f;
+  const [subTab, setSubTab] = useState<'Form' | 'Diagram'>(f.activeSubTab ?? 'Form');
+  const { instrument, remarks, showInDischarge } = f;
 
   const savedDiagram = { od: f.diagram?.od ?? '', os: f.diagram?.os ?? '' };
   const saveDiagram = (eye: 'od' | 'os') => (json: string) => {
@@ -545,15 +546,15 @@ export const AnteriorSegmentEvaluationView: React.FC = () => {
       {/* Sub-tabs */}
       <div className="flex gap-6 border-b border-slate-200 mb-6">
         {(['Form', 'Diagram'] as const).map(t => (
-          <button key={t} type="button" onClick={() => patch({ activeSubTab: t })}
-            className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeSubTab === t ? 'text-blue-700 border-blue-700 font-semibold' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
+          <button key={t} type="button" onClick={() => setSubTab(t)}
+            className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${subTab === t ? 'text-blue-700 border-blue-700 font-semibold' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
             {t}
           </button>
         ))}
       </div>
 
       {/* -- FORM TAB -- */}
-      {activeSubTab === 'Form' && (
+      {subTab === 'Form' && (
         <div>
           {/* Instrument */}
           <div className="flex items-center gap-6 mb-6 text-sm text-slate-700">
@@ -619,7 +620,7 @@ export const AnteriorSegmentEvaluationView: React.FC = () => {
       )}
 
       {/* -- DIAGRAM TAB -- */}
-      {activeSubTab === 'Diagram' && (
+      {subTab === 'Diagram' && (
         <div>
           {/* Toolbar */}
           <div className="border border-slate-200 rounded-xl p-3 mb-4">

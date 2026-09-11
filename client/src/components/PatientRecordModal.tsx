@@ -134,7 +134,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Status</p>
                 <div className="grid grid-cols-2 gap-2">
                   <Field label="Patient Status" value={patient.isNew ? 'New Patient' : 'Returning Patient'}/>
-                  <Field label="Last Visit" value={record.history.length > 0 ? formatEthiopianDate(record.history[0].appointmentDate ?? record.history[0].createdAt) : 'First Visit'}/>
+                  <Field label="Last Visit" value={record.history.length > 0 ? formatEthiopianDate(record.history[0].createdAt ?? record.history[0].appointmentDate) : 'First Visit'}/>
                   <Field label="Next Appointment" value={nextAppointment ? formatEthiopianDate(nextAppointment.scheduledDate) : '—'}/>
                 </div>
               </section>
@@ -171,7 +171,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-bold text-slate-800">
-                              {formatEthiopianDate(entry.appointmentDate ?? entry.createdAt)}
+                              {formatEthiopianDate(entry.createdAt ?? entry.appointmentDate)}
                             </span>
                             <span className="text-[10px] font-bold text-[#2563eb] bg-blue-50 rounded-full px-2 py-0.5 uppercase tracking-wide">
                               {entry.appointmentReason || 'Routine Eye Examination'}

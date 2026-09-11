@@ -333,6 +333,7 @@ export const clinicalEncounters = pgTable('clinical_encounters', {
   // Medicolegal
   isLocked: boolean('is_locked').default(false).notNull(),
   lockedAt: timestamp('locked_at', { withTimezone: true }),
+  billingPaidAt: timestamp('billing_paid_at', { withTimezone: true }),
   addendumNotes: text('addendum_notes'),
 
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

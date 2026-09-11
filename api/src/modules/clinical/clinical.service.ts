@@ -741,6 +741,64 @@ export class ClinicalService {
   }
 
   // ─────────────────────────────────────────────────────────────
+  // BILLING QUEUE
+  // ─────────────────────────────────────────────────────────────
+  async getBillingQueue() {
+    const rows = await this.db
+      .select({
+        id: clinicalEncounters.id,
+        patientId: clinicalEncounters.patientId,
+        mrn: patients.mrn,
+        firstName: patients.firstName,
+        lastName: patients.lastName,
+        billingPaidAt: clinicalEncounters.billingPaidAt,
+        sectionData: clinicalEncounters.sectionData,
+      })
+      .from(clinicalEncounters)
+      .innerJoin(patients, eq(clinicalEncounters.patientId, patients.id))
+      .where(sql`(
+        (${clinicalEncounters.sectionData}->'action-and-advice'->>'billing') IS NOT NULL
+        OR (${clinicalEncounters.sectionData}->'action-and-advice'->>'medicationPricing') IS NOT NULL
+        OR (${clinicalEncounters.sectionData}->'action-and-advice'->>'prescriptionPricing') IS NOT NULL
+      )`)
+      .orderBy(desc(clinicalEncounters.updatedAt));
+
+    const entries: any[] = [];
+    for (const r of rows) {
+      const aa: any = (r.sectionData as any)?.['action-and-advice'] ?? {};
+      const billing = aa.billing ?? null;
+      const medicationPricing = aa.medicationPricing ?? null;
+      const prescriptionPricing = aa.prescriptionPricing ?? null;
+      const grandTotal =
+        (billing?.total ?? 0) + (medicationPricing?.total ?? 0) + (prescriptionPricing?.total ?? 0);
+      const confirmedAt =
+        billing?.confirmedAt ?? medicationPricing?.confirmedAt ?? prescriptionPricing?.confirmedAt ?? '';
+      entries.push({
+        encounterId: r.id,
+        patientId: r.patientId,
+        patientName: `${r.firstName} ${r.lastName}`.trim(),
+        mrn: r.mrn ?? '',
+        billing,
+        medicationPricing,
+        prescriptionPricing,
+        grandTotal,
+        confirmedAt,
+        billingPaidAt: r.billingPaidAt ?? null,
+      });
+    }
+    return entries;
+  }
+
+  async markBillingPaid(encounterId: string) {
+    const [updated] = await this.db
+      .update(clinicalEncounters)
+      .set({ billingPaidAt: new Date(), updatedAt: new Date() })
+      .where(eq(clinicalEncounters.id, encounterId))
+      .returning();
+    return updated;
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // SURGERIES LIST
   // ─────────────────────────────────────────────────────────────
   async getSurgeries(filters: { status?: string; patientId?: string; from?: string; to?: string } = {}) {

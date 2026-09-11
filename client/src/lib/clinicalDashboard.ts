@@ -62,7 +62,7 @@ export interface ClinicalDashboard {
 }
 
 function entryDate(entry: ExamHistoryEntry): string {
-  return entry.appointmentDate ?? entry.createdAt ?? '';
+  return entry.createdAt ?? entry.appointmentDate ?? '';
 }
 
 function iso2ts(v: string | null | undefined): number {

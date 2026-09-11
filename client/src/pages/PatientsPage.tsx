@@ -85,6 +85,19 @@ export const PatientsPage: React.FC = () => {
 
   const [startingExamId, setStartingExamId] = useState<string | null>(null);
   const [resumeDraft, setResumeDraft] = useState<{ patient: Patient; encounter: Record<string, any> } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await Promise.all([fetchPatients(undefined, true), fetchCompletedExamCounts(true)]);
+    } catch {
+      toast.error('Failed to refresh patients');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const filtered = useMemo(() => searchPatients(search), [search, searchPatients, patients]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -170,11 +183,12 @@ export const PatientsPage: React.FC = () => {
               className="w-72 px-4 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-500 bg-white"
             />
             <button
-              onClick={() => { fetchPatients(undefined, true); fetchCompletedExamCounts(true); }}
+              onClick={handleRefresh}
+              disabled={refreshing}
               title="Refresh patients"
-              className="inline-flex items-center justify-center w-9 h-9 bg-white border border-[#2563eb] text-[#2563eb] hover:bg-blue-50 rounded-md transition-colors"
+              className="inline-flex items-center justify-center w-9 h-9 bg-white border border-[#2563eb] text-[#2563eb] hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-wait"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
             <button
               onClick={() => setShowAddModal(true)}
