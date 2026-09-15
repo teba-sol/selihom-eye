@@ -68,6 +68,7 @@ const TAB_VIEWS: Record<string, ComponentType> = {
   amsler: lazyView(() => import('../features/additional/AmslerView'), 'AmslerView'),
   'contrast-sensitivity': lazyView(() => import('../features/additional/ContrastSensitivityView'), 'ContrastSensitivityView'),
   topography: lazyView(() => import('../features/TopographyView'), 'TopographyView'),
+  diagnosis: lazyView(() => import('../features/DiagnosisView'), 'DiagnosisView'),
   'assessment-plan': lazyView(() => import('../features/AssessmentPlanView'), 'AssessmentPlanView'),
   referral: lazyView(() => import('../features/ReferralView'), 'ReferralView'),
   'action-and-advice': lazyView(() => import('../features/ActionAndAdviceView'), 'ActionAndAdviceView'),
@@ -109,6 +110,7 @@ export function ExamDashboard() {
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showCorrection, setShowCorrection] = useState(false);
+  const [showLockedNotice, setShowLockedNotice] = useState(false);
   const retriedOnceRef = useRef(false);
 
   useDraftPersistence();
@@ -118,6 +120,16 @@ export function ExamDashboard() {
   const goToTab = (tab: string) => {
     if (!tab || !TAB_VIEWS[tab]) return;
     setActiveTab(tab);
+  };
+
+  const blockFinalizedEdit = (event: React.MouseEvent<HTMLElement>) => {
+    if (!isLocked) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('[data-allow-finalized-action]')) return;
+    if (!target.closest('button, input, textarea, select, [contenteditable="true"]')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setShowLockedNotice(true);
   };
 
   const handleSaveAndExit = async (isRetry = false) => {
@@ -238,7 +250,7 @@ export function ExamDashboard() {
       <div className="flex flex-1 overflow-hidden">
         <AsiraSidebar />
 
-        <main className="flex-1 overflow-y-auto bg-slate-50">
+        <main className="relative flex-1 overflow-y-auto bg-slate-50" onClickCapture={blockFinalizedEdit}>
           <Suspense
             fallback={
               <div className="bg-white p-8 m-6 rounded-xl border border-slate-200 shadow-xs max-w-4xl">
@@ -315,6 +327,23 @@ export function ExamDashboard() {
           onClose={() => setShowCorrection(false)}
           onSaved={handleCorrectionSaved}
         />
+      )}
+
+      {showLockedNotice && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center gap-2 text-amber-700">
+              <Lock className="h-5 w-5" />
+              <h2 className="text-base font-bold">Examination finalized</h2>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-slate-600">
+              Editing this examination is not allowed after finalization. Use the Add Correction option to create an append-only clinical addendum.
+            </p>
+            <button type="button" onClick={() => setShowLockedNotice(false)} className="mt-5 w-full rounded-md bg-[#1e3a5f] px-4 py-2 text-sm font-semibold text-white hover:bg-[#152c49]">
+              OK
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

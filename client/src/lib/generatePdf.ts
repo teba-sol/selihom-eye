@@ -355,6 +355,20 @@ const getCommonStyles = () => `
     max-width: 100% !important;
     box-sizing: border-box !important;
   }
+
+  /* The discharge screen uses utility classes. Recreate its key visual
+     treatment in the standalone print document (Tailwind is not loaded in
+     the print window). */
+  #discharge-summary-report { border: 1px solid #cbd5e1; border-radius: 10px; overflow: hidden; }
+  #discharge-summary-report .bg-blue-700 { background: linear-gradient(135deg, #1e3a8a, #2563eb) !important; color: #fff !important; }
+  #discharge-summary-report .bg-blue-50 { background: #eff6ff !important; }
+  #discharge-summary-report .bg-slate-50, #discharge-summary-report .bg-slate-50\\/50, #discharge-summary-report .bg-slate-50\\/60 { background: #f8fafc !important; }
+  #discharge-summary-report .text-white { color: #fff !important; }
+  #discharge-summary-report .text-blue-200 { color: #bfdbfe !important; }
+  #discharge-summary-report .text-blue-700 { color: #1d4ed8 !important; }
+  #discharge-summary-report .rounded-xl, #discharge-summary-report .rounded-lg { border-radius: 8px !important; }
+  #discharge-summary-report .border { border: 1px solid #cbd5e1 !important; }
+  #discharge-summary-report .bg-gradient-to-r { background: linear-gradient(90deg, #eff6ff, #fff) !important; }
 `;
 
 const getTimestamp = () => {
@@ -398,6 +412,11 @@ const getElementContent = (id: string): string => {
 export function downloadEncounterPdf(state: EncounterState) {
   const { today, time } = getTimestamp();
   const patient = state.patient;
+  const nameParts = patient.name.trim().split(/\s+/).filter(Boolean);
+  const firstName = nameParts[0] || 'Patient';
+  const fatherName = nameParts[1] || 'Record';
+  // The print dialog uses the document title as its suggested PDF filename.
+  const downloadName = `${firstName}_${fatherName}-${patient.mrn || 'MRN'}`;
   
   // Collect all available sections
   const sections: { title: string; content: string }[] = [];
@@ -439,7 +458,7 @@ export function downloadEncounterPdf(state: EncounterState) {
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Comprehensive Patient Report - SELIHOME</title>
+  <title>${downloadName}</title>
   <style>${getCommonStyles()}</style>
 </head>
 <body>

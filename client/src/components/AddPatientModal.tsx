@@ -749,7 +749,7 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
     // Form submission
     const form = document.getElementById('patientForm');
     if (form) {
-      form.addEventListener('submit', function(e) {
+      const handleSubmit = function(e: Event) {
         e.preventDefault();
 
         const dobEth = readGroup('ethDobD', 'ethDobM', 'ethDobY');
@@ -869,7 +869,9 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
             // Leave the modal open so the user can correct the form.
           }
         })();
-      });
+      };
+      form.addEventListener('submit', handleSubmit);
+      return () => form.removeEventListener('submit', handleSubmit);
     }
 
   }, [open, onSave, onClose]);
@@ -930,7 +932,7 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">MRN (Medical Record Number)</label>
-                <input type="text" id="mrn" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-extrabold" placeholder="e.g. 0001/18" />
+                <input type="text" id="mrn" required className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-extrabold" placeholder="e.g. 0001/18" />
                 <p className="text-[11px] text-slate-500 mt-1.5">4-digit sequence / last 2 digits of Ethiopian year</p>
               </div>
               <div>
@@ -1079,9 +1081,9 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
               </div>
             </div>
             <div className="mt-5 max-w-md">
-              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Phone Number (ስልክ) <span className="text-red-500">*</span></label>
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Phone Number (ስልክ) <span className="normal-case text-slate-400">(Optional)</span></label>
               <div className="relative">
-                <input type="text" id="phoneNumber" required placeholder="09XXXXXXXX" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 pr-10 text-sm" />
+                <input type="text" id="phoneNumber" placeholder="09XXXXXXXX" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 pr-10 text-sm" />
                 <Phone className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             </div>

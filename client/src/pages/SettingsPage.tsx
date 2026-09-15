@@ -4,6 +4,8 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Settings, ArrowLeft } from 'lucide-react';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { useToast } from '../lib/toast';
 
 type Tab = 'name' | 'email' | 'password';
 
@@ -38,6 +40,22 @@ export const SettingsPage: React.FC = () => {
   const [confirmPw, setConfirmPw] = useState('');
   const [pwStatus, setPwStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [pwError, setPwError] = useState('');
+  const [showCleanDatabase, setShowCleanDatabase] = useState(false);
+  const [cleaningDatabase, setCleaningDatabase] = useState(false);
+  const toast = useToast();
+
+  const cleanDatabase = async () => {
+    setCleaningDatabase(true);
+    try {
+      const result = await api.delete<{ deletedPatients: number }>('/patients/purge');
+      setShowCleanDatabase(false);
+      toast.success(`Database cleaned: ${result.deletedPatients} patient record(s) removed.`);
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Could not clean the database.');
+    } finally {
+      setCleaningDatabase(false);
+    }
+  };
 
   const handleNameSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,6 +129,7 @@ export const SettingsPage: React.FC = () => {
     }`;
 
   const content = (
+    <>
       <div className="p-6 max-w-xl">
         <div className="flex items-center gap-2 mb-6">
           {isReceptionist && (
@@ -263,7 +282,36 @@ export const SettingsPage: React.FC = () => {
             </button>
           </form>
         )}
+
+        {!isReceptionist && (
+          <section className="mt-8 rounded-xl border border-rose-200 bg-rose-50 p-5">
+            <h2 className="text-sm font-bold text-rose-800">Database maintenance</h2>
+            <p className="mt-1 text-xs leading-relaxed text-rose-700">
+              Remove every patient, appointment, examination, billing, and optical-order record to free database storage. Staff accounts are kept. Export any patient PDFs first.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowCleanDatabase(true)}
+              className="mt-4 rounded-md bg-rose-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-rose-700"
+            >
+              Clean database
+            </button>
+          </section>
+        )}
       </div>
+
+      {showCleanDatabase && (
+        <ConfirmDialog
+          title="Clear patient database?"
+          message="First make sure you have the patients' records in PDF. This permanently removes every patient record and all related appointments, examinations, billing, and optical orders."
+          cancelLabel="Cancel"
+          confirmLabel="OK, reset"
+          busy={cleaningDatabase}
+          onCancel={() => setShowCleanDatabase(false)}
+          onConfirm={cleanDatabase}
+        />
+      )}
+    </>
   );
 
   if (isReceptionist) {

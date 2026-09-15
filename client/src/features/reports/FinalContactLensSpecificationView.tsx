@@ -85,7 +85,7 @@ export const FinalContactLensSpecificationView: React.FC = () => {
         <div className="flex items-center justify-between mb-5">
           <h1 className="text-2xl font-bold text-[#2563eb]">Final Contact Lens Specification</h1>
           <div className="flex gap-2">
-            <button onClick={() => downloadContactLensSpecificationPdf(encounterState)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700">Download PDF</button>
+            <button data-allow-finalized-action onClick={() => downloadContactLensSpecificationPdf(encounterState)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700">Download PDF</button>
           </div>
         </div>
 

@@ -113,8 +113,17 @@ export const ReceptionistDashboard: React.FC = () => {
   const [billingQueue, setBillingQueue] = useState<BillingQueueEntry[]>([]);
   const [payingIds, setPayingIds] = useState<Set<string>>(new Set());
   const [expandedPatients, setExpandedPatients] = useState<Set<string>>(new Set());
+  const [billingFilter, setBillingFilter] = useState('');
+  const [orderFilter, setOrderFilter] = useState('');
+  const [registrationFilter, setRegistrationFilter] = useState('');
+  const [appointmentFilter, setAppointmentFilter] = useState('');
 
   const patientBillings = aggregateByPatient(billingQueue);
+  const includesFilter = (value: string, filter: string) => value.toLowerCase().includes(filter.trim().toLowerCase());
+  const visibleBillings = patientBillings.filter((item) => includesFilter(`${item.patientName} ${item.mrn}`, billingFilter));
+  const visibleOrders = pendingOrders.filter((item) => includesFilter(`${item.patient?.firstName ?? ''} ${item.patient?.lastName ?? ''} ${item.patient?.mrn ?? ''}`, orderFilter));
+  const visibleRegistrations = recentRegistrations.filter((item) => includesFilter(`${item.firstName} ${item.lastName} ${item.mrn} ${item.phone}`, registrationFilter));
+  const visibleTodayAppointments = todayAppts.filter((item) => includesFilter(`${item.patient?.firstName ?? ''} ${item.patient?.lastName ?? ''} ${item.patient?.phone ?? ''} ${item.reason ?? ''} ${item.status}`, appointmentFilter));
 
   const toggleExpand = (patientId: string) => {
     setExpandedPatients((prev) => {
@@ -227,8 +236,8 @@ export const ReceptionistDashboard: React.FC = () => {
       setShowModal(false);
       fetchDashboardData();
       return true;
-    } catch {
-      toast.error('Failed to register patient');
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to register patient');
       return false;
     }
   };
@@ -432,8 +441,10 @@ export const ReceptionistDashboard: React.FC = () => {
               </div>
             </div>
 
-            {patientBillings.length > 0 ? (
-              <div className="overflow-x-auto rounded-2xl border-2 border-teal-100">
+            <input value={billingFilter} onChange={(e) => setBillingFilter(e.target.value)} placeholder="Search billing by patient or MRN…" className="mb-3 w-full rounded-xl border border-teal-200 px-3 py-2 text-xs outline-none focus:border-teal-500" />
+
+            {visibleBillings.length > 0 ? (
+              <div className="max-h-[270px] overflow-auto rounded-2xl border-2 border-teal-100">
                 <table className="w-full text-sm">
                   <thead className="bg-gradient-to-r from-teal-50 to-emerald-50">
                     <tr className="text-left text-xs text-slate-600 uppercase border-b-2 border-teal-200">
@@ -447,7 +458,7 @@ export const ReceptionistDashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {patientBillings.map((pb) => {
+                    {visibleBillings.map((pb) => {
                       const hasPending = pb.pendingEncounters.length > 0;
                       const expanded = expandedPatients.has(pb.patientId);
                       const isPaying = pb.pendingEncounters.some((e) => payingIds.has(e.encounterId));
@@ -621,8 +632,10 @@ export const ReceptionistDashboard: React.FC = () => {
               </span>
             </div>
 
-            {pendingOrders.length > 0 ? (
-              <div className="overflow-x-auto rounded-2xl border-2 border-teal-100">
+            <input value={orderFilter} onChange={(e) => setOrderFilter(e.target.value)} placeholder="Search optical orders by patient or MRN…" className="mb-3 w-full rounded-xl border border-teal-200 px-3 py-2 text-xs outline-none focus:border-teal-500" />
+
+            {visibleOrders.length > 0 ? (
+              <div className="max-h-[276px] overflow-auto rounded-2xl border-2 border-teal-100">
                 <table className="w-full text-sm">
                   <thead className="bg-gradient-to-r from-teal-50 to-emerald-50">
                     <tr className="text-left text-xs text-slate-600 uppercase border-b-2 border-teal-200">
@@ -634,7 +647,7 @@ export const ReceptionistDashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {pendingOrders.map((order) => {
+                    {visibleOrders.map((order) => {
                       const name = order.patient
                         ? patientFullName(order.patient) || 'Unknown'
                         : 'Unknown';
@@ -704,8 +717,10 @@ export const ReceptionistDashboard: React.FC = () => {
                 </span>
               </div>
 
-              {recentRegistrations.length > 0 ? (
-                <div className="overflow-x-auto rounded-2xl border-2 border-indigo-50">
+              <input value={registrationFilter} onChange={(e) => setRegistrationFilter(e.target.value)} placeholder="Search registrations…" className="mb-3 w-full rounded-xl border border-indigo-200 px-3 py-2 text-xs outline-none focus:border-indigo-500" />
+
+              {visibleRegistrations.length > 0 ? (
+                <div className="max-h-[210px] overflow-auto rounded-2xl border-2 border-indigo-50">
                   <table className="w-full text-sm">
                     <thead className="bg-gradient-to-r from-indigo-50 to-purple-50">
                       <tr className="text-left text-xs text-slate-600 uppercase border-b-2 border-indigo-100">
@@ -716,7 +731,7 @@ export const ReceptionistDashboard: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {recentRegistrations.map((p) => (
+                      {visibleRegistrations.map((p) => (
                         <tr key={p.id} className="border-b border-indigo-50 hover:bg-gradient-to-r hover:from-indigo-50/60 hover:to-purple-50/60 transition-all group bg-white">
                           <td className="py-2.5 px-3 font-semibold text-slate-700 group-hover:text-indigo-700">{p.mrn}</td>
                           <td className="py-2.5 px-3 text-slate-800 font-medium">{p.firstName} {p.lastName}</td>
@@ -752,9 +767,16 @@ export const ReceptionistDashboard: React.FC = () => {
                 </span>
               </div>
 
-              {todayAppts.length > 0 ? (
-                <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
-                  {todayAppts.map((apt) => {
+              <input
+                value={appointmentFilter}
+                onChange={(e) => setAppointmentFilter(e.target.value)}
+                placeholder="Search today's appointments…"
+                className="mb-3 w-full rounded-xl border border-rose-200 px-3 py-2 text-xs outline-none focus:border-rose-500"
+              />
+
+              {visibleTodayAppointments.length > 0 ? (
+                <div className="max-h-[300px] space-y-2.5 overflow-y-auto rounded-2xl border-2 border-rose-100 p-2 pr-1">
+                  {visibleTodayAppointments.map((apt) => {
                     const name = apt.patient
                       ? `${apt.patient.firstName} ${apt.patient.lastName}`
                       : 'Unknown';

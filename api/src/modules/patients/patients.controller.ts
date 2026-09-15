@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PatientsService } from './patients.service';
 import { CreatePatientDto } from './dto/patient.dto';
@@ -19,6 +19,19 @@ export class PatientsController {
   @Roles('RECEPTIONIST', 'DOCTOR')
   async search(@Query('q') q: string) {
     return this.patientsService.search(q);
+  }
+
+  @Get('export-records')
+  @Roles('DOCTOR')
+  async exportRecords() {
+    return this.patientsService.exportFinalizedRecords();
+  }
+
+  /** Removes patient-owned records only. Staff accounts are intentionally retained. */
+  @Delete('purge')
+  @Roles('DOCTOR')
+  async purge() {
+    return this.patientsService.purgePatientRecords();
   }
 
   @Get(':id')

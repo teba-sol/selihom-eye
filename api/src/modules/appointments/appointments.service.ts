@@ -1,5 +1,5 @@
 import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
-import { eq, and, gte, lte } from 'drizzle-orm';
+import { eq, and, gte, lte, ne } from 'drizzle-orm';
 import { DRIZZLE_PROVIDER } from '../../database/database.module';
 import { appointments, patients } from '../../database/schema';
 import { BookAppointmentDto, CancelAppointmentDto, UpdateAppointmentStatusDto } from './dto/appointment.dto';
@@ -51,6 +51,28 @@ export class AppointmentsService {
       .limit(1);
     if (!patient) {
       throw new NotFoundException(`Patient with ID ${dto.patientId} not found.`);
+    }
+
+    // A doctor cannot have two active appointments at the same start time.
+    // Use a full-day range because scheduledDate is stored as a timestamp.
+    if (dto.startTime) {
+      const dayStart = new Date(dto.scheduledDate);
+      const dayEnd = new Date(dto.scheduledDate);
+      dayEnd.setHours(23, 59, 59, 999);
+      const [conflict] = await this.db
+        .select({ id: appointments.id })
+        .from(appointments)
+        .where(and(
+          eq(appointments.doctorUserId, doctorUserId),
+          eq(appointments.startTime, dto.startTime),
+          gte(appointments.scheduledDate, dayStart),
+          lte(appointments.scheduledDate, dayEnd),
+          ne(appointments.status, 'CANCELLED'),
+        ))
+        .limit(1);
+      if (conflict) {
+        throw new BadRequestException(`An active appointment already exists at ${dto.startTime} on this date.`);
+      }
     }
 
     const [newAppointment] = await this.db
