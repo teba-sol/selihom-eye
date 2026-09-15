@@ -21,15 +21,15 @@ async function seed() {
     {
       email: 'doctor@selihome.com',
       password: 'password123',
-      firstName: 'Dr.',
+      firstName: 'Dr',
       lastName: 'Tarekegn',
       role: 'DOCTOR' as const,
     },
     {
       email: 'receptionist@selihome.com',
       password: 'password123',
-      firstName: 'Amina',
-      lastName: 'Hassan',
+      firstName: 'Selihome',
+      lastName: 'Receptionist',
       role: 'RECEPTIONIST' as const,
     },
   ];
