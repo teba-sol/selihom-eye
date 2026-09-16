@@ -21,7 +21,7 @@ const DEFAULT_CYCLO: CycloplegicRefractionData = {
   cycloOd: emptyObjEye(),
   cycloOs: emptyObjEye(),
   remarks: '',
-  showInDischarge: true,
+  showInDischarge: false,
 };
 
 const InputCell = ({

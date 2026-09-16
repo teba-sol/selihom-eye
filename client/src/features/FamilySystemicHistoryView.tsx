@@ -9,7 +9,7 @@ const DEFAULT_FLAGS = {
   sibling: false,
   grandparent: false,
   remarks: '',
-  showInDischarge: true,
+  showInDischarge: false,
 };
 
 export const FamilySystemicHistoryView: React.FC = () => {

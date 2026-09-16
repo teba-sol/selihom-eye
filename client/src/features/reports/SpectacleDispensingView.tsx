@@ -65,7 +65,7 @@ const DEFAULT_SD: SdData = {
   rightPd: '', leftPd: '', heightOd: '', heightOs: '',
   orderRef: '', labName: '', dispatchDate: '', collectionMethod: '',
   price: '', advancePaid: '',
-  remarks: '', showInDischarge: true,
+  remarks: '', showInDischarge: false,
 };
 
 export const SpectacleDispensingView: React.FC = () => {

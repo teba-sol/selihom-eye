@@ -10,7 +10,7 @@ const DEFAULT_FLAGS = {
   rgpHard: false,
   scleral: false,
   remarks: '',
-  showInDischarge: true,
+  showInDischarge: false,
 };
 
 export const ContactLensView: React.FC = () => {

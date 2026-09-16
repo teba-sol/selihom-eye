@@ -472,7 +472,7 @@ const DEFAULT_ANTERIOR_SEGMENT: AnteriorSegmentData = {
   multiObs: DEFAULT_MULTI_OBS(),
   diagram: { od: '', os: '' },
   remarks: '',
-  showInDischarge: true,
+  showInDischarge: false,
 };
 
 export const AnteriorSegmentEvaluationView: React.FC = () => {

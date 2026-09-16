@@ -469,7 +469,7 @@ const DEFAULT_POSTERIOR_SEGMENT: PosteriorSegmentData = {
   av: { od: 'None', os: 'None' },
   diagram: { od: '', os: '' },
   remarks: '',
-  showInDischarge: true,
+  showInDischarge: false,
 };
 
 export const PosteriorSegmentEvaluationView: React.FC = () => {

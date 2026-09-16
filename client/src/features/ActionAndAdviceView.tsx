@@ -117,7 +117,7 @@ const DEFAULT_ACTION_AND_ADVICE: ActionAndAdviceData = {
   spectacleRecommendation: 'Select...',
   followUpPeriod: 'Select...',
   remarks: '',
-  showInDischarge: true,
+  showInDischarge: false,
   billing: null,
   medicationPricing: null,
   prescriptionPricing: null,

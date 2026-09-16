@@ -4,6 +4,7 @@ import { useEncounterStore } from '../store/useEncounterStore';
 import { usePatientRecordData, type ExamHistoryEntry } from '../hooks/usePatientRecordData';
 import { isCompletedExam } from '../components/ExamHistoryModal';
 import { fmtDate, SummaryChips, parseAddendums } from '../lib/examHistory';
+import { formatEthiopianDate } from '../lib/formatters';
 
 interface VisitContextBannerProps {
   onOpenHistory: () => void;
@@ -120,7 +121,11 @@ export const VisitContextBanner: React.FC<VisitContextBannerProps> = ({
               <div key={idx} className="text-xs">
                 <p className="text-amber-700 font-semibold">
                   {a.author || 'Clinician'}
-                  {a.at && ` · ${new Date(a.at).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`}
+                  {a.at && (() => {
+                    const d = new Date(a.at);
+                    if (isNaN(d.getTime())) return ` · ${a.at}`;
+                    return ` · ${formatEthiopianDate(d)} · ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+                  })()}
                 </p>
                 <p className="text-slate-700 whitespace-pre-wrap mt-0.5">{a.text}</p>
               </div>

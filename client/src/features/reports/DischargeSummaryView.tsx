@@ -2,7 +2,7 @@ import React from 'react';
 import { useEncounterStore } from '../../store/useEncounterStore';
 import { useAppStore } from '../../store/useAppStore';
 import { downloadEncounterPdf } from '../../lib/generatePdf';
-import { formatDobEthiopian } from '../../lib/formatters';
+import { formatDobEthiopian, formatEthiopianDate } from '../../lib/formatters';
 import { usePatientRecordData } from '../../hooks/usePatientRecordData';
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -47,21 +47,61 @@ const DETAILED_DISCHARGE_SECTIONS = new Set([
 const NON_CLINICAL_KEYS = new Set([
   'id', 'showInDischarge', 'createdAt', 'updatedAt', 'confirmedAt', 'billing', 'billingItems',
   'price', 'total', 'discount', 'amount', 'advancePaid', 'paidAt', 'status', 'tab', 'unit',
+  'activeTab', 'activeSubTab', 'sameForOS', 'sameForOs', 'diagram', 'odCanvasVectors', 'osCanvasVectors',
 ]);
 
-function formatMarkedFinding(value: any): string {
+function humanizeKey(key: string): string {
+  const spaced = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').trim();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+function formatValue(value: any): string {
   if (value === null || value === undefined || value === '') return '';
   if (typeof value === 'string' || typeof value === 'number') return String(value);
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  if (Array.isArray(value)) return value.map(formatMarkedFinding).filter(Boolean).join(' · ');
+  if (Array.isArray(value)) return value.map(formatValue).filter((v) => v !== '' && v !== 'No').join(', ');
   if (typeof value === 'object') {
     return Object.entries(value)
       .filter(([key, item]) => !NON_CLINICAL_KEYS.has(key) && item !== '' && item !== null && item !== undefined)
-      .map(([key, item]) => `${key.replace(/([A-Z])/g, ' $1').replace(/[-_]/g, ' ')}: ${formatMarkedFinding(item)}`)
-      .filter((item) => !item.endsWith(': '))
-      .join(' • ');
+      .map(([key, item]) => `${humanizeKey(key)}: ${formatValue(item)}`)
+      .join(' · ');
   }
   return String(value);
+}
+
+function buildRows(prefix: string, value: any, out: React.ReactNode[] = [], key: string = ''): React.ReactNode[] {
+  if (value === null || value === undefined || value === '') return out;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return out;
+    if (typeof value[0] === 'object') {
+      value.forEach((item, i) => buildRows(prefix, item, out, `${key}[${i}]`));
+      return out;
+    }
+    const joined = value.map((v) => formatValue(v)).filter(Boolean).join(', ');
+    if (joined) out.push(<Row key={`${key}-${out.length}`} label={prefix} value={joined} />);
+    return out;
+  }
+  if (typeof value === 'object') {
+    const od = 'od' in value ? value.od : undefined;
+    const os = 'os' in value ? value.os : undefined;
+    if ((od !== undefined || os !== undefined) && (String(od ?? '') !== '' || String(os ?? '') !== '')) {
+      out.push(
+        <EyeRow key={`${key}-${out.length}`} label={prefix}
+          od={Array.isArray(od) ? od.join(', ') : od}
+          os={Array.isArray(os) ? os.join(', ') : os} />,
+      );
+      return out;
+    }
+    for (const [k, v] of Object.entries(value)) {
+      if (NON_CLINICAL_KEYS.has(k)) continue;
+      buildRows(prefix ? `${prefix} · ${humanizeKey(k)}` : humanizeKey(k), v, out, `${key}.${k}`);
+    }
+    return out;
+  }
+  const text = formatValue(value);
+  if (text === '' || text === 'No') return out;
+  out.push(<Row key={`${key}-${out.length}`} label={prefix} value={text} />);
+  return out;
 }
 
 function MarkedFindings({ sectionData }: { sectionData: Record<string, any> }) {
@@ -70,14 +110,18 @@ function MarkedFindings({ sectionData }: { sectionData: Record<string, any> }) {
   );
   if (!marked.length) return null;
   return <>
-    {marked.map(([key, value]) => (
-      <tr key={key} className="border-b border-slate-200">
-        <SectionHeader>{key.replace(/-/g, ' ')}</SectionHeader>
-        <td className="px-3 py-2 text-sm leading-relaxed text-slate-700">
-          {formatMarkedFinding(value) || 'Marked for inclusion in this discharge summary.'}
-        </td>
-      </tr>
-    ))}
+    {marked.map(([key, value]) => {
+      const rows = buildRows('', value, [], key);
+      if (!rows.length) return null;
+      return (
+        <tr key={key} className="border-b border-slate-200">
+          <SectionHeader>{key.replace(/-/g, ' ')}</SectionHeader>
+          <td className="p-0">
+            <table className="w-full border-collapse"><tbody>{rows}</tbody></table>
+          </td>
+        </tr>
+      );
+    })}
   </>;
 }
 
@@ -301,30 +345,51 @@ export const DischargeSummaryView: React.FC = () => {
                     </tr>
                   )}
                   {s.sectionData['ocular-history']?.showInDischarge === true && (() => {
+                    if (s.ocularHistory?.noHistoryReported) return <Row label="Ocular History" value="No ocular history reported" />;
                     const active = Object.entries(s.ocularHistory?.conditions || {}).filter(([, v]) => (v as any).active);
                     if (active.length === 0) return null;
-                    return <Row label="Ocular History" value={active.map(([k, v]) => `${k.replace(/([A-Z])/g, ' $1').trim()}: ${(v as any).eye}`).join(' · ')} />;
+                    return <Row label="Ocular History" value={active.map(([k, v]: any) =>
+                      `${v.type || humanizeKey(k)} (${v.eye})${v.date ? ` — ${v.date}` : ''}${v.remarks ? ` [${v.remarks}]` : ''}`,
+                    ).join(' · ')} />;
                   })()}
                   {s.sectionData['systemic-history']?.showInDischarge === true && (() => {
+                    if (s.systemicHistory?.noHistoryReported) return <Row label="Systemic History" value="No systemic history reported" />;
                     const active = Object.entries(s.systemicHistory?.conditions || {}).filter(([, v]) => (v as any).active);
                     if (active.length === 0) return null;
-                    return <Row label="Systemic History" value={active.map(([, v]: any) => `${v.type || ''}${v.dateOfDiagnosis ? ` (dx: ${v.dateOfDiagnosis})` : ''}`).join(', ')} />;
+                    return <Row label="Systemic History" value={active.map(([k, v]: any) => {
+                      const parts = [v.type || humanizeKey(k)];
+                      if (v.durationValue) parts.push(`${v.durationValue} ${v.durationUnit ?? 'years'}`);
+                      if (v.controlStatus) parts.push(v.controlStatus);
+                      if (v.dateOfDiagnosis) parts.push(`dx ${v.dateOfDiagnosis}`);
+                      if (v.remarks) parts.push(`[${v.remarks}]`);
+                      return parts.join(', ');
+                    }).join(' ; ')} />;
                   })()}
                   {s.sectionData['medication']?.showInDischarge === true && s.patientMedications.filter((m) => m.showInDischarge !== false).length > 0 && (
                     <Row label="Medication" value={s.patientMedications.filter((m) => m.showInDischarge !== false).map((m) => `${m.drugName} ${m.dosage}${m.frequency ? ` (${m.frequency})` : ''}`).join(', ')} />
                   )}
-                  {s.sectionData['family-ocular-history']?.showInDischarge === true && s.familyOcularHistory.filter((f) => f.showInDischarge !== false).length > 0 && (
-                    <Row label="Family Ocular History" value={s.familyOcularHistory.filter((f) => f.showInDischarge !== false).map((f) => `${f.condition} (${f.relation})${f.notes ? ` — ${f.notes}` : ''}`).join(' · ')} />
-                  )}
-                  {s.sectionData['family-systemic-history']?.showInDischarge === true && s.familySystemicHistory.filter((f) => f.showInDischarge !== false).length > 0 && (
-                    <Row label="Family Systemic History" value={s.familySystemicHistory.filter((f) => f.showInDischarge !== false).map((f) => `${f.condition} (${f.relation})${f.notes ? ` — ${f.notes}` : ''}`).join(' · ')} />
-                  )}
-                  {s.sectionData['spectacles']?.showInDischarge === true && s.spectaclesHistory?.currentlyWears && (
-                    <Row label="Spectacles" value={`${s.spectaclesHistory.type} — ${s.spectaclesHistory.material}${s.spectaclesHistory.coating?.length ? ', ' + s.spectaclesHistory.coating.join(', ') : ''}`} />
-                  )}
-                  {s.sectionData['contact-lens']?.showInDischarge === true && s.contactLensHistory?.currentWearer && (
-                    <Row label="Contact Lenses" value={`${s.contactLensHistory.modality}${s.contactLensHistory.solutionUsed ? ` — ${s.contactLensHistory.solutionUsed}` : ''}`} />
-                  )}
+                  {s.sectionData['family-ocular-history']?.showInDischarge === true && (() => {
+                    if (s.sectionData['family-ocular-history']?.noHistory) return <Row label="Family Ocular History" value="No family ocular history reported" />;
+                    const items = s.familyOcularHistory.filter((f) => f.showInDischarge !== false);
+                    if (items.length === 0) return null;
+                    return <Row label="Family Ocular History" value={items.map((f) => `${f.condition} (${f.relation})${f.notes ? ` — ${f.notes}` : ''}`).join(' · ')} />;
+                  })()}
+                  {s.sectionData['family-systemic-history']?.showInDischarge === true && (() => {
+                    if (s.sectionData['family-systemic-history']?.noHistory) return <Row label="Family Systemic History" value="No family systemic history reported" />;
+                    const items = s.familySystemicHistory.filter((f) => f.showInDischarge !== false);
+                    if (items.length === 0) return null;
+                    return <Row label="Family Systemic History" value={items.map((f) => `${f.condition} (${f.relation})${f.notes ? ` — ${f.notes}` : ''}`).join(' · ')} />;
+                  })()}
+                  {s.sectionData['spectacles']?.showInDischarge === true && (() => {
+                    if (s.sectionData['spectacles']?.none) return <Row label="Spectacles" value="No spectacles worn" />;
+                    if (!s.spectaclesHistory?.currentlyWears) return null;
+                    return <Row label="Spectacles" value={`${s.spectaclesHistory.type} — ${s.spectaclesHistory.material}${s.spectaclesHistory.coating?.length ? ', ' + s.spectaclesHistory.coating.join(', ') : ''}`} />;
+                  })()}
+                  {s.sectionData['contact-lens']?.showInDischarge === true && (() => {
+                    if (s.sectionData['contact-lens']?.none) return <Row label="Contact Lenses" value="No contact lenses worn" />;
+                    if (!s.contactLensHistory?.currentWearer) return null;
+                    return <Row label="Contact Lenses" value={`${s.contactLensHistory.modality}${s.contactLensHistory.solutionUsed ? ` — ${s.contactLensHistory.solutionUsed}` : ''}`} />;
+                  })()}
                   {s.sectionData['lifestyle']?.showInDischarge === true && s.lifestyleDemands?.occupation && (
                     <Row label="Lifestyle" value={`Occupation: ${s.lifestyleDemands.occupation}${s.lifestyleDemands.hobbies ? `; Hobbies: ${s.lifestyleDemands.hobbies}` : ''}`} />
                   )}
@@ -486,19 +551,65 @@ export const DischargeSummaryView: React.FC = () => {
 
               <ToggleSection s={s} sectionKey="crystalline-lens" title={<>Crystalline<br />Lens</>}>
                 <tbody>
-                  {(() => { const f = s.sectionData['crystalline-lens'] ?? {}; return <><KV label="Instrument" value={f.instrument} /><KV label="Mydriatic" value={f.mydriaticDrug} /><KV label="OD" value={JSON.stringify(f.odObs ?? {})} /><KV label="OS" value={JSON.stringify(f.osObs ?? {})} /></>; })()}
+                  {(() => {
+                    const f = s.sectionData['crystalline-lens'] ?? {};
+                    const locs = f.locs ?? {};
+                    const locsActive = Object.values(locs).some((g: any) => (g?.od ?? 0) > 0 || (g?.os ?? 0) > 0);
+                    const labelOf = (key: string) => ({ no: 'Nuclear Opalescence (NO)', nc: 'Nuclear Colour (NC)', c: 'Cortical (C)', p: 'Posterior Subcapsular (P)' })[key] ?? humanizeKey(key);
+                    return (
+                      <>
+                        <KV label="Instrument" value={f.instrument} />
+                        <KV label="Mydriatic Drug" value={Array.isArray(f.mydriaticDrug) ? f.mydriaticDrug.join(', ') : f.mydriaticDrug} />
+                        <EyeRow label="Observations" od={Array.isArray(f.odObs) ? f.odObs.join(', ') : f.odObs} os={Array.isArray(f.osObs) ? f.osObs.join(', ') : f.osObs} />
+                        {locsActive && Object.entries(locs).map(([k, g]: any) => (
+                          <EyeRow key={k} label={labelOf(k)} od={g?.od || ''} os={g?.os || ''} />
+                        ))}
+                      </>
+                    );
+                  })()}
                 </tbody>
               </ToggleSection>
 
               <ToggleSection s={s} sectionKey="anterior-segment-eval" title={<>Anterior<br />Segment</>}>
                 <tbody>
-                  {(() => { const f = s.sectionData['anterior-segment-eval'] ?? {}; return <><KV label="Instrument" value={f.instrument} /><KV label="Findings" value={f.findingsText ?? ''} /></>; })()}
+                  {(() => {
+                    const f = s.sectionData['anterior-segment-eval'] ?? {};
+                    const multiObs = (Array.isArray(f.multiObs) ? {} : f.multiObs) ?? {};
+                    return (
+                      <>
+                        <KV label="Instrument" value={f.instrument} />
+                        {Object.entries(multiObs).map(([struct, v]: any) => {
+                          const od = Array.isArray(v?.od) ? v.od.join(', ') : v?.od ?? '';
+                          const os = Array.isArray(v?.os) ? v.os.join(', ') : v?.os ?? '';
+                          if (!od.trim() && !os.trim()) return null;
+                          return <EyeRow key={struct} label={struct} od={od} os={os} />;
+                        })}
+                        {!Object.keys(multiObs).length && <KV label="Findings" value={f.findingsText ?? ''} />}
+                      </>
+                    );
+                  })()}
                 </tbody>
               </ToggleSection>
 
               <ToggleSection s={s} sectionKey="posterior-segment" title={<>Posterior<br />Segment</>}>
                 <tbody>
-                  {(() => { const f = s.sectionData['posterior-segment'] ?? {}; return <><KV label="Instrument" value={f.instrument} /><KV label="Mydriatic" value={f.mydriaticDrug} /><EyeRow label="C/D Ratio" od={f.cdr?.od} os={f.cdr?.os} /></>; })()}
+                  {(() => {
+                    const f = s.sectionData['posterior-segment'] ?? {};
+                    const structures = (Array.isArray(f.structures) ? {} : f.structures) ?? {};
+                    return (
+                      <>
+                        <KV label="Instrument" value={f.instrument} />
+                        <KV label="Mydriatic" value={Array.isArray(f.mydriaticDrug) ? f.mydriaticDrug.join(', ') : f.mydriaticDrug} />
+                        <EyeRow label="C/D Ratio" od={f.cdr?.od} os={f.cdr?.os} />
+                        {Object.entries(structures).map(([struct, v]: any) => {
+                          const od = Array.isArray(v?.od) ? v.od.join(', ') : v?.od ?? '';
+                          const os = Array.isArray(v?.os) ? v.os.join(', ') : v?.os ?? '';
+                          if (!od.trim() && !os.trim()) return null;
+                          return <EyeRow key={struct} label={humanizeKey(struct)} od={od} os={os} />;
+                        })}
+                      </>
+                    );
+                  })()}
                 </tbody>
               </ToggleSection>
 
@@ -563,7 +674,7 @@ export const DischargeSummaryView: React.FC = () => {
                 <tbody><Row label="Ocular Motor Balance" value={dash((s.sectionData['ocular-motor-balance'] as any)?.remarks)} /></tbody>
               </ToggleSection>
               <ToggleSection s={s} sectionKey="pupil-evaluation" title={<>Pupil<br />Evaluation</>}>
-                <tbody>{(() => { const f = s.sectionData['pupil-evaluation'] ?? {}; return <KV label="Findings" value={f.checked} />; })()}</tbody>
+                <tbody>{(() => { const f = s.sectionData['pupil-evaluation'] ?? {}; return <KV label="Findings" value={Array.isArray(f.checked) ? f.checked.join(', ') : f.checked} />; })()}</tbody>
               </ToggleSection>
 
               {/* ================= CL FITTING / PRE-FIT ================= */}
@@ -810,7 +921,7 @@ export const DischargeSummaryView: React.FC = () => {
                 {priorFinalizedExams.map((exam) => (
                   <div key={exam.id} className="grid grid-cols-[140px_1fr] gap-3 px-4 py-3 text-sm">
                     <div>
-                      <p className="font-semibold text-slate-700">{new Date(exam.createdAt).toLocaleDateString()}</p>
+                      <p className="font-semibold text-slate-700">{formatEthiopianDate(exam.createdAt)}</p>
                       <p className="mt-0.5 text-xs text-slate-500">{exam.appointmentReason || 'Eye examination'}</p>
                     </div>
                     <div className="space-y-1 text-slate-700">

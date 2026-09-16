@@ -1,6 +1,7 @@
 // Professional PDF generation library for SELIHOME Clinic
 // Each function generates a specific report type with proper medical document formatting
 import type { useEncounterStore } from '../store/useEncounterStore';
+import { formatEthiopianDate } from './formatters';
 
 type EncounterState = ReturnType<typeof useEncounterStore.getState>;
 
@@ -372,16 +373,13 @@ const getCommonStyles = () => `
 `;
 
 const getTimestamp = () => {
-  const today = new Date().toLocaleDateString('en-GB', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    timeZone: 'Africa/Addis_Ababa',
-  });
-  
+  const today = formatEthiopianDate(new Date());
+
   const time = new Date().toLocaleTimeString('en-US', {
     hour: '2-digit', minute: '2-digit',
     timeZone: 'Africa/Addis_Ababa',
   });
-  
+
   return { today, time };
 };
 
@@ -645,9 +643,7 @@ const surgeryStatusLabel = (status: string): string => {
 
 const formatEncounterDate = (iso?: string): string => {
   if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return formatEthiopianDate(iso);
 };
 
 const prettifyReportKey = (key: string): string =>

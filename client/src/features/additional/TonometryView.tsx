@@ -46,7 +46,7 @@ const DEFAULT_TONOMETRY: TonometryData = {
   leftEye: '',
   timeOfMeasurement: nowTime(),
   remarks: '',
-  showInDischarge: true,
+  showInDischarge: false,
 };
 
 export const TonometryView: React.FC = () => {

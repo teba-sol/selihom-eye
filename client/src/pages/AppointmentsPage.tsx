@@ -357,7 +357,7 @@ export const AppointmentsPage: React.FC = () => {
         {
           patientId: patient.id,
           appointmentId: apt.id,
-          reasonForVisit: { selectedReason: apt.reason || '', remarks: '', showInDischarge: true },
+          reasonForVisit: { selectedReason: apt.reason || '', remarks: '', showInDischarge: false },
         },
         { toast: false },
       );

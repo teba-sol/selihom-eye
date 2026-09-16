@@ -20,7 +20,7 @@ export const DiagnosisView: React.FC = () => {
   const [custom, setCustom] = useState('');
   const [eye, setEye] = useState<Diagnosis['eye']>('OU');
   const diagnosisState = (sectionData.diagnosis as { items?: Diagnosis[]; showInDischarge?: boolean } | undefined);
-  const showInDischarge = diagnosisState?.showInDischarge ?? true;
+  const showInDischarge = diagnosisState?.showInDischarge ?? false;
 
   const suggestions = useMemo(() => {
     const result: string[] = [];

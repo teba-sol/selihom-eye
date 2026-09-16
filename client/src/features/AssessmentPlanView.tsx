@@ -49,7 +49,7 @@ const DEFAULT_PLAN = {
   planDetails: '',
   followUp: '',
   remarks: '',
-  showInDischarge: true,
+  showInDischarge: false,
 };
 
 export const AssessmentPlanView: React.FC = () => {
