@@ -118,6 +118,12 @@ export const ASIRA_EXAM_TREE: SidebarSection[] = [
     ],
   },
   {
+    id: 'diagnosis',
+    label: 'Diagnosis',
+    isExpandable: false,
+    isCompleted: false,
+  },
+  {
     id: 'action-and-advice',
     label: 'Action And Advice',
     isExpandable: false,

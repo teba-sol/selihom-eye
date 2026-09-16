@@ -14,8 +14,8 @@ export class CreatePatientDto {
   lastName!: string;
 
   @IsString()
-  @IsOptional()
-  grandfatherName?: string;
+  @IsNotEmpty()
+  grandfatherName!: string;
 
   @IsString()
   @IsOptional()
@@ -26,8 +26,8 @@ export class CreatePatientDto {
   gender?: string;
 
   @IsString()
-  @IsNotEmpty()
-  phone!: string;
+  @IsOptional()
+  phone?: string;
 
   @IsString()
   @IsOptional()

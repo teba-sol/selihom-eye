@@ -1,7 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Users, Calendar, Eye, LogOut, Stethoscope, Settings } from 'lucide-react';
+import { Users, Calendar, Eye, LogOut, Stethoscope, Settings, Trash2, Download } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
+import { api } from '../../lib/api';
+import { ConfirmDialog } from '../ConfirmDialog';
+import { useToast } from '../../lib/toast';
+import { exportPatientRecordsZip } from '../../lib/exportPatientRecords';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -11,10 +15,39 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   const navigate = useNavigate();
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
+  const toast = useToast();
+  const [confirmClean, setConfirmClean] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    const showStorageWarning = () => setConfirmClean(true);
+    window.addEventListener('database-storage-full', showStorageWarning);
+    return () => window.removeEventListener('database-storage-full', showStorageWarning);
+  }, []);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+  const handleClean = async () => {
+    setCleaning(true);
+    try {
+      const result = await api.delete<{ deletedPatients: number }>('/patients/purge');
+      toast.success(`Database reset: ${result.deletedPatients} patient record(s) removed.`);
+      setConfirmClean(false);
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Could not clear the database.');
+    } finally { setCleaning(false); }
+  };
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const records = await api.get<any[]>('/patients/export-records');
+      await exportPatientRecordsZip(records);
+      toast.success(`Exported ${records.length} patient record(s) to ZIP.`);
+    } catch (err: any) { toast.error(err?.message ?? 'Could not export patient records.'); }
+    finally { setExporting(false); }
   };
 
   return (
@@ -71,6 +104,21 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
         <div className="px-3 py-4 border-t border-slate-700/50">
           <div className="text-xs text-slate-400 px-2 mb-2 truncate">{user?.name ?? 'Doctor'}</div>
+          {user?.role === 'DOCTOR' && (
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              title="Download one PDF discharge-summary record for each patient"
+              className="mb-1 flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm text-emerald-200 transition-colors hover:bg-emerald-600/20 hover:text-emerald-100 disabled:opacity-60"
+            >
+              <Download className="w-4 h-4 shrink-0" /> {exporting ? 'Exporting…' : 'Export patient discharge PDFs'}
+            </button>
+          )}
+          {user?.role === 'DOCTOR' && (
+            <button onClick={() => setConfirmClean(true)} className="mb-1 flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm text-rose-200 transition-colors hover:bg-rose-600/20 hover:text-rose-100">
+              <Trash2 className="w-4 h-4" /> Clear database
+            </button>
+          )}
           <NavLink
             to="/settings"
             className={({ isActive }) =>
@@ -97,6 +145,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
       <div className="flex-1 flex flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto bg-slate-50">{children}</main>
       </div>
+      {confirmClean && <ConfirmDialog title="Clear patient database?" message="First make sure you have the patients' records in PDF. This permanently removes every patient record and related appointment, examination, billing, and optical-order data." confirmLabel="OK, reset" cancelLabel="Cancel" busy={cleaning} onConfirm={handleClean} onCancel={() => setConfirmClean(false)} />}
     </div>
   );
 };

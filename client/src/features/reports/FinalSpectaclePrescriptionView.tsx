@@ -130,7 +130,7 @@ export const FinalSpectaclePrescriptionView: React.FC = () => {
           <h1 className="text-2xl font-bold text-[#2563eb]">Final Spectacle Prescription</h1>
           <div className="flex flex-wrap items-center gap-2">
             <SendToReceptionButton buildPayload={buildPayload} />
-            <button onClick={handleDownloadPdf} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors">Download PDF</button>
+            <button data-allow-finalized-action onClick={handleDownloadPdf} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors">Download PDF</button>
           </div>
         </div>
 

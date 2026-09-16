@@ -3,6 +3,7 @@ import { useEncounterStore } from '../../store/useEncounterStore';
 import { useAppStore } from '../../store/useAppStore';
 import { downloadEncounterPdf } from '../../lib/generatePdf';
 import { formatDobEthiopian } from '../../lib/formatters';
+import { usePatientRecordData } from '../../hooks/usePatientRecordData';
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
@@ -24,6 +25,60 @@ function Row({ label, value }: { label?: string; value: React.ReactNode }) {
 // helper: dash for empty
 function dash(v: any): string {
   return v === undefined || v === null || String(v).trim() === '' ? '—' : String(v);
+}
+
+// Every clinical module owns its own `showInDischarge` flag.  This generic
+// formatter is a safety net for new modules, so a marked examination can
+// never disappear simply because a bespoke table has not yet been added here.
+const DETAILED_DISCHARGE_SECTIONS = new Set([
+  'reason-for-visit', 'symptomatic-history', 'ocular-history', 'systemic-history', 'medication',
+  'family-ocular-history', 'family-systemic-history', 'spectacles', 'contact-lens', 'lifestyle',
+  'vision-and-visual-acuity', 'objective-subjective', 'cycloplegic', 'anterior-segment-eval',
+  'crystalline-lens', 'posterior-segment', 'diagnosis', 'diagnoses', 'assessment-plan', 'referral',
+  'action-and-advice', 'final-spectacle-prescription', 'final-contact-lens-specification',
+  'spectacle-dispensing', 'discharge-summary', 'worth-4-dot', 'stereopsis', 'ocular-motility',
+  'near-point-of-convergence', 'hess-screen', 'amplitude-of-accommodation', 'accommodative-facility',
+  'accommodative-lag', 'relative-accommodation', 'aca-ratio', 'diplopia-charting',
+  'fusional-vergences', 'ocular-motor-balance', 'pupil-evaluation', 'cl-fitting', 'cl-pre-fit',
+  'tonometry', 'tear-film', 'colour-vision', 'pachymetry', 'gonioscopy', 'amsler',
+  'contrast-sensitivity', 'topography', 'binocular-vision-assessment',
+]);
+
+const NON_CLINICAL_KEYS = new Set([
+  'id', 'showInDischarge', 'createdAt', 'updatedAt', 'confirmedAt', 'billing', 'billingItems',
+  'price', 'total', 'discount', 'amount', 'advancePaid', 'paidAt', 'status', 'tab', 'unit',
+]);
+
+function formatMarkedFinding(value: any): string {
+  if (value === null || value === undefined || value === '') return '';
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (Array.isArray(value)) return value.map(formatMarkedFinding).filter(Boolean).join(' · ');
+  if (typeof value === 'object') {
+    return Object.entries(value)
+      .filter(([key, item]) => !NON_CLINICAL_KEYS.has(key) && item !== '' && item !== null && item !== undefined)
+      .map(([key, item]) => `${key.replace(/([A-Z])/g, ' $1').replace(/[-_]/g, ' ')}: ${formatMarkedFinding(item)}`)
+      .filter((item) => !item.endsWith(': '))
+      .join(' • ');
+  }
+  return String(value);
+}
+
+function MarkedFindings({ sectionData }: { sectionData: Record<string, any> }) {
+  const marked = Object.entries(sectionData).filter(
+    ([key, value]) => value?.showInDischarge === true && !DETAILED_DISCHARGE_SECTIONS.has(key),
+  );
+  if (!marked.length) return null;
+  return <>
+    {marked.map(([key, value]) => (
+      <tr key={key} className="border-b border-slate-200">
+        <SectionHeader>{key.replace(/-/g, ' ')}</SectionHeader>
+        <td className="px-3 py-2 text-sm leading-relaxed text-slate-700">
+          {formatMarkedFinding(value) || 'Marked for inclusion in this discharge summary.'}
+        </td>
+      </tr>
+    ))}
+  </>;
 }
 
 // OD/OS two-byte display row
@@ -151,6 +206,8 @@ export const DischargeSummaryView: React.FC = () => {
   const s = useEncounterStore();
   const patient = s.patient;
   const appPatient = useAppStore(st => st.getPatientById(patient.id));
+  const record = usePatientRecordData(patient.id || null);
+  const priorFinalizedExams = record.history.filter((entry) => entry.id !== s.encounterId && entry.isLocked);
 
   const handleDownloadPdf = () => downloadEncounterPdf(useEncounterStore.getState());
 
@@ -168,18 +225,31 @@ export const DischargeSummaryView: React.FC = () => {
           <div className="flex items-center justify-between mb-5">
             <h1 className="text-2xl font-bold text-[#2563eb]">Discharge Summary</h1>
             <div className="flex gap-2">
-              <button onClick={handleDownloadPdf} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700">Download PDF</button>
+              <button data-allow-finalized-action onClick={handleDownloadPdf} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700">Download PDF</button>
             </div>
           </div>
 
           {/* Patient Header */}
-          <div className="bg-blue-700 text-white rounded-xl p-5 mb-6">
+          <div className="bg-blue-700 text-white rounded-xl p-5 mb-4">
             <h2 className="text-xl font-bold mb-3">{patient.name}</h2>
             <div className="grid grid-cols-4 gap-4 text-xs">
               <div><span className="text-blue-200 uppercase tracking-wide block mb-0.5">Gender</span>{patient.gender}</div>
               <div><span className="text-blue-200 uppercase tracking-wide block mb-0.5">DOB</span>{appPatient ? formatDobEthiopian(appPatient.dateOfBirth) : '—'}</div>
               <div><span className="text-blue-200 uppercase tracking-wide block mb-0.5">Phone</span>{appPatient?.phone ?? '—'}</div>
               <div><span className="text-blue-200 uppercase tracking-wide block mb-0.5">MRN</span>{patient.mrn}</div>
+            </div>
+          </div>
+
+          <div className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <div className="bg-slate-50 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Registered patient information</div>
+            <div className="grid grid-cols-2 divide-x divide-y divide-slate-100 text-sm">
+              <div className="p-3"><span className="block text-[10px] font-bold uppercase text-slate-400">Full name</span>{patient.name}</div>
+              <div className="p-3"><span className="block text-[10px] font-bold uppercase text-slate-400">MRN</span>{patient.mrn || '—'}</div>
+              <div className="p-3"><span className="block text-[10px] font-bold uppercase text-slate-400">Phone number</span>{appPatient?.phone || '—'}</div>
+              <div className="p-3"><span className="block text-[10px] font-bold uppercase text-slate-400">Email</span>{appPatient?.email || '—'}</div>
+              <div className="col-span-2 p-3"><span className="block text-[10px] font-bold uppercase text-slate-400">Address</span>{appPatient?.address || '—'}</div>
+              <div className="p-3"><span className="block text-[10px] font-bold uppercase text-slate-400">Gender</span>{patient.gender || '—'}</div>
+              <div className="p-3"><span className="block text-[10px] font-bold uppercase text-slate-400">Date of birth</span>{appPatient?.dateOfBirth ? formatDobEthiopian(appPatient.dateOfBirth) : '—'}</div>
             </div>
           </div>
 
@@ -713,22 +783,45 @@ export const DischargeSummaryView: React.FC = () => {
               </ToggleSection>
 
               {/* Top-level diagnoses; gates on assessment-plan toggle OR diagnoses themselves */}
-              {s.diagnoses?.length > 0 && (() => {
+              {(() => {
                 const p = (s.sectionData['assessment-plan'] as any) ?? {};
-                const include = p.showInDischarge === true || s.sectionData['diagnoses']?.showInDischarge === true;
-                if (!include) return null;
+                const diagnosisSection = (s.sectionData['diagnosis'] as any) ?? (s.sectionData['diagnoses'] as any) ?? {};
+                const diagnoses = s.diagnoses?.length ? s.diagnoses : (diagnosisSection.items ?? []);
+                const include = p.showInDischarge === true || diagnosisSection.showInDischarge === true;
+                if (!include || !diagnoses.length) return null;
                 return (
                   <tr className="border-b border-slate-200">
                     <SectionHeader>Diagnosis</SectionHeader>
                     <td className="px-3 py-3 text-sm text-slate-700">
-                      {s.diagnoses.map((d, i) => <div key={i}>{d.title} ({d.eye}){d.notes ? ` — ${d.notes}` : ''}</div>)}
+                      {diagnoses.map((d: any, i: number) => <div key={i}>{d.title || d.name || d} {d.eye ? `(${d.eye})` : ''}{d.notes ? ` — ${d.notes}` : ''}</div>)}
                     </td>
                   </tr>
                 );
               })()}
+              <MarkedFindings sectionData={s.sectionData} />
               </tbody>
             </table>
           </div>
+
+          {priorFinalizedExams.length > 0 && (
+            <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <div className="bg-blue-50 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-blue-700">Previous finalized examinations</div>
+              <div className="divide-y divide-slate-100">
+                {priorFinalizedExams.map((exam) => (
+                  <div key={exam.id} className="grid grid-cols-[140px_1fr] gap-3 px-4 py-3 text-sm">
+                    <div>
+                      <p className="font-semibold text-slate-700">{new Date(exam.createdAt).toLocaleDateString()}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{exam.appointmentReason || 'Eye examination'}</p>
+                    </div>
+                    <div className="space-y-1 text-slate-700">
+                      <p><span className="font-semibold text-slate-500">Diagnosis:</span> {Array.isArray(exam.diagnoses) && exam.diagnoses.length ? exam.diagnoses.map((d: any) => d.title || d).join(', ') : '—'}</p>
+                      <p><span className="font-semibold text-slate-500">Plan:</span> {exam.treatmentPlanPathway || '—'}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Extra remarks */}
           <div className="mt-6">
