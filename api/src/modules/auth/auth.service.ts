@@ -2,10 +2,14 @@ import { Injectable, Inject, UnauthorizedException, ConflictException, BadReques
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { eq } from 'drizzle-orm';
+import { eq, and, gt } from 'drizzle-orm';
+import type { Request, Response } from 'express';
 import { DRIZZLE_PROVIDER } from '../../database/database.module';
-import { users } from '../../database/schema';
-import { LoginDto, RegisterStaffDto, RefreshDto, UpdateProfileDto } from './dto/auth.dto';
+import { users, sessions } from '../../database/schema';
+import { LoginDto, RegisterStaffDto, UpdateProfileDto } from './dto/auth.dto';
+
+const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const REFRESH_COOKIE = 'refresh_token';
 
 @Injectable()
 export class AuthService {
@@ -32,15 +36,74 @@ export class AuthService {
     };
   }
 
-  private async issueTokens(user: any) {
-    const payload = { sub: user.id, email: user.email, role: user.role };
-    const accessToken = this.jwtService.sign(payload);
+  private readRefreshCookie(req: Request): string | null {
+    const cookie = req.headers.cookie;
+    if (!cookie) return null;
+    const match = cookie.split(';').map(c => c.trim()).find(c => c.startsWith(`${REFRESH_COOKIE}=`));
+    return match ? decodeURIComponent(match.split('=').slice(1).join('=')) : null;
+  }
+
+  private setRefreshCookie(res: Response, token: string) {
+    const secure = process.env.COOKIE_SECURE === 'true';
+    res.cookie(REFRESH_COOKIE, token, {
+      httpOnly: true,
+      secure,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: REFRESH_TTL_MS,
+    });
+  }
+
+  private clearRefreshCookie(res: Response) {
+    const secure = process.env.COOKIE_SECURE === 'true';
+    res.clearCookie(REFRESH_COOKIE, { httpOnly: true, secure, sameSite: 'lax', path: '/' });
+  }
+
+  private getClientInfo(req: Request) {
+    return {
+      userAgent: req.headers['user-agent'] ?? null,
+      ip: (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || null,
+      deviceName: req.headers['x-device-name'] as string | null ?? null,
+    };
+  }
+
+  private async createSession(userId: string, req: Request, res: Response): Promise<{ accessToken: string; refreshToken: string }> {
     const refreshToken = this.generateRefreshToken();
-    await this.db
-      .update(users)
-      .set({ refreshToken: this.hashToken(refreshToken) })
-      .where(eq(users.id, user.id));
+    const client = this.getClientInfo(req);
+
+    await this.db.insert(sessions).values({
+      userId,
+      refreshTokenHash: this.hashToken(refreshToken),
+      expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
+      userAgent: client.userAgent,
+      ip: client.ip,
+      deviceName: client.deviceName,
+    });
+
+    this.setRefreshCookie(res, refreshToken);
+    const payload = { sub: userId };
+    const accessToken = this.jwtService.sign(payload);
+
     return { accessToken, refreshToken };
+  }
+
+  private async rotateSession(oldTokenHash: string, userId: string, req: Request, res: Response) {
+    await this.db.update(sessions).set({ revoked: true }).where(eq(sessions.refreshTokenHash, oldTokenHash));
+    return this.createSession(userId, req, res);
+  }
+
+  private async getValidSession(refreshToken: string) {
+    const tokenHash = this.hashToken(refreshToken);
+    const [session] = await this.db
+      .select()
+      .from(sessions)
+      .where(and(
+        eq(sessions.refreshTokenHash, tokenHash),
+        eq(sessions.revoked, false),
+        gt(sessions.expiresAt, new Date()),
+      ))
+      .limit(1);
+    return session ?? null;
   }
 
   async registerStaff(dto: RegisterStaffDto) {
@@ -71,7 +134,7 @@ export class AuthService {
     return newUser;
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, req: Request, res: Response) {
     const [user] = await this.db.select().from(users).where(eq(users.email, dto.email)).limit(1);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -82,31 +145,53 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const payload = { sub: user.id, email: user.email, role: user.role };
-    const { accessToken, refreshToken } = await this.issueTokens(user);
+    const { accessToken } = await this.createSession(user.id, req, res);
 
     return {
       accessToken,
-      refreshToken,
       user: this.buildUserPayload(user),
     };
   }
 
-  async refresh(dto: RefreshDto) {
-    const tokenHash = this.hashToken(dto.refreshToken);
-    const [user] = await this.db.select().from(users).where(eq(users.refreshToken, tokenHash)).limit(1);
-
-    if (!user) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
+  async refresh(req: Request, res: Response) {
+    const refreshToken = this.readRefreshCookie(req);
+    if (!refreshToken) {
+      throw new UnauthorizedException('No refresh token');
     }
 
-    const { accessToken, refreshToken } = await this.issueTokens(user);
+    const session = await this.getValidSession(refreshToken);
+    if (!session) {
+      this.clearRefreshCookie(res);
+      throw new UnauthorizedException('Invalid or expired session');
+    }
+
+    const { accessToken } = await this.rotateSession(session.refreshTokenHash, session.userId, req, res);
+
+    const [user] = await this.db.select().from(users).where(eq(users.id, session.userId)).limit(1);
+    if (!user) {
+      this.clearRefreshCookie(res);
+      throw new UnauthorizedException('User not found');
+    }
 
     return {
       accessToken,
-      refreshToken,
       user: this.buildUserPayload(user),
     };
+  }
+
+  async logout(req: Request, res: Response) {
+    const refreshToken = this.readRefreshCookie(req);
+    if (refreshToken) {
+      const tokenHash = this.hashToken(refreshToken);
+      await this.db.update(sessions).set({ revoked: true }).where(eq(sessions.refreshTokenHash, tokenHash));
+    }
+    this.clearRefreshCookie(res);
+    return { ok: true };
+  }
+
+  async revokeAll(userId: string) {
+    await this.db.update(sessions).set({ revoked: true }).where(eq(sessions.userId, userId));
+    return { ok: true };
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {

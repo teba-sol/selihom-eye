@@ -11,7 +11,7 @@ import { JwtStrategy } from './jwt.strategy';
     JwtModule.registerAsync({
       useFactory: () => ({
         secret: process.env.JWT_SECRET || 'selihome_clinical_jwt_secret_key_2026',
-        signOptions: { expiresIn: '12h' },
+        signOptions: { expiresIn: '15m' },
       }),
     }),
   ],

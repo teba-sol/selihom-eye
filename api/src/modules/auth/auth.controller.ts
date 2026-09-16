@@ -1,7 +1,8 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Patch, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Patch, UseGuards, Req, Res } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterStaffDto, RefreshDto, UpdateProfileDto } from './dto/auth.dto';
+import { LoginDto, RegisterStaffDto, UpdateProfileDto } from './dto/auth.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { RequestUser } from '../../common/decorators/current-user.decorator';
 
@@ -16,14 +17,27 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.authService.login(dto, req, res);
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  async refresh(@Body() dto: RefreshDto) {
-    return this.authService.refresh(dto);
+  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.authService.refresh(req, res);
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.authService.logout(req, res);
+  }
+
+  @Post('logout-all')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthGuard('jwt'))
+  async logoutAll(@CurrentUser() user: RequestUser) {
+    return this.authService.revokeAll(user.userId);
   }
 
   @Patch('me')

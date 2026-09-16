@@ -57,7 +57,6 @@ export const PatientsPage: React.FC = () => {
   const navigate = useNavigate();
   const patients = useAppStore((s) => s.patients);
   const loading = useAppStore((s) => s.loading);
-  const patientsLoaded = useAppStore((s) => s.patientsLoaded);
   const fetchPatients = useAppStore((s) => s.fetchPatients);
   const searchPatients = useAppStore((s) => s.searchPatients);
   const addPatient = useAppStore((s) => s.addPatient);
@@ -210,11 +209,17 @@ export const PatientsPage: React.FC = () => {
             {filtered.length} patients
           </div>
 
-          {loading || !patientsLoaded ? (
+          {loading ? (
             <TableSkeleton rows={10} cols={8} />
           ) : (
           <>
           <div className="overflow-x-auto">
+            {filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                <Users className="w-10 h-10 mb-2 opacity-40" />
+                <p className="text-sm font-medium">{search ? 'No patients match your search' : 'No patients registered yet'}</p>
+              </div>
+            ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[#1e3a5f] text-white text-xs uppercase tracking-wide">
@@ -288,6 +293,7 @@ export const PatientsPage: React.FC = () => {
                   })}
                 </tbody>
             </table>
+            )}
           </div>
 
           <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-white">

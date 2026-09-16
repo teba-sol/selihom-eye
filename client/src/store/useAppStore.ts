@@ -244,7 +244,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         loading: false,
       });
     } catch {
-      set({ loading: false });
+      set({ loading: false, patientsLoaded: true });
     }
   },
 

@@ -16,6 +16,20 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+// 1b. Auth sessions (refresh token rotation, multi-device)
+export const sessions = pgTable('sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  refreshTokenHash: text('refresh_token_hash').notNull().unique(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  userAgent: text('user_agent'),
+  ip: varchar('ip', { length: 64 }),
+  deviceName: text('device_name'),
+  revoked: boolean('revoked').default(false).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 // 2. Patient Master Record
 export const patients = pgTable('patients', {
   id: uuid('id').defaultRandom().primaryKey(),

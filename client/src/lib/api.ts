@@ -1,7 +1,26 @@
 import { toastSuccess } from './toast';
-import { notifySessionExpired } from './authExpired';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+
+export interface AuthUserInfo {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: 'RECEPTIONIST' | 'DOCTOR';
+}
+
+export interface AuthBridge {
+  onAuthenticated: (user: AuthUserInfo) => void;
+  onSessionEnded: () => void;
+}
+
+const REFRESH_MARGIN_MS = 60_000;
+
+let accessToken: string | null = null;
+let refreshPromise: Promise<boolean> | null = null;
+let autoRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let bridge: AuthBridge | null = null;
 
 function postSuccessMessage(url: string, data?: any): string {
   if (url.includes('/auth/login')) return '';
@@ -18,86 +37,114 @@ function postSuccessMessage(url: string, data?: any): string {
   return 'Saved successfully';
 }
 
-function getStoredState(): any | null {
+export function registerAuthBridge(b: AuthBridge) {
+  bridge = b;
+}
+
+export function clearAccessToken() {
+  accessToken = null;
+  if (autoRefreshTimer) {
+    clearTimeout(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+}
+
+export function applyAccessToken(token: string) {
+  accessToken = token;
+  scheduleAccessTokenRefresh(token);
+}
+
+function decodeBase64Url(input: string): string {
+  let base64 = input.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4 !== 0) base64 += '=';
+  return atob(base64);
+}
+
+function decodeExp(token: string): number | null {
   try {
-    const raw = localStorage.getItem('asira-auth');
-    if (!raw) return null;
-    return JSON.parse(raw);
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const payload = JSON.parse(decodeBase64Url(parts[1]));
+    return typeof payload.exp === 'number' ? payload.exp : null;
   } catch {
     return null;
   }
 }
 
-function getToken(): string | null {
-  return getStoredState()?.state?.token ?? null;
-}
-
-function getRefreshToken(): string | null {
-  return getStoredState()?.state?.refreshToken ?? null;
-}
-
-function updateStoredTokens(token: string, refreshToken: string) {
-  const stored = getStoredState();
-  if (stored && stored.state) {
-    stored.state.token = token;
-    stored.state.refreshToken = refreshToken;
-    localStorage.setItem('asira-auth', JSON.stringify(stored));
+function scheduleAccessTokenRefresh(token: string) {
+  if (autoRefreshTimer) {
+    clearTimeout(autoRefreshTimer);
+    autoRefreshTimer = null;
   }
+  const exp = decodeExp(token);
+  if (!exp) return;
+  const msUntilExp = exp * 1000 - Date.now();
+  const delay = Math.max(1000, msUntilExp - REFRESH_MARGIN_MS);
+  autoRefreshTimer = setTimeout(() => {
+    if (!accessToken) return;
+    refreshAccessToken().then((ok) => {
+      if (!ok) failAuthSession();
+    });
+  }, delay);
 }
 
-let refreshPromise: Promise<boolean> | null = null;
+function failAuthSession() {
+  clearAccessToken();
+  bridge?.onSessionEnded();
+}
+
+function deviceUserAgent(): string | undefined {
+  return navigator.userAgent.slice(0, 200);
+}
 
 async function refreshAccessToken(): Promise<boolean> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return false;
+  if (refreshPromise) return refreshPromise;
 
-  if (!refreshPromise) {
-    refreshPromise = (async () => {
-      try {
-        const res = await fetch(`${API_BASE}/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken }),
-        });
-        if (!res.ok) return false;
-        const data = await res.json();
-        if (!data.accessToken || !data.refreshToken) return false;
-        updateStoredTokens(data.accessToken, data.refreshToken);
-        return true;
-      } catch {
-        return false;
-      } finally {
-        refreshPromise = null;
-      }
-    })();
-  }
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (!data.accessToken) return false;
+      applyAccessToken(data.accessToken);
+      bridge?.onAuthenticated(data.user as AuthUserInfo);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
 
   return refreshPromise;
 }
 
 async function request<T>(method: string, url: string, data?: any, isRetry = false): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = getToken();
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+  const ua = deviceUserAgent();
+  if (ua) headers['X-Device-Name'] = ua;
 
   const res = await fetch(`${API_BASE}${url}`, {
     method,
     headers,
+    credentials: 'include',
     body: data !== undefined ? JSON.stringify(data) : undefined,
   });
 
   if (res.status === 401 && !url.includes('/auth/')) {
-    // Try silent refresh once, then retry the original request.
     if (!isRetry) {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
         return request<T>(method, url, data, true);
       }
     }
-    // No longer force-logout. Notify the app so it can prompt for a password
-    // while preserving the current work.
-    notifySessionExpired();
-    throw new Error('Session expired. Please re-enter your password to continue.');
+    failAuthSession();
+    throw new Error('Session expired. Please log in again.');
   }
 
   if (!res.ok) {
@@ -124,4 +171,6 @@ export const api = {
   },
   patch: <T>(url: string, data?: any) => request<T>('PATCH', url, data),
   delete: <T>(url: string) => request<T>('DELETE', url),
+  refreshAccessToken,
+  getAccessToken: () => accessToken,
 };

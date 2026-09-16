@@ -1,7 +1,8 @@
-import React, { lazy, Suspense } from 'react';
+import React, { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ProtectedRoute } from './components/ProtectedRoute';
+import { SessionGate } from './components/SessionGate';
 import { PageLoader } from './components/LoadingSkeleton';
+import { useAuthStore } from './store/useAuthStore';
 
 const LoginPage = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
 const PatientsPage = lazy(() => import('./pages/PatientsPage').then((m) => ({ default: m.PatientsPage })));
@@ -66,11 +67,12 @@ export default function App() {
   return (
     <AppErrorBoundary>
       <BrowserRouter>
+        <SessionBootstrap />
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
 
-            <Route element={<ProtectedRoute />}>
+            <Route element={<SessionGate />}>
               <Route path="/patients" element={<PatientsPage />} />
               <Route path="/appointments" element={<AppointmentsPage />} />
               <Route path="/surgeries" element={<SurgeriesPage />} />
@@ -86,4 +88,11 @@ export default function App() {
       </BrowserRouter>
     </AppErrorBoundary>
   );
+}
+
+function SessionBootstrap() {
+  useEffect(() => {
+    useAuthStore.getState().restoreSession();
+  }, []);
+  return null;
 }

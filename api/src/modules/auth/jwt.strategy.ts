@@ -15,7 +15,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: string; email: string; role: 'RECEPTIONIST' | 'DOCTOR' }) {
+  async validate(payload: { sub: string }) {
     const [user] = await this.db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
     if (!user) {
       throw new UnauthorizedException('User account not found or deactivated');

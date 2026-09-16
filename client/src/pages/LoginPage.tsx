@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, ArrowRight, Activity } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
+import { PageLoader } from '../components/LoadingSkeleton';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const restoring = useAuthStore((s) => s.restoring);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,6 +26,14 @@ export const LoginPage: React.FC = () => {
       }
     }
   }, [isAuthenticated, navigate]);
+
+  if (restoring) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+        <PageLoader label="Restoring session…" />
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
