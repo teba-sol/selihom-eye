@@ -528,6 +528,22 @@ export class ClinicalService {
   }
 
   // ─────────────────────────────────────────────────────────────
+  // UNLOCK (reopen a finalized exam for editing)
+  // ─────────────────────────────────────────────────────────────
+  async unlockEncounter(id: string) {
+    const [row] = await this.db
+      .update(clinicalEncounters)
+      .set({ isLocked: false, lockedAt: null, updatedAt: new Date() })
+      .where(eq(clinicalEncounters.id, id))
+      .returning();
+
+    if (!row) {
+      throw new NotFoundException(`Encounter with ID ${id} not found`);
+    }
+    return row;
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // LOCK
   // ─────────────────────────────────────────────────────────────
   async lockEncounter(id: string) {

@@ -77,13 +77,26 @@ export function formatAge(dob: string): string {
     const t = gregorianToEthiopian(today.getFullYear(), today.getMonth() + 1, today.getDate());
     const ethMatch = dob.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
     if (!ethMatch) return '0 yrs';
-    
-    ageY = t.year - Number(ethMatch[3]);
-    ageM = t.month - Number(ethMatch[2]);
-    ageD = t.day - Number(ethMatch[1]);
-    
+
+    // Age in whole Ethiopian years: count the year difference without borrowing
+    // a year just because the birth month/day falls later in the current
+    // Ethiopian year — a 9-year-old stays "9 yrs" even a day before the birthday.
+    const birthYear = Number(ethMatch[3]);
+    const birthMonth = Number(ethMatch[2]);
+    const birthDay = Number(ethMatch[1]);
+    ageY = t.year - birthYear;
+
+    if (ageY >= 1) {
+      return `${ageY} yrs`;
+    }
+
+    // Under one year old: report months/days instead.
+    ageM = t.month - birthMonth;
+    ageD = t.day - birthDay;
     if (ageD < 0) { ageM--; ageD += 30; }
-    if (ageM < 0) { ageY--; ageM += 13; }
+    if (ageM < 0) return `${Math.max(0, ageD)} days`;
+    if (ageM > 0) return `${ageM} mos`;
+    return `${Math.max(0, ageD)} days`;
   } else {
     ageY = today.getFullYear() - birth.getFullYear();
     ageM = today.getMonth() - birth.getMonth();

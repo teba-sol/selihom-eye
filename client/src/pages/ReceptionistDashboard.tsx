@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { UserPlus, Search, Calendar, Users, LogOut, Printer, CheckCircle2, Eye, Receipt, Settings } from 'lucide-react';
+import { UserPlus, Search, Calendar, Users, LogOut, Printer, CheckCircle2, Eye, Receipt, Settings, UserPen } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/useAppStore';
+import type { Patient } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { AddPatientModal } from '../components/AddPatientModal';
 import { api } from '../lib/api';
@@ -82,6 +83,7 @@ interface ApiPatient {
   dob: string | null;
   gender: string | null;
   phone: string;
+  address?: string | null;
   createdAt: string;
 }
 
@@ -95,17 +97,33 @@ interface ApiAppointment {
   patient?: { firstName: string; lastName: string; phone: string };
 }
 
+function toEditPatient(p: ApiPatient) {
+  return {
+    id: p.id,
+    mrn: p.mrn,
+    firstName: p.firstName,
+    lastName: p.lastName,
+    grandfatherName: p.grandfatherName ?? undefined,
+    gender: (p.gender as Patient['gender']) || 'Other',
+    dateOfBirth: p.dob || '',
+    phone: p.phone,
+    address: p.address ?? undefined,
+  };
+}
+
 export const ReceptionistDashboard: React.FC = () => {
   const navigate = useNavigate();
   const addPatient = useAppStore((s) => s.addPatient);
+  const updatePatient = useAppStore((s) => s.updatePatient);
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
 
   const [showModal, setShowModal] = useState(false);
   const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<ApiPatient[]>([]);
-  const [searching, setSearching] = useState(false);
+  const [patients, setPatients] = useState<ApiPatient[]>([]);
+  const [patientsLoading, setPatientsLoading] = useState(true);
+  const [editPatient, setEditPatient] = useState<ApiPatient | null>(null);
 
   const [todayAppts, setTodayAppts] = useState<ApiAppointment[]>([]);
   const [recentRegistrations, setRecentRegistrations] = useState<ApiPatient[]>([]);
@@ -117,6 +135,12 @@ export const ReceptionistDashboard: React.FC = () => {
   const [orderFilter, setOrderFilter] = useState('');
   const [registrationFilter, setRegistrationFilter] = useState('');
   const [appointmentFilter, setAppointmentFilter] = useState('');
+
+  const visiblePatients = patients.filter((p) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return `${p.mrn} ${p.firstName} ${p.lastName} ${p.grandfatherName ?? ''} ${p.phone}`.toLowerCase().includes(q);
+  });
 
   const patientBillings = aggregateByPatient(billingQueue);
   const includesFilter = (value: string, filter: string) => value.toLowerCase().includes(filter.trim().toLowerCase());
@@ -184,6 +208,7 @@ export const ReceptionistDashboard: React.FC = () => {
       setTodayAppts(todayApts);
       fetchBillingQueue();
 
+      setPatients(allPatients.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '') || (b.id || '').localeCompare(a.id || '')));
       const recent = allPatients
         .slice()
         .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
@@ -191,6 +216,8 @@ export const ReceptionistDashboard: React.FC = () => {
       setRecentRegistrations(recent);
     } catch {
       // silent
+    } finally {
+      setPatientsLoading(false);
     }
   };
 
@@ -201,35 +228,6 @@ export const ReceptionistDashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    const q = searchQuery.trim();
-    if (!q) {
-      setSearchResults([]);
-      setSearching(false);
-      return;
-    }
-    setSearching(true);
-    const timer = setTimeout(async () => {
-      try {
-        const results = await api.get<ApiPatient[]>(`/patients?q=${encodeURIComponent(q)}`);
-        if (active) {
-          setSearchResults(results);
-          setSearching(false);
-        }
-      } catch {
-        if (active) {
-          setSearchResults([]);
-          setSearching(false);
-        }
-      }
-    }, 300);
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [searchQuery]);
-
   const handleSave = async (data: any) => {
     try {
       await addPatient(data);
@@ -238,6 +236,27 @@ export const ReceptionistDashboard: React.FC = () => {
       return true;
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to register patient');
+      return false;
+    }
+  };
+
+  const handleUpdate = async (data: any) => {
+    try {
+      await updatePatient(data.id, {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        grandfatherName: data.grandfatherName,
+        gender: data.gender,
+        dateOfBirth: data.dateOfBirth,
+        phone: data.phone,
+        address: data.address,
+      });
+      setEditPatient(null);
+      fetchDashboardData();
+      toast.success('Patient profile updated');
+      return true;
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to update patient profile');
       return false;
     }
   };
@@ -320,7 +339,7 @@ export const ReceptionistDashboard: React.FC = () => {
 
           {/* Main feature card — 50/50 register | search */}
           <div className="bg-white rounded-3xl shadow-xl shadow-teal-100/70 border-2 border-teal-100 overflow-hidden mb-8 hover:shadow-2xl hover:shadow-teal-200/60 hover:border-teal-200 transition-all duration-300">
-            <div className="grid md:grid-cols-2 md:min-h-[520px]">
+            <div className="grid md:grid-cols-2 md:h-[520px]">
               {/* LEFT — register */}
               <div className="flex flex-col items-center justify-center text-center px-12 py-16 md:border-r border-teal-100 bg-gradient-to-br from-teal-50/70 via-white to-emerald-50/40 relative overflow-hidden">
                 <div className="absolute -top-20 -right-20 w-64 h-64 bg-teal-200/30 rounded-full blur-3xl"></div>
@@ -343,16 +362,19 @@ export const ReceptionistDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* RIGHT — search */}
-              <div className="flex flex-col px-10 py-10 bg-gradient-to-br from-white to-teal-50/30">
+              {/* RIGHT — patients */}
+              <div className="flex flex-col px-10 py-10 bg-gradient-to-br from-white to-teal-50/30 min-h-0">
                 <div className="flex items-center gap-2 mb-1">
                   <div className="p-1.5 rounded-lg bg-gradient-to-br from-teal-100 to-emerald-100 shadow-sm">
-                    <Search className="w-4 h-4 text-teal-600" />
+                    <Users className="w-4 h-4 text-teal-600" />
                   </div>
-                  <h2 className="text-sm font-extrabold text-slate-700 uppercase tracking-wider">Patient Search</h2>
+                  <h2 className="text-sm font-extrabold text-slate-700 uppercase tracking-wider">Patients</h2>
+                  <span className="ml-auto text-[10px] font-bold bg-gradient-to-r from-teal-100 to-emerald-100 text-teal-700 px-2.5 py-0.5 rounded-full border border-teal-200">
+                    {patients.length} total
+                  </span>
                 </div>
                 <p className="text-xs text-slate-400 mb-5">
-                  Find an existing patient by name, MRN, or phone.
+                  Scroll the list and tap the edit icon to open a patient profile in edit mode.
                 </p>
                 <div className="relative mb-5">
                   <input
@@ -362,16 +384,22 @@ export const ReceptionistDashboard: React.FC = () => {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full px-5 py-3.5 text-sm bg-white border-2 border-slate-200 rounded-2xl focus:outline-none focus:border-teal-400 focus:ring-4 focus:ring-teal-100 transition-all placeholder:text-slate-400 pr-12 shadow-sm"
                   />
-                  {searching && (
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-teal-500 font-medium flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
-                      Searching...
-                    </span>
-                  )}
+                  <Search className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-teal-400" />
                 </div>
 
                 <div className="flex-1 min-h-0">
-                  {searchResults.length > 0 ? (
+                  {patientsLoading ? (
+                    <div className="h-full flex items-center justify-center">
+                      <div className="h-full flex-1 grid place-items-center">
+                        <div className="h-full flex-1 grid place-items-center">
+                          <span className="text-xs text-teal-500 font-medium flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
+                            Loading patients...
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : visiblePatients.length > 0 ? (
                     <div className="h-full overflow-y-auto rounded-2xl bg-white border border-teal-100 p-2 shadow-inner">
                       <table className="w-full text-sm">
                         <thead>
@@ -380,28 +408,29 @@ export const ReceptionistDashboard: React.FC = () => {
                             <th className="pb-2 font-semibold px-2">Name</th>
                             <th className="pb-2 font-semibold px-2">Phone</th>
                             <th className="pb-2 font-semibold px-2">DOB</th>
+                            <th className="pb-2 font-semibold px-2"></th>
                           </tr>
                         </thead>
                         <tbody>
-                          {searchResults.map((p) => (
+                          {visiblePatients.map((p) => (
                             <tr key={p.id} className="border-b border-slate-100 hover:bg-gradient-to-r hover:from-teal-50 hover:to-emerald-50 transition-all group">
                               <td className="py-2.5 px-2 font-semibold text-slate-700 group-hover:text-teal-700">{p.mrn}</td>
                               <td className="py-2.5 px-2 text-slate-800 font-medium">{p.firstName} {p.lastName}</td>
                               <td className="py-2.5 px-2 text-slate-600">{p.phone}</td>
                               <td className="py-2.5 px-2 text-slate-600">{formatDobEthiopian(p.dob || '')}</td>
+                              <td className="py-2.5 px-2 text-right">
+                                <button
+                                  onClick={() => setEditPatient(p)}
+                                  title={`Edit ${p.firstName} ${p.lastName}`}
+                                  className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-teal-50 border border-teal-100 text-teal-700 hover:bg-teal-100 hover:scale-110 transition-all"
+                                >
+                                  <UserPen className="w-4 h-4" />
+                                </button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
-                    </div>
-                  ) : searchQuery.trim() && !searching ? (
-                    <div className="h-full flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-2">
-                          <Search className="w-5 h-5 text-slate-300" />
-                        </div>
-                        <p className="text-sm text-slate-400">No patients found</p>
-                      </div>
                     </div>
                   ) : (
                     <div className="h-full flex items-center justify-center">
@@ -409,7 +438,7 @@ export const ReceptionistDashboard: React.FC = () => {
                         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-teal-50 to-emerald-50 border border-teal-100 flex items-center justify-center mx-auto mb-2">
                           <Search className="w-5 h-5 text-teal-300" />
                         </div>
-                        <p className="text-sm text-slate-400">Type to search patients</p>
+                        <p className="text-sm text-slate-400">{searchQuery.trim() ? 'No patients found' : 'No patients yet'}</p>
                       </div>
                     </div>
                   )}
@@ -825,6 +854,16 @@ export const ReceptionistDashboard: React.FC = () => {
         onClose={() => setShowModal(false)}
         onSave={handleSave}
       />
+
+      {editPatient && (
+        <AddPatientModal
+          open
+          initial={toEditPatient(editPatient)}
+          onClose={() => setEditPatient(null)}
+          onSave={handleSave}
+          onUpdate={handleUpdate}
+        />
+      )}
 
     </div>
   );

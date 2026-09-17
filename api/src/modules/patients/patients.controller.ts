@@ -1,7 +1,7 @@
-import { Controller, Post, Get, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PatientsService } from './patients.service';
-import { CreatePatientDto } from './dto/patient.dto';
+import { CreatePatientDto, UpdatePatientDto } from './dto/patient.dto';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
 
 @Controller('patients')
@@ -19,6 +19,12 @@ export class PatientsController {
   @Roles('RECEPTIONIST', 'DOCTOR')
   async search(@Query('q') q: string) {
     return this.patientsService.search(q);
+  }
+
+  @Patch(':id')
+  @Roles('RECEPTIONIST', 'DOCTOR')
+  async update(@Param('id') id: string, @Body() dto: UpdatePatientDto) {
+    return this.patientsService.update(id, dto);
   }
 
   @Get('export-records')

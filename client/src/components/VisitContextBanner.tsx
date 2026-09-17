@@ -1,5 +1,5 @@
 import React from 'react';
-import { Lock, History, CheckCircle2, PenLine, Loader2 } from 'lucide-react';
+import { Lock, History, CheckCircle2, PenLine, FileEdit, Loader2 } from 'lucide-react';
 import { useEncounterStore } from '../store/useEncounterStore';
 import { usePatientRecordData, type ExamHistoryEntry } from '../hooks/usePatientRecordData';
 import { isCompletedExam } from '../components/ExamHistoryModal';
@@ -10,6 +10,7 @@ interface VisitContextBannerProps {
   onOpenHistory: () => void;
   onFinalize: () => void;
   onOpenCorrection: () => void;
+  onReopen: () => void;
   finalizing: boolean;
   finalizeError: string | null;
 }
@@ -18,6 +19,7 @@ export const VisitContextBanner: React.FC<VisitContextBannerProps> = ({
   onOpenHistory,
   onFinalize,
   onOpenCorrection,
+  onReopen,
   finalizing,
   finalizeError,
 }) => {
@@ -76,13 +78,22 @@ export const VisitContextBanner: React.FC<VisitContextBannerProps> = ({
             </button>
           )}
           {isLocked ? (
-            <button
-              onClick={onOpenCorrection}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-md"
-            >
-              <PenLine className="w-3.5 h-3.5" />
-              Add correction
-            </button>
+            <>
+              <button
+                onClick={onReopen}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#2563eb] hover:bg-[#1d4ed8] rounded-md"
+              >
+                <FileEdit className="w-3.5 h-3.5" />
+                Edit exam
+              </button>
+              <button
+                onClick={onOpenCorrection}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-md"
+              >
+                <PenLine className="w-3.5 h-3.5" />
+                Add correction
+              </button>
+            </>
           ) : (
             <button
               onClick={onFinalize}

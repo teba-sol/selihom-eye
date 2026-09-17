@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import type { Patient } from '../store/useAppStore';
 import { Field } from './ExamDetails';
-import { formatAge, formatEthiopianDate } from '../lib/formatters';
+import { formatAge, formatDobEthiopian, formatEthiopianDate } from '../lib/formatters';
 import { usePatientRecordData, type ExamHistoryEntry } from '../hooks/usePatientRecordData';
 import { doctorName, humanize } from '../lib/examHistory';
 import { buildClinicalDashboard } from '../lib/clinicalDashboard';
@@ -121,7 +121,7 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
                   <Field label="Full Name" value={`${patient.firstName} ${patient.lastName}`}/>
                   <Field label="Father's / Grandfather" value={patient.grandfatherName ?? '-'}/>
                   <Field label="Sex" value={patient.gender}/>
-                  <Field label="Date of Birth" value={patient.dateOfBirth ? formatEthiopianDate(patient.dateOfBirth) : '-'}/>
+                  <Field label="Date of Birth" value={patient.dateOfBirth ? formatDobEthiopian(patient.dateOfBirth) : '-'}/>
                   <Field label="Age" value={formatAge(patient.dateOfBirth)}/>
                   <Field label="Phone" value={patient.phone}/>
                   <Field label="Registered" value={patient.createdAt ? formatEthiopianDate(patient.createdAt) : '-'}/>

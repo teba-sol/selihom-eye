@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X, Calendar, User, FileText, Phone, Building2, ShieldCheck, ChevronDown, UserCheck, MapPin } from 'lucide-react';
 import type { Patient } from '../store/useAppStore';
 import { REGION_DATA, SW_REGION_KEY, SW_KEBELE_DATA } from '../data/regionData';
@@ -9,9 +9,14 @@ interface AddPatientModalProps {
   // May return a Promise; the modal only closes when it resolves success
   // (does not reject/false). Lets callers keep the form open on save failure.
   onSave: (patient: Omit<Patient, 'id'>) => Promise<boolean> | boolean;
+  // Optional: when provided the form is pre-filled and becomes an edit form
+  // (MRN is read-only, title/action switch to "Edit Patient Profile").
+  initial?: Patient | null;
+  onUpdate?: (patient: Patient) => Promise<boolean> | boolean;
 }
 
-export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose, onSave }) => {
+export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose, onSave, initial, onUpdate }) => {
+  const prefilledIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!open) return;
 
@@ -731,6 +736,49 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
     (window as any).toggleReferralField();
     initAddressDropdowns();
 
+    // Edit mode: pre-fill every field from the existing patient.
+    if (initial && initial.id && prefilledIdRef.current !== initial.id) {
+      prefilledIdRef.current = initial.id;
+      const setVal = (id: string, v: string) => {
+        const el = document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null;
+        if (el) el.value = v;
+      };
+      setVal('firstName', initial.firstName || '');
+      setVal('fatherName', initial.lastName || '');
+      setVal('grandfatherName', initial.grandfatherName || '');
+      setVal('sex', initial.gender === 'Female' ? 'F' : 'M');
+      setVal('phoneNumber', initial.phone || '');
+      setVal('mrn', initial.mrn || '');
+
+      const dobMatch = (initial.dateOfBirth || '').match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+      if (dobMatch) {
+        setVal('ethDobD', dobMatch[1].padStart(2, '0'));
+        setVal('ethDobM', dobMatch[2].padStart(2, '0'));
+        setVal('ethDobY', dobMatch[3]);
+        updateGregorianReadout();
+        const ethG = ethiopianToGregorian(Number(dobMatch[3]), Number(dobMatch[2]), Number(dobMatch[1]));
+        calculateAge(ethG.year, ethG.month, ethG.day);
+      }
+
+      const parts = (initial.address || '').split(',').map((s) => s.trim()).filter(Boolean).reverse();
+      const regionName = parts[0] || SW_REGION_KEY;
+      const zoneName = parts[1] || '';
+      const woredaName = parts[2] || '';
+      const ketenaName = parts[3] || '';
+      const kebeleName = parts[4] || '';
+
+      setVal('region', regionName);
+      setVal('zone', zoneName);
+      setVal('woreda', woredaName);
+      populateZonesForRegion(regionName);
+      populateWoredasForZone(regionName, zoneName);
+      setVal('ketena', ketenaName);
+      setVal('kebele', kebeleName);
+      populateKebeleSuggestionsForWoreda();
+      setVal('ketena', ketenaName);
+      setVal('kebele', kebeleName);
+    }
+
     // Wire up age -> year auto-calculation
     (window as any).__tryCalculateYearFromAge = tryCalculateYearFromAge;
     (window as any).__handleAgeUnitChange = handleAgeUnitChange;
@@ -863,7 +911,12 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
 
         (async () => {
           try {
-            const ok = await onSave(patientData);
+            let ok: boolean;
+            if (initial && onUpdate) {
+              ok = await onUpdate({ ...patientData, id: initial.id });
+            } else {
+              ok = await onSave(patientData);
+            }
             if (ok !== false) onClose();
           } catch {
             // Leave the modal open so the user can correct the form.
@@ -874,7 +927,7 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
       return () => form.removeEventListener('submit', handleSubmit);
     }
 
-  }, [open, onSave, onClose]);
+  }, [open, onSave, onClose, initial, onUpdate]);
 
   if (!open) return null;
 
@@ -884,8 +937,14 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
         {/* Header */}
         <div className="px-8 py-6 flex items-center justify-between rounded-t-2xl border-b border-slate-100">
           <div>
-            <h2 className="text-2xl font-extrabold tracking-tight text-[#1e3a8a]">Patient Registration</h2>
-            <p className="text-xs text-slate-500 mt-1">የታካሚ ምዝገባ · Complete patient information</p>
+            <h2 className="text-2xl font-extrabold tracking-tight text-[#1e3a8a]">
+              {initial ? 'Edit Patient Profile' : 'Patient Registration'}
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              {initial
+                ? `${initial.firstName} ${initial.lastName} · ${initial.mrn ?? `SEL-${initial.id}`}`
+                : 'የታካሚ ምዝገባ · Complete patient information'}
+            </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-[#1e3a8a] transition-colors">
             <X className="w-6 h-6" />
@@ -932,8 +991,12 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">MRN (Medical Record Number)</label>
-                <input type="text" id="mrn" required className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-extrabold" placeholder="e.g. 0001/18" />
-                <p className="text-[11px] text-slate-500 mt-1.5">4-digit sequence / last 2 digits of Ethiopian year</p>
+                <input type="text" id="mrn" required readOnly={!!initial} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-extrabold" placeholder="e.g. 0001/18" />
+                {initial ? (
+                  <p className="text-[11px] text-slate-500 mt-1.5">MRN is auto-assigned and cannot be changed</p>
+                ) : (
+                  <p className="text-[11px] text-slate-500 mt-1.5">4-digit sequence / last 2 digits of Ethiopian year</p>
+                )}
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Facility Name</label>
@@ -1115,7 +1178,7 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ open, onClose,
             </button>
             <button type="submit" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3 bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-bold rounded-xl shadow-md transition-colors">
               <UserCheck className="w-5 h-5" />
-              Register patient
+              {initial ? 'Save changes' : 'Register patient'}
             </button>
           </div>
         </form>

@@ -165,6 +165,7 @@ interface AppState {
   fetchCompletedExamCounts: (force?: boolean) => Promise<void>;
 
   addPatient: (patient: Omit<Patient, 'id'>) => Promise<void>;
+  updatePatient: (id: string, patch: Partial<Pick<Patient, 'firstName' | 'lastName' | 'grandfatherName' | 'gender' | 'dateOfBirth' | 'phone' | 'address'>>) => Promise<void>;
   searchPatients: (query: string) => Patient[];
   addAppointment: (apt: Omit<Appointment, 'id' | 'status'>) => Promise<string>;
   updateAppointment: (id: string, data: Partial<Appointment>) => Promise<void>;
@@ -369,6 +370,27 @@ export const useAppStore = create<AppState>((set, get) => ({
         (p.mrn && p.mrn.toLowerCase().includes(q)) ||
         p.id.includes(q),
     );
+  },
+
+  updatePatient: async (id, patch) => {
+    try {
+      const updated = await api.patch<ApiPatient>(`/patients/${id}`, {
+        firstName: patch.firstName,
+        lastName: patch.lastName,
+        grandfatherName: patch.grandfatherName || undefined,
+        dob: patch.dateOfBirth || null,
+        gender: patch.gender || null,
+        phone: patch.phone,
+        address: patch.address || null,
+      });
+      const mapped = mapPatient(updated);
+      set((s) => ({
+        patients: s.patients.map((p) => (p.id === id ? { ...mapped, isNew: p.isNew } : p)),
+      }));
+    } catch (err) {
+      console.error('Failed to update patient:', err);
+      throw err;
+    }
   },
 
   addAppointment: async (apt) => {

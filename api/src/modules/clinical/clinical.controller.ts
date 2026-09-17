@@ -50,6 +50,12 @@ export class ClinicalController {
     return this.clinicalService.lockEncounter(id);
   }
 
+  @Patch('encounter/:id/unlock')
+  @Roles('DOCTOR')
+  async unlockEncounter(@Param('id') id: string) {
+    return this.clinicalService.unlockEncounter(id);
+  }
+
   @Delete('encounter/:id')
   @Roles('DOCTOR')
   async deleteEncounter(@Param('id') id: string) {

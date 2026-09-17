@@ -2,7 +2,7 @@ import { Injectable, Inject, NotFoundException, ConflictException, HttpException
 import { eq, or, ilike, desc } from 'drizzle-orm';
 import { DRIZZLE_PROVIDER } from '../../database/database.module';
 import { patients, clinicalEncounters, users } from '../../database/schema';
-import { CreatePatientDto } from './dto/patient.dto';
+import { CreatePatientDto, UpdatePatientDto } from './dto/patient.dto';
 
 @Injectable()
 export class PatientsService {
@@ -78,6 +78,44 @@ export class PatientsService {
       throw new NotFoundException(`Patient with ID ${id} not found`);
     }
     return patient;
+  }
+
+  async update(id: string, dto: UpdatePatientDto) {
+    const [existing] = await this.db
+      .select({ id: patients.id })
+      .from(patients)
+      .where(eq(patients.id, id))
+      .limit(1);
+    if (!existing) {
+      throw new NotFoundException(`Patient with ID ${id} not found`);
+    }
+
+    try {
+      const values: Record<string, unknown> = { updatedAt: new Date() };
+      if (dto.firstName !== undefined) values.firstName = dto.firstName;
+      if (dto.lastName !== undefined) values.lastName = dto.lastName;
+      if (dto.grandfatherName !== undefined) values.grandfatherName = dto.grandfatherName || null;
+      if (dto.dob !== undefined) values.dob = dto.dob ? dto.dob : null;
+      if (dto.gender !== undefined) values.gender = dto.gender || null;
+      if (dto.phone !== undefined) values.phone = dto.phone?.trim() || '';
+      if (dto.address !== undefined) values.address = dto.address || null;
+
+      const [updated] = await this.db
+        .update(patients)
+        .set(values)
+        .where(eq(patients.id, id))
+        .returning();
+      return updated;
+    } catch (err: any) {
+      const code = err?.code ?? err?.cause?.code;
+      if (code === '53100') {
+        throw new HttpException(
+          'Database storage is full. A doctor must clear archived patient records before editing patient information.',
+          HttpStatus.INSUFFICIENT_STORAGE,
+        );
+      }
+      throw err;
+    }
   }
 
   async exportFinalizedRecords() {
