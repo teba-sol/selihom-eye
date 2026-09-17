@@ -1,5 +1,5 @@
 import React from 'react';
-import { Lock, History, CheckCircle2, PenLine, FileEdit, Loader2 } from 'lucide-react';
+import { History, PenLine, FileEdit, Loader2 } from 'lucide-react';
 import { useEncounterStore } from '../store/useEncounterStore';
 import { usePatientRecordData, type ExamHistoryEntry } from '../hooks/usePatientRecordData';
 import { isCompletedExam } from '../components/ExamHistoryModal';
@@ -31,38 +31,20 @@ export const VisitContextBanner: React.FC<VisitContextBannerProps> = ({
   const addendumNotes = useEncounterStore((s) => s.addendumNotes);
 
   const record = usePatientRecordData(patientId || null);
-  const completedPast = record.history.filter(
-    (h: ExamHistoryEntry) => h.id !== encounterId && isCompletedExam(h),
-  );
-  const pastCount = completedPast.length;
-  const lastExam = completedPast[0] ?? null;
-  const isFollowUp = pastCount > 0;
+  const otherExams = record.history.filter((h: ExamHistoryEntry) => h.id !== encounterId);
+  const pastCount = otherExams.length;
+  const lastExam = otherExams.filter(isCompletedExam)[0] ?? null;
   const addendums = parseAddendums(addendumNotes);
 
   return (
     <div className="border-b border-slate-200 bg-white px-5 py-3 shadow-xs">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
-          <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wide ${
-            isFollowUp
-              ? 'bg-blue-100 text-blue-700'
-              : 'bg-emerald-100 text-emerald-700'
-          }`}>
-            {isFollowUp ? 'Follow-up examination' : 'First examination'}
-          </span>
           <span className="text-sm font-semibold text-slate-700">{patientName}</span>
           <span className="text-xs text-slate-500">MRN: {patientMrn || '—'}</span>
           {pastCount > 0 && (
             <span className="text-xs text-slate-400">
               · {pastCount} previous visit{pastCount !== 1 ? 's' : ''}
-            </span>
-          )}
-          {isLocked && (
-            <span className="inline-flex items-center gap-1 text-xs font-bold text-green-700 bg-green-100 border border-green-200 rounded-full px-2.5 py-1">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Examination finalized
-              <Lock className="w-3 h-3" />
-              <span className="normal-case font-semibold">Read-only</span>
             </span>
           )}
         </div>
@@ -74,7 +56,7 @@ export const VisitContextBanner: React.FC<VisitContextBannerProps> = ({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#2563eb] bg-blue-50 hover:bg-blue-100 rounded-md"
             >
               <History className="w-3.5 h-3.5" />
-              Previous examinations ({pastCount})
+              Examinations ({pastCount})
             </button>
           )}
           {isLocked ? (

@@ -12,7 +12,6 @@ import { AddCorrectionModal } from '../components/AddCorrectionModal';
 import { readDraft, clearDraft } from '../lib/draft';
 import { api } from '../lib/api';
 import { lazy, Suspense, useState, useMemo, useRef, type ComponentType } from 'react';
-import { Lock, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 const lazyView = (
   loader: () => Promise<Record<string, ComponentType>>,
@@ -103,14 +102,11 @@ export function ExamDashboard() {
   const patientName = useEncounterStore((s) => s.patient.name);
   const setActiveTab = useEncounterStore((s) => s.setActiveTab);
   const saveEncounter = useEncounterStore((s) => s.saveEncounter);
-  const dismissDraftNotice = useEncounterStore((s) => s.dismissDraftNotice);
-  const draftNotice = useEncounterStore((s) => s.draftNotice);
 
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showCorrection, setShowCorrection] = useState(false);
-  const [showLockedNotice, setShowLockedNotice] = useState(false);
   const retriedOnceRef = useRef(false);
 
   useDraftPersistence();
@@ -129,7 +125,6 @@ export function ExamDashboard() {
     if (!target.closest('button, input, textarea, select, [contenteditable="true"]')) return;
     event.preventDefault();
     event.stopPropagation();
-    setShowLockedNotice(true);
   };
 
   const handleSaveAndExit = async (isRetry = false) => {
@@ -147,7 +142,6 @@ export function ExamDashboard() {
       await api.patch(`/clinical/encounter/${eid}/lock`);
       useEncounterStore.getState().markExamFinalized(eid);
       clearDraft(eid);
-      useEncounterStore.getState().dismissDraftNotice();
       navigate('/patients');
     } catch (err: any) {
       if (!retriedOnceRef.current) {
@@ -238,31 +232,7 @@ export function ExamDashboard() {
         finalizeError={finalizeError}
       />
 
-      {draftNotice && !isLocked && (
-        <div className="mx-5 mt-3 flex items-center justify-between gap-3 flex-wrap bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
-          <span className="text-xs font-medium text-amber-800">
-            <AlertTriangle className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />
-            You have an unsaved draft from{' '}
-            {new Date(draftNotice.savedAt).toLocaleTimeString()}.
-          </span>
-          <span className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => useEncounterStore.getState().discardDraft()}
-              className="px-2.5 py-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100"
-            >
-              Discard
-            </button>
-            <button
-              type="button"
-              onClick={dismissDraftNotice}
-              className="px-2.5 py-1 text-xs font-semibold text-amber-800 bg-white border border-amber-300 rounded-md hover:bg-amber-100"
-            >
-              Keep working
-            </button>
-          </span>
-        </div>
-      )}
+
 
       <div className="flex flex-1 overflow-hidden">
         <AsiraSidebar />
@@ -310,13 +280,6 @@ export function ExamDashboard() {
           <span className="text-sm font-bold text-slate-700">
             {findSectionForTab(activeTab)?.label ?? activeTab.replace(/-/g, ' ')}
           </span>
-          {isLocked && (
-            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-100 border border-green-200 rounded-full px-3 py-2">
-              <CheckCircle2 className="w-4 h-4" />
-              Examination finalized
-              <Lock className="w-3.5 h-3.5" />
-            </span>
-          )}
         </div>
 
         <button
@@ -346,22 +309,6 @@ export function ExamDashboard() {
         />
       )}
 
-      {showLockedNotice && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-            <div className="flex items-center gap-2 text-amber-700">
-              <Lock className="h-5 w-5" />
-              <h2 className="text-base font-bold">Examination finalized</h2>
-            </div>
-            <p className="mt-3 text-sm leading-relaxed text-slate-600">
-              Editing this examination is not allowed after finalization. Use the Add Correction option to create an append-only clinical addendum.
-            </p>
-            <button type="button" onClick={() => setShowLockedNotice(false)} className="mt-5 w-full rounded-md bg-[#1e3a5f] px-4 py-2 text-sm font-semibold text-white hover:bg-[#152c49]">
-              OK
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+      </div>
   );
 }

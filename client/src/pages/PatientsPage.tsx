@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, History, FileText, UserPlus, X, RefreshCw, Loader2 } from 'lucide-react';
+import { Users, History, FileText, UserPlus, ClipboardList, X, RefreshCw, Loader2 } from 'lucide-react';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { AddPatientModal } from '../components/AddPatientModal';
 import { PatientRecordModal } from '../components/PatientRecordModal';
@@ -10,8 +10,6 @@ import { useEncounterStore } from '../store/useEncounterStore';
 import { formatDobEthiopian, formatAge, patientFullName, formatEthiopianDate } from '../lib/formatters';
 import { useToast } from '../lib/toast';
 import { TableSkeleton } from '../components/LoadingSkeleton';
-import { DraftResumeModal } from '../components/DraftResumeModal';
-import { isResumedDraft } from '../lib/draftResume';
 import { api } from '../lib/api';
 import type { Patient } from '../store/useAppStore';
 
@@ -23,17 +21,18 @@ function openExamForPatient(
   patient: Patient,
   encounter: Record<string, any>,
   startExam: ReturnType<typeof useEncounterStore.getState>['startExam'],
-  loadEncounterFromDb: ReturnType<typeof useEncounterStore.getState>['loadEncounterFromDb'],
   navigate: NavigateFunction,
 ) {
   const encounterId = encounter.id;
-  // The POST /clinical/encounter response is the fully hydrated encounter, so
-  // hydrate the store directly here. The exam screen's useExamLoader then sees
-  // dataLoaded === true and skips its own GET — no second round-trip.
   let reason = '';
   if (typeof encounter.reasonForVisit === 'string') reason = encounter.reasonForVisit;
   else reason = encounter.reasonForVisit?.selectedReason ?? '';
 
+  // Seed the store so the exam screen mounts into a clean "loading" state, but
+  // leave dataLoaded === false. The exam screen's useExamLoader then hydrates
+  // from the DB and applies any newer locally-saved draft — so resuming via
+  // the patient-list icon picks up "from where the doctor left off" exactly
+  // like the patient-record "Continue" button does.
   startExam({
     encounterId,
     appointmentId: encounter.appointmentId ?? null,
@@ -49,7 +48,6 @@ function openExamForPatient(
       reasonForVisit: reason,
     },
   });
-  loadEncounterFromDb(encounter);
   navigate(`/exam/${encounterId}`);
 }
 
@@ -83,14 +81,41 @@ export const PatientsPage: React.FC = () => {
   const toast = useToast();
 
   const [startingExamId, setStartingExamId] = useState<string | null>(null);
-  const [resumeDraft, setResumeDraft] = useState<{ patient: Patient; encounter: Record<string, any> } | null>(null);
+  // Maps patientId -> id of their in-progress (unlocked) exam, if any. Drives
+  // the "Continue examination" label so the list never falsely suggests
+  // starting a brand-new exam while a draft is in progress.
+  const [inProgressExams, setInProgressExams] = useState<Record<string, string>>({});
   const [refreshing, setRefreshing] = useState(false);
+
+  const loadInProgressExams = async () => {
+    const map: Record<string, string> = {};
+    await Promise.all(
+      patients.map(async (p) => {
+        try {
+          const history = await api.get<any[]>(`/clinical/patient/${p.id}/history`);
+          const draft = (history ?? []).find(
+            (h: any) => !h.isLocked && h.appointmentStatus !== 'COMPLETED',
+          );
+          map[p.id] = draft?.id ?? '';
+        } catch {
+          map[p.id] = '';
+        }
+      }),
+    );
+    setInProgressExams(map);
+  };
+
+  useEffect(() => {
+    loadInProgressExams();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patients]);
 
   const handleRefresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
     try {
       await Promise.all([fetchPatients(undefined, true), fetchCompletedExamCounts(true)]);
+      await loadInProgressExams();
     } catch {
       toast.error('Failed to refresh patients');
     } finally {
@@ -122,36 +147,33 @@ export const PatientsPage: React.FC = () => {
   const handleOpenExam = async (patient: Patient) => {
     setStartingExamId(patient.id);
     try {
-      const loadEncounterFromDb = useEncounterStore.getState().loadEncounterFromDb;
+      // Continue an in-progress draft/unsaved examination straight away — no
+      // create call is made while one exists.
+      const history = await api.get<any[]>(`/clinical/patient/${patient.id}/history`);
+      const draft = (history ?? []).find(
+        (h: any) => !h.isLocked && h.appointmentStatus !== 'COMPLETED',
+      );
+      if (draft) {
+        navigate(`/exam/${draft.id}`);
+        return;
+      }
 
-      // Single round-trip: POST /clinical/encounter both resumes an existing
-      // in-progress (unlocked) encounter for this patient and otherwise creates
-      // one new exam — the backend's active-exam safety net guarantees at most
-      // one open encounter, and its response is the fully hydrated exam. The
-      // response hydrates the store directly, so the exam screen opens with no
-      // additional fetch (no delay) and preserves any existing reason/data.
+      // No open draft: start a brand-new examination.
       const encounter = await api.post<any>(
         '/clinical/encounter',
         { patientId: patient.id },
         { toast: false },
       );
-      if (isResumedDraft(encounter)) {
-        setResumeDraft({ patient, encounter });
-        return;
-      }
       toast.success('Examination started successfully.');
-      openExamForPatient(patient, encounter, startExam, loadEncounterFromDb, navigate);
+      openExamForPatient(patient, encounter, startExam, navigate);
     } catch (e: any) {
+      // Rare race: another tab created a draft between the history fetch and
+      // the create call. Just continue it instead of erroring out.
       if (e?.code === 'DRAFT_EXISTS' || e?.payload?.code === 'DRAFT_EXISTS') {
         const draftId = e?.payload?.draftEncounterId ?? e?.draftEncounterId;
-        try {
-          const encounter = draftId ? await api.get<any>(`/clinical/encounter/${draftId}`) : null;
-          if (encounter) {
-            setResumeDraft({ patient, encounter });
-            return;
-          }
-        } catch {
-          // fall through to toast if the draft can't be fetched
+        if (draftId) {
+          navigate(`/exam/${draftId}`);
+          return;
         }
       }
       toast.error('Failed to start examination.');
@@ -265,7 +287,7 @@ export const PatientsPage: React.FC = () => {
                           className="flex items-center gap-1.5 text-[#2563eb] hover:underline text-xs"
                         >
                           <History className="w-3.5 h-3.5" />
-                          Past exams
+                          Exams
                         </button>
                         <button
                           onClick={() => setPaperRecordPatient(p)}
@@ -277,14 +299,17 @@ export const PatientsPage: React.FC = () => {
                         <button
                           onClick={() => handleOpenExam(p)}
                           disabled={startingExamId !== null}
-                          className="text-[#2563eb] hover:text-[#1d4ed8] disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Start examination"
+                          className="flex items-center gap-1.5 text-[#2563eb] hover:underline text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={inProgressExams[p.id] ? 'Continue examination' : 'Start examination'}
                         >
                           {startingExamId === p.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : inProgressExams[p.id] ? (
+                            <ClipboardList className="w-3.5 h-3.5" />
                           ) : (
-                            <UserPlus className="w-4 h-4" />
+                            <UserPlus className="w-3.5 h-3.5" />
                           )}
+                          {inProgressExams[p.id] ? 'Continue examination' : 'Start examination'}
                         </button>
                       </div>
 </td>
@@ -380,18 +405,6 @@ export const PatientsPage: React.FC = () => {
           patient={examHistoryPatient}
           onClose={() => setExamHistoryPatient(null)}
           onCreateExam={() => { setExamHistoryPatient(null); handleOpenExam(examHistoryPatient); }}
-        />
-      )}
-
-      {resumeDraft && (
-        <DraftResumeModal
-          patientName={patientFullName(resumeDraft.patient)}
-          onCancel={() => setResumeDraft(null)}
-          onContinue={() => {
-            const loadEncounterFromDb = useEncounterStore.getState().loadEncounterFromDb;
-            openExamForPatient(resumeDraft.patient, resumeDraft.encounter, startExam, loadEncounterFromDb, navigate);
-            setResumeDraft(null);
-          }}
         />
       )}
     </DashboardLayout>

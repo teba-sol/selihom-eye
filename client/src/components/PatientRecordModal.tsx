@@ -1,17 +1,14 @@
-import React, { useEffect, useCallback, useState, useMemo } from 'react';
+import React, { useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  X, Eye, Calendar, Plus, Loader2, Trash2, History, CalendarDays,
+  X, Eye, Loader2, CalendarDays,
 } from 'lucide-react';
 import type { Patient } from '../store/useAppStore';
 import { Field } from './ExamDetails';
 import { formatAge, formatDobEthiopian, formatEthiopianDate } from '../lib/formatters';
-import { usePatientRecordData, type ExamHistoryEntry } from '../hooks/usePatientRecordData';
-import { doctorName, humanize } from '../lib/examHistory';
+import { usePatientRecordData } from '../hooks/usePatientRecordData';
+import { humanize } from '../lib/examHistory';
 import { buildClinicalDashboard } from '../lib/clinicalDashboard';
-import { useToast } from '../lib/toast';
-import { ConfirmDialog } from './ConfirmDialog';
-import { ExamHistoryModal } from './ExamHistoryModal';
 import { ClinicalSummarySection } from './ClinicalSummarySection';
 
 interface PatientRecordModalProps {
@@ -25,25 +22,6 @@ const FACILITY = 'SELIHOME Ophthalmic Medium Clinic';
 export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient, onClose, onOpenExam }) => {
   const navigate = useNavigate();
   const record = usePatientRecordData(patient.id);
-  const toast = useToast();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<ExamHistoryEntry | null>(null);
-  const [showPastExams, setShowPastExams] = useState(false);
-
-  const handleDeleteDraft = async (entry: ExamHistoryEntry) => {
-    setDeletingId(entry.id);
-    try {
-      const { api } = await import('../lib/api');
-      await api.delete(`/clinical/encounter/${entry.id}`);
-      toast.success('Draft examination deleted.');
-      record.refresh();
-    } catch (e: any) {
-      toast.error(e?.message ?? 'Failed to delete the draft examination.');
-    } finally {
-      setDeletingId(null);
-      setConfirmDelete(null);
-    }
-  };
 
   useEffect(() => {
     if (!record.loading) record.preloadSnapshots();
@@ -58,14 +36,6 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
     onClose();
     navigate(`/exam/${id}`);
   }, [navigate, onClose]);
-
-  const inProgress = useMemo(
-    () =>
-      record.history
-        .filter((entry) => !entry.isLocked && entry.appointmentStatus !== 'COMPLETED')
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-    [record.history],
-  );
 
   const nextAppointment = useMemo(() => {
     const today = new Date();
@@ -141,71 +111,6 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
 
               <ClinicalSummarySection dashboard={dashboard} onOpenExam={openExam} />
 
-              <section>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                    Active examinations <span className="text-slate-400">({inProgress.length})</span>
-                  </p>
-                  <button
-                    onClick={() => setShowPastExams(true)}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-[#2563eb] hover:underline"
-                  >
-                    <History className="w-3.5 h-3.5"/> View past examinations
-                  </button>
-                </div>
-
-                {inProgress.length === 0 ? (
-                  <div className="text-center py-8 text-slate-400">
-                    <Calendar className="w-10 h-10 mx-auto mb-2 opacity-40"/>
-                    <p className="text-sm font-semibold text-slate-500">No active examinations.</p>
-                    <p className="text-xs mt-1 mb-3">Start an examination to begin the patient's record.</p>
-                    <button onClick={onOpenExam}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-semibold rounded-md transition-colors">
-                      <Plus className="w-3.5 h-3.5"/> Create examination
-                    </button>
-                  </div>
-                ) : (
-                  inProgress.map((entry) => (
-                    <div key={entry.id} className="border border-amber-200 bg-amber-50 rounded-xl overflow-hidden mb-3">
-                      <div className="flex items-start justify-between px-4 py-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-bold text-slate-800">
-                              {formatEthiopianDate(entry.createdAt ?? entry.appointmentDate)}
-                            </span>
-                            <span className="text-[10px] font-bold text-[#2563eb] bg-blue-50 rounded-full px-2 py-0.5 uppercase tracking-wide">
-                              {entry.appointmentReason || 'Routine Eye Examination'}
-                            </span>
-                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 rounded-full px-2 py-0.5 uppercase tracking-wide">
-                              Draft
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            {entry.doctor ? doctorName(entry.doctor.firstName, entry.doctor.lastName) : '—'}
-                          </p>
-                        </div>
-                        <div className="ml-3 mt-0.5 flex items-center gap-2 shrink-0">
-                          <button
-                            onClick={() => setConfirmDelete(entry)}
-                            disabled={deletingId === entry.id}
-                            className="flex items-center gap-1.5 px-3 py-1.5 border border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-semibold transition-colors shrink-0 disabled:opacity-50"
-                          >
-                            {deletingId === entry.id ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Trash2 className="w-3.5 h-3.5"/>}
-                            Delete draft
-                          </button>
-                          <button
-                            onClick={() => openExam(entry.id)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-lg text-xs font-semibold transition-colors shrink-0"
-                          >
-                            <Eye className="w-3.5 h-3.5"/> Continue
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </section>
-
               {(nextAppointment || previousAppointments.length > 0) && (
                 <section>
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">
@@ -237,32 +142,6 @@ export const PatientRecordModal: React.FC<PatientRecordModalProps> = ({ patient,
           )}
         </div>
       </div>
-
-      {confirmDelete && (
-        <ConfirmDialog
-          title="Delete draft examination?"
-          message={
-            <>
-              This will permanently remove the in-progress examination for{' '}
-              <span className="font-semibold">
-                {patient.firstName} {patient.lastName}
-              </span>
-              . This cannot be undone.
-            </>
-          }
-          busy={deletingId === confirmDelete.id}
-          onConfirm={() => handleDeleteDraft(confirmDelete)}
-          onCancel={() => setConfirmDelete(null)}
-        />
-      )}
-
-      {showPastExams && (
-        <ExamHistoryModal
-          patient={patient}
-          onClose={() => setShowPastExams(false)}
-          onCreateExam={() => { setShowPastExams(false); onOpenExam(); }}
-        />
-      )}
     </div>
   );
 };

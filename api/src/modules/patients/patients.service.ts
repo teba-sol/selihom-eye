@@ -1,5 +1,5 @@
 import { Injectable, Inject, NotFoundException, ConflictException, HttpException, HttpStatus } from '@nestjs/common';
-import { eq, or, ilike, desc } from 'drizzle-orm';
+import { eq, or, ilike, desc, sql } from 'drizzle-orm';
 import { DRIZZLE_PROVIDER } from '../../database/database.module';
 import { patients, clinicalEncounters, users } from '../../database/schema';
 import { CreatePatientDto, UpdatePatientDto } from './dto/patient.dto';
@@ -116,6 +116,23 @@ export class PatientsService {
       }
       throw err;
     }
+  }
+
+  async getStorageStatus() {
+    const [row] = await this.db.execute(
+      sql`SELECT pg_database_size(current_database())::bigint AS bytes`,
+    );
+    const usedBytes = Number(row?.bytes ?? 0);
+    const limitMb = Number(process.env.DB_STORAGE_LIMIT_MB ?? 500);
+    const thresholdPct = Number(process.env.DB_STORAGE_HIGH_PCT ?? 80);
+    const usedMb = usedBytes / (1024 * 1024);
+    const percent = limitMb > 0 ? (usedMb / limitMb) * 100 : 0;
+    return {
+      usedMb: Math.round(usedMb * 100) / 100,
+      limitMb,
+      percent: Math.round(percent * 100) / 100,
+      high: percent >= thresholdPct,
+    };
   }
 
   async exportFinalizedRecords() {

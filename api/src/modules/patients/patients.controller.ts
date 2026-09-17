@@ -40,6 +40,12 @@ export class PatientsController {
     return this.patientsService.purgePatientRecords();
   }
 
+  @Get('storage')
+  @Roles('DOCTOR')
+  async storage() {
+    return this.patientsService.getStorageStatus();
+  }
+
   @Get(':id')
   @Roles('RECEPTIONIST', 'DOCTOR')
   async findById(@Param('id') id: string) {

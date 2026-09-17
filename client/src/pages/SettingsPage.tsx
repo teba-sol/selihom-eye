@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { useAuthStore } from '../store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +8,13 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../lib/toast';
 
 type Tab = 'name' | 'email' | 'password';
+
+interface StorageStatus {
+  usedMb: number;
+  limitMb: number;
+  percent: number;
+  high: boolean;
+}
 
 export const SettingsPage: React.FC = () => {
   const user = useAuthStore((s) => s.user);
@@ -44,12 +51,27 @@ export const SettingsPage: React.FC = () => {
   const [cleaningDatabase, setCleaningDatabase] = useState(false);
   const toast = useToast();
 
+  const [storage, setStorage] = useState<StorageStatus | null>(null);
+
+  const loadStorageStatus = async () => {
+    try {
+      const s = await api.get<StorageStatus>('/patients/storage');
+      setStorage(s);
+    } catch {
+      setStorage(null);
+    }
+  };
+  useEffect(() => {
+    loadStorageStatus();
+  }, []);
+
   const cleanDatabase = async () => {
     setCleaningDatabase(true);
     try {
       const result = await api.delete<{ deletedPatients: number }>('/patients/purge');
       setShowCleanDatabase(false);
       toast.success(`Database cleaned: ${result.deletedPatients} patient record(s) removed.`);
+      await loadStorageStatus();
     } catch (err: any) {
       toast.error(err?.message ?? 'Could not clean the database.');
     } finally {
@@ -283,11 +305,14 @@ export const SettingsPage: React.FC = () => {
           </form>
         )}
 
-        {!isReceptionist && (
+        {!isReceptionist && storage?.high && (
           <section className="mt-8 rounded-xl border border-rose-200 bg-rose-50 p-5">
             <h2 className="text-sm font-bold text-rose-800">Database maintenance</h2>
             <p className="mt-1 text-xs leading-relaxed text-rose-700">
               Remove every patient, appointment, examination, billing, and optical-order record to free database storage. Staff accounts are kept. Export any patient PDFs first.
+              <span className="block mt-1.5 font-semibold">
+                Current usage: {storage.usedMb} MB of {storage.limitMb} MB ({storage.percent}%).
+              </span>
             </p>
             <button
               type="button"
