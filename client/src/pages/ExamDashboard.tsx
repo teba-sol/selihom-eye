@@ -9,7 +9,6 @@ import { useDraftPersistence } from '../hooks/useDraftPersistence';
 import { VisitContextBanner } from '../components/VisitContextBanner';
 import { ExamHistoryModal } from '../components/ExamHistoryModal';
 import { AddCorrectionModal } from '../components/AddCorrectionModal';
-import { ConfirmDialog } from '../components/ConfirmDialog';
 import { readDraft, clearDraft } from '../lib/draft';
 import { api } from '../lib/api';
 import { lazy, Suspense, useState, useMemo, useRef, type ComponentType } from 'react';
@@ -112,8 +111,6 @@ export function ExamDashboard() {
   const [showHistory, setShowHistory] = useState(false);
   const [showCorrection, setShowCorrection] = useState(false);
   const [showLockedNotice, setShowLockedNotice] = useState(false);
-  const [showReopenConfirm, setShowReopenConfirm] = useState(false);
-  const [reopening, setReopening] = useState(false);
   const retriedOnceRef = useRef(false);
 
   useDraftPersistence();
@@ -151,7 +148,7 @@ export function ExamDashboard() {
       useEncounterStore.getState().markExamFinalized(eid);
       clearDraft(eid);
       useEncounterStore.getState().dismissDraftNotice();
-      navigate('/appointments');
+      navigate('/patients');
     } catch (err: any) {
       if (!retriedOnceRef.current) {
         retriedOnceRef.current = true;
@@ -190,8 +187,6 @@ export function ExamDashboard() {
     const st = useEncounterStore.getState();
     const eid = st.encounterId;
     if (!eid) return;
-    setReopening(true);
-    setShowReopenConfirm(false);
     try {
       await api.patch(`/clinical/encounter/${eid}/unlock`);
       const data = await api.get<any>(`/clinical/encounter/${eid}`);
@@ -201,8 +196,6 @@ export function ExamDashboard() {
       setFinalizeError(null);
     } catch (err: any) {
       setFinalizeError(err?.message ?? 'Could not re-open the exam for editing.');
-    } finally {
-      setReopening(false);
     }
   };
 
@@ -240,7 +233,7 @@ export function ExamDashboard() {
         onOpenHistory={() => setShowHistory(true)}
         onFinalize={handleSaveAndExit}
         onOpenCorrection={() => setShowCorrection(true)}
-        onReopen={() => setShowReopenConfirm(true)}
+        onReopen={handleReopenExam}
         finalizing={finalizing}
         finalizeError={finalizeError}
       />
@@ -350,18 +343,6 @@ export function ExamDashboard() {
           patientName={patientName}
           onClose={() => setShowCorrection(false)}
           onSaved={handleCorrectionSaved}
-        />
-      )}
-
-      {showReopenConfirm && (
-        <ConfirmDialog
-          title="Edit finalized exam?"
-          message="This re-opens the finalized exam so you can update it. It will remain unlocked until you Save &amp; Exit, which re-finalizes it."
-          confirmLabel="Re-open for editing"
-          cancelLabel="Cancel"
-          busy={reopening}
-          onConfirm={handleReopenExam}
-          onCancel={() => setShowReopenConfirm(false)}
         />
       )}
 
